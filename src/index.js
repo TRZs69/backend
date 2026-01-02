@@ -25,10 +25,30 @@ const app = express();
 app.use(express.json());
 
 // app.use(multer({storage: fileStorage, fileFilter: fileFilter}).single('image'));
+// Allow local dev hosts plus the original deployed host.
+// Allow listed hosts and any localhost/127.0.0.1 origin (mobile/web dev serve random ports)
+const allowedOrigins = [
+  "http://31.97.67.152:7700",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://172.29.176.1:5173",
+  "http://10.84.4.200:5173",
+];
+
 app.use(
   cors({
-    origin: ["http://31.97.67.152:7700"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: (origin, callback) => {
+      const isLocalhost =
+        origin &&
+        (origin.startsWith("http://localhost") ||
+          origin.startsWith("http://127.0.0.1"));
+
+      if (!origin || allowedOrigins.includes(origin) || isLocalhost) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   }),
 );

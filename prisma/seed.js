@@ -1,10 +1,65 @@
 // prisma/seed.js
 const { PrismaClient, Role, QuestType, BadgeType } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const path = require('path');
+const fs = require('fs');
+const { createClient } = require('@supabase/supabase-js');
 const prisma = new PrismaClient();
+
+async function ensureBadgesBucketAndUpload() {
+  const assetsUrl = process.env.SUPABASE_ASSETS_URL;
+  const serviceKey = process.env.SUPABASE_ASSETS_SERVICE_ROLE_KEY
+
+  if (!serviceKey) {
+    console.warn('[seed] Skipping storage upload: missing SUPABASE_ASSETS_SERVICE_ROLE_KEY');
+    return { assetsUrl };
+  }
+
+  const supabase = createClient(assetsUrl, serviceKey);
+
+  try {
+    const { data: bucket } = await supabase.storage.getBucket('badges');
+    if (!bucket) {
+      const { error: createErr } = await supabase.storage.createBucket('badges', { public: true });
+      if (createErr) {
+        console.warn('[seed] Failed to create badges bucket:', createErr.message);
+      }
+    }
+  } catch (e) {
+    // continue even if bucket check fails
+    console.warn('[seed] Bucket check error:', e.message || e);
+  }
+
+  const localDir = path.resolve(__dirname, '../../Mobile/lib/assets/badges');
+  const wantFiles = ['imk-1.png', 'imk-2.png', 'imk-3.png'];
+  for (const f of wantFiles) {
+    try {
+      const full = path.join(localDir, f);
+      if (!fs.existsSync(full)) {
+        console.warn(`[seed] Local badge image not found, skipping: ${full}`);
+        continue;
+      }
+      const bytes = fs.readFileSync(full);
+      const { error: upErr } = await supabase.storage.from('badges').upload(f, bytes, {
+        contentType: 'image/png',
+        upsert: true,
+      });
+      if (upErr) {
+        console.warn(`[seed] Upload failed for ${f}:`, upErr.message);
+      } else {
+        console.log(`[seed] Uploaded ${f} to badges bucket`);
+      }
+    } catch (e) {
+      console.warn('[seed] Upload step error:', e.message || e);
+    }
+  }
+
+  return { assetsUrl };
+}
 
 async function main() {
   try {
+    const { assetsUrl } = await ensureBadgesBucketAndUpload();
 
     // Create Users
     const hashedPassword = await bcrypt.hash('password', 10);
@@ -2070,7 +2125,7 @@ async function main() {
       data: {
         name: 'Beginner Designer',
         type: BadgeType.BEGINNER,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//imk-1.png',
+        image: `${assetsUrl}/storage/v1/object/public/badges/imk-1.png`,
         courseId: course1.id,
         chapterId: chapter3.id,
       },
@@ -2080,7 +2135,7 @@ async function main() {
       data: {
         name: 'Intermediate Designer',
         type: BadgeType.INTERMEDIATE,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//imk-2.png',
+        image: `${assetsUrl}/storage/v1/object/public/badges/imk-2.png`,
         courseId: course1.id,
         chapterId: chapter6.id,
       },
@@ -2090,7 +2145,7 @@ async function main() {
       data: {
         name: 'Advance Designer',
         type: BadgeType.ADVANCE,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//imk-3.png',
+        image: `${assetsUrl}/storage/v1/object/public/badges/imk-3.png`,
         courseId: course1.id,
         chapterId: chapter8.id,
       },
@@ -2100,7 +2155,7 @@ async function main() {
       data: {
         name: 'Beginner Login',
         type: BadgeType.BEGINNER,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//login-1.png',
+        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/login-1.png',
         courseId: course2.id,
         chapterId: chapter1.id,
       },
@@ -2110,7 +2165,7 @@ async function main() {
       data: {
         name: 'Intermediate Login',
         type: BadgeType.INTERMEDIATE,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//login-2.png',
+        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/login-2.png',
         courseId: course2.id,
         chapterId: chapter2.id,
       },
@@ -2120,7 +2175,7 @@ async function main() {
       data: {
         name: 'Advance Login',
         type: BadgeType.ADVANCE,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//login-3.png',
+        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/login-3.png',
         courseId: course2.id,
         chapterId: chapter3.id,
       },
@@ -2130,7 +2185,7 @@ async function main() {
       data: {
         name: 'Beginner TBFA',
         type: BadgeType.BEGINNER,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//tbfa-1.png',
+        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/tbfa-1.png',
         courseId: course3.id,
         chapterId: chapter1.id,
       },
@@ -2140,7 +2195,7 @@ async function main() {
       data: {
         name: 'Intermediate TBFA',
         type: BadgeType.INTERMEDIATE,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//tbfa-2.png',
+        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/tbfa-2.png',
         courseId: course3.id,
         chapterId: chapter2.id,
       },
@@ -2150,7 +2205,7 @@ async function main() {
       data: {
         name: 'Advance TBFA',
         type: BadgeType.ADVANCE,
-        image: 'https://izqdlgxwetajwkatptnt.supabase.co/storage/v1/object/public/badges//tbfa-3.png',
+        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/tbfa-3.png',
         courseId: course3.id,
         chapterId: chapter3.id,
       },

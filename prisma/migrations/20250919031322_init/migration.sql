@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE `users` MODIFY `points` INTEGER NULL DEFAULT 0,
+    MODIFY `totalCourses` INTEGER NULL DEFAULT 0,
+    MODIFY `badges` INTEGER NULL DEFAULT 0,
+    MODIFY `image` VARCHAR(191) NULL DEFAULT '';

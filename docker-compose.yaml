@@ -5,6 +5,7 @@ services:
     build: .
     container_name: graphci
     working_dir: /app/levelearn/api/backend
+    restart: unless-stopped
     environment:
       - DATABASE_URL=mysql://root:root@db:3306/graphci
       - JWT_SECRET=your_jwt_secret_here
@@ -19,6 +20,7 @@ services:
   db:
     image: mysql:latest
     container_name: mysql-db
+    restart: unless-stopped
     environment:
       - MYSQL_ROOT_PASSWORD=root 
       - MYSQL_DATABASE=graphci   

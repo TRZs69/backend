@@ -1,0 +1,31 @@
+Server is running on port 7000
+{
+  id: 23,
+  username: 'ranty',
+  password: '$2b$10$sgmnRsiR/aUMkeJQfbJu.e4J/Z7Zi/pO5x8aVHT2K0qtBTZnCw.PW',
+  name: 'Ranty',
+  role: 'INSTRUCTOR',
+  studentId: null,
+  points: 0,
+  totalCourses: 0,
+  badges: 0,
+  instructorId: 'RDS',
+  instructorCourses: 0,
+  image: '',
+  createdAt: 2025-12-06T06:06:23.859Z,
+  updatedAt: 2025-12-06T06:06:23.859Z
+}
+No badge found for user with id 23
+No trade found for user with id 23
+No badge found for user with id 21
+No trade found for user with id 21
+No badge found for user with id 23
+No trade found for user with id 23
+getAllBadges successfully requested
+getAllBadges successfully requested
+getAllTrades successfully requested
+getAllTrades successfully requested
+No badge found for user with id 23
+No trade found for user with id 23
+getAllTrades successfully requested
+getAllTrades successfully requested
