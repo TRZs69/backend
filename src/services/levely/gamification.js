@@ -1,7 +1,6 @@
 const {
   LevelyBadge,
   LevelyBadgeId,
-  LevelyProgress,
   QuizDifficulty,
   TopicProgress,
 } = require('./models');

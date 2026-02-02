@@ -20,7 +20,6 @@ module.exports = {
   systemPrompt,
   contextPrompt,
   LevelyGamification,
-  quizBank,
   InMemoryLevelyProgressRepository,
   ...models,
 };

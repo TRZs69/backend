@@ -7,7 +7,9 @@ class LevelyLlmClient {
 }
 
 class GeminiApiClient extends LevelyLlmClient {
-  constructor({ apiKey, model = 'gemini-1.5-pro', baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models' }) {
+  constructor({ apiKey = process.env.LEVELY_GEMINI_API_KEY, 
+    model = process.env.LEVELY_GEMINI_MODEL, 
+    baseUrl = process.env.LEVELY_GEMINI_BASE_URL}) {
     super();
     this.apiKey = apiKey;
     this.model = model;

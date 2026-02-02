@@ -1,6 +1,3 @@
-const defaultGeminiModel = 'gemini-3-flash';
-const defaultGeminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
-
 function resolveLevelyLlmConfig({ overrides = {}, allowOverrides = false } = {}) {
   const sources = [];
   if (allowOverrides) {
@@ -22,7 +19,7 @@ function resolveLevelyLlmConfig({ overrides = {}, allowOverrides = false } = {})
 
 function cleanOverrides(overrides = {}) {
   return {
-    apiKey: cleanString(overrides.apiKey),
+    apiKey: cleanString(overrides.apiKey), 
     model: cleanString(overrides.model),
     baseUrl: cleanString(overrides.baseUrl),
   };
