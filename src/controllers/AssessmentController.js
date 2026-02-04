@@ -70,10 +70,24 @@ const deleteAssessment = async (req, res) => {
     }
 };
 
+// Controller untuk submit assessment
+const submitAssessment = async (req, res) => {
+    try {
+        const { userId, chapterId, answers } = req.body;
+
+        const result = await assessmentService.processSubmission(userId, chapterId, answers);
+        
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAllAssessments,
     getAssessmentById,
     createAssessment,
     updateAssessment,
-    deleteAssessment
+    deleteAssessment,
+    submitAssessment
 };

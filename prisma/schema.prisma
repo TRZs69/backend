@@ -171,6 +171,10 @@ model UserChapter {
   timeFinished    DateTime  @default(now())
   assignmentScore     Int     @default(0)
   assignmentFeedback  String  @default("")
+  currentDifficulty Difficulty @default(EASY)
+  correctStreak     Int        @default(0)
+  wrongStreak       Int        @default(0)
+  lastAiFeedback    String?    @db.Text
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -252,4 +256,10 @@ model UserTrade {
   @@index([userId])
   @@index([tradeId])
   @@map("user_trades")
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
 }

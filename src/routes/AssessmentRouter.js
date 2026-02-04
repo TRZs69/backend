@@ -19,4 +19,7 @@ router.put('/assessment/:id', assessmentController.updateAssessment);
 // Router for delete assessment by id
 router.delete('/assessment/:id', assessmentController.deleteAssessment);
 
+// Route for submitting assessment answers
+router.post('/assessment/submit', assessmentController.submitAssessment);
+
 module.exports = router;
