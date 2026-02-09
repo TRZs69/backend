@@ -72,6 +72,10 @@ app.use("/api", userBadgeRoutes);
 app.use("/api", tradeRoutes);
 app.use("/api", userTradeRoutes);
 
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
 app.get('/', (req, res) => {
   res.json({ status: 'ok' });
 });
