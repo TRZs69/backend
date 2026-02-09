@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch --env-file=.env ./src/index.js",
     "start": "node ./src/index.js",
-    "test": "nodemon index.js"
+    "test": "nodemon index.js",
+    "postinstall": "prisma generate"
   },
   "author": "archico",
   "license": "ISC",
