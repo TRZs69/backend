@@ -73,6 +73,9 @@ app.use("/api", tradeRoutes);
 app.use("/api", userTradeRoutes);
 
 const PORT = process.env.PORT || 7000;
+if (process.env.VERCEL !== "1")
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = app;
