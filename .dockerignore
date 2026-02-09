@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+Dockerfile*
+.git
+.gitignore
+.env
+.env.*
+prisma/dev.db
+**/*.You log
+coverage
+.vscode
+.idea
+.DS_Store

@@ -1,4 +1,5 @@
-const { GeminiClient } = require('./GeminiClient');
+const { GoogleAIClient } = require('./GoogleAIClient');
+const chatHistoryStore = require('./ChatHistoryRepository');
 
 const ensureGoogleCredentials = () => {
 	if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -14,7 +15,7 @@ const ensureGoogleCredentials = () => {
 	}
 };
 
-const buildGeminiClient = () => {
+const buildGoogleAIClient = () => {
 	ensureGoogleCredentials();
 	const apiKey = process.env.LEVELY_GEMINI_API_KEY;
 	const model = process.env.LEVELY_GEMINI_MODEL || 'gemma-3-12b-it';
@@ -25,10 +26,10 @@ const buildGeminiClient = () => {
 		return null;
 	}
 
-	return new GeminiClient({ apiKey, model, baseUrl });
+	return new GoogleAIClient({ apiKey, model, baseUrl });
 };
 
-const llmClient = buildGeminiClient();
+const llmClient = buildGoogleAIClient();
 
 const normalizeHistory = (history = []) => {
 	if (!Array.isArray(history)) {
@@ -51,37 +52,7 @@ const normalizeHistory = (history = []) => {
 		.slice(-10);
 };
 
-const formatReply = (text = '') => {
-	if (typeof text !== 'string') {
-		return '';
-	}
-
-	let output = text.replace(/\r\n/g, '\n');
-	output = output.replace(/```([\s\S]*?)```/g, (_, block) => block.trim());
-	output = output.replace(/`([^`]+)`/g, '$1');
-	output = output.replace(/\*\*([^*]+)\*\*/g, '$1');
-	output = output.replace(/__([^_]+)__/g, '$1');
-	output = output.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).]|$)/g, '$1$2');
-	output = output.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).]|$)/g, '$1$2');
-
-	output = output
-		.split('\n')
-		.map((line) => {
-			const trimmed = line.trim();
-			if (!trimmed) {
-				return '';
-			}
-			if (/^[-*+]\s+/.test(trimmed)) {
-				return `• ${trimmed.replace(/^[-*+]\s+/, '')}`;
-			}
-			return trimmed;
-		})
-		.join('\n');
-
-	return output.replace(/\n{3,}/g, '\n\n').trim();
-};
-
-exports.sendMessage = async ({ message, history = [] }) => {
+exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId }) => {
 	const prompt = (message || '').trim();
 	if (!prompt) {
 		throw new Error('Message is required');
@@ -90,10 +61,37 @@ exports.sendMessage = async ({ message, history = [] }) => {
 	const fallback = 'Saat ini chatbot belum siap menjawab. Coba lagi nanti ya.';
 
 	if (!llmClient) {
-		return { reply: fallback };
+		return { reply: fallback, sessionId };
 	}
 
-	const conversation = normalizeHistory(history);
+	let persistedSessionId = sessionId;
+	let persistedConversation = [];
+	const useProvidedHistory = Array.isArray(history) && history.length > 0;
+
+	if (chatHistoryStore.isEnabled) {
+		try {
+			persistedSessionId = await chatHistoryStore.ensureSession({
+				sessionId,
+				userId,
+				deviceId,
+			});
+			if (!useProvidedHistory && persistedSessionId) {
+				const stored = await chatHistoryStore.fetchMessages({
+					sessionId: persistedSessionId,
+					limit: 20,
+				});
+				persistedConversation = stored.map((entry) => ({
+					role: entry.role,
+					content: entry.content,
+				}));
+			}
+		} catch (error) {
+			console.error('ChatbotService history error:', error.message);
+		}
+	}
+
+	const baseHistory = useProvidedHistory ? history : persistedConversation;
+	const conversation = normalizeHistory(baseHistory);
 	const messages = [...conversation, { role: 'user', content: prompt }];
 
 	try {
@@ -104,10 +102,22 @@ exports.sendMessage = async ({ message, history = [] }) => {
 		});
 
 		if (!reply) {
-			return { reply: fallback };
+			return { reply: fallback, sessionId: persistedSessionId };
 		}
 
-		return { reply: formatReply(reply) };
+		if (chatHistoryStore.isEnabled && persistedSessionId) {
+			chatHistoryStore
+				.appendMessages({
+					sessionId: persistedSessionId,
+					messages: [
+						{ role: 'user', content: prompt },
+						{ role: 'assistant', content: reply },
+					],
+				})
+				.catch((error) => console.error('ChatbotService history persist error:', error.message));
+		}
+
+		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
 		const status = error?.response?.status;
 		const body = error?.response?.data;
@@ -116,6 +126,61 @@ exports.sendMessage = async ({ message, history = [] }) => {
 		} else {
 			console.error('ChatbotService error:', error.message);
 		}
-		return { reply: fallback };
+		return { reply: fallback, sessionId: persistedSessionId };
 	}
+};
+
+
+exports.getHistory = async ({ sessionId, limit = 100 }) => {
+	const trimmedSessionId = (sessionId || '').trim();
+	if (!trimmedSessionId) {
+		throw new Error('SessionId is required');
+	}
+
+	if (!chatHistoryStore.isEnabled) {
+		return { sessionId: trimmedSessionId, messages: [] };
+	}
+
+	const messages = await chatHistoryStore.fetchMessages({
+		sessionId: trimmedSessionId,
+		limit,
+	});
+
+	return { sessionId: trimmedSessionId, messages };
+};
+
+exports.getHistoryByUser = async ({ userId, limit = 100 }) => {
+	const normalizedUserId = userId ?? null;
+	if (normalizedUserId === null || normalizedUserId === undefined) {
+		throw new Error('UserId is required');
+	}
+
+	if (!chatHistoryStore.isEnabled) {
+		return { sessionId: null, messages: [] };
+	}
+
+	const sessionId = await chatHistoryStore.findLatestSessionForUser({ userId: normalizedUserId });
+	if (!sessionId) {
+		return { sessionId: null, messages: [] };
+	}
+
+	const messages = await chatHistoryStore.fetchMessages({
+		sessionId,
+		limit,
+	});
+
+	return { sessionId, messages };
+};
+
+exports.deleteSession = async ({ sessionId }) => {
+	const trimmedSessionId = (sessionId || '').trim();
+	if (!trimmedSessionId) {
+		throw new Error('SessionId is required');
+	}
+
+	if (!chatHistoryStore.isEnabled) {
+		return { deleted: false };
+	}
+
+	return chatHistoryStore.deleteSession({ sessionId: trimmedSessionId });
 };

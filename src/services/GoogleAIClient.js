@@ -1,7 +1,7 @@
 const axios = require('axios');
 const { GoogleAuth } = require('google-auth-library');
 
-class GeminiClient {
+class GoogleAIClient {
 	constructor({
 		apiKey,
 		model = 'gemma-3-12b-it',
@@ -26,7 +26,7 @@ class GeminiClient {
 		}
 
 		if (!this.isVertex && !this.apiKey) {
-			throw new Error('Missing Gemini API key');
+			throw new Error('Missing Google AI API key');
 		}
 
 		const contents = messages.map((message) => ({
@@ -90,4 +90,4 @@ class GeminiClient {
 	}
 }
 
-module.exports = { GeminiClient };
+module.exports = { GoogleAIClient };

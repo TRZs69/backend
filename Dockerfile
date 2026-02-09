@@ -1,20 +1,18 @@
-FROM ubuntu:latest
-LABEL authors="Levelearn"
-
-# Install dependencies
-RUN apt update && apt upgrade -y
-RUN apt install -y nodejs npm openssl
+FROM node:20-slim
+LABEL org.opencontainers.image.source="https://github.com/Levelearn/backend"
 
 WORKDIR /app
 
-# Copy package.json and install dependencies
-COPY package.json ./
+# Install dependencies first to maximize Docker layer caching
+COPY package*.json ./
+COPY prisma ./prisma
+RUN npm install && npx prisma generate
+
+# Copy the rest of the application source code
 COPY . .
 
-RUN npm install
-RUN npx prisma generate
-# RUN npx prisma migrate dev --name "Initial Migration" 
-# RUN node prisma/seed.js
+ENV NODE_ENV=production \
+	PORT=7000
 
 EXPOSE 7000
 
