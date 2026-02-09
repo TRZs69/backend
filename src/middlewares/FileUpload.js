@@ -2,8 +2,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const imagesDir = path.join(__dirname, '..', 'images');
-const pdfsDir = path.join(__dirname, '..', 'pdfs');
+const storageRoot = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..');
+const imagesDir = path.join(storageRoot, 'images');
+const pdfsDir = path.join(storageRoot, 'pdfs');
 
 if (!fs.existsSync(imagesDir)) {
     fs.mkdirSync(imagesDir, { recursive: true });
@@ -15,7 +16,7 @@ if (!fs.existsSync(pdfsDir)) {
 
 const imageStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '..', 'images'));
+        cb(null, imagesDir);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -40,7 +41,7 @@ const uploadImage = multer({
 
 const pdfStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, path.join(__dirname, '..', 'pdfs')); 
+        cb(null, pdfsDir); 
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
