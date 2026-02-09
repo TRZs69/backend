@@ -72,6 +72,10 @@ app.use("/api", userBadgeRoutes);
 app.use("/api", tradeRoutes);
 app.use("/api", userTradeRoutes);
 
+app.get('/', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 const PORT = process.env.PORT || 7000;
 if (process.env.VERCEL !== "1")
 app.listen(PORT, () => {
