@@ -1,10 +1,10 @@
 // prisma/seed.js
-const { PrismaClient, Role, QuestType, BadgeType } = require('@prisma/client');
+const { Role, QuestType, BadgeType } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const fs = require('fs');
+const prisma = require('../src/prismaClient');
 const { createClient } = require('@supabase/supabase-js');
-const prisma = new PrismaClient();
 
 async function ensureBadgesBucketAndUpload() {
   const assetsUrl = process.env.SUPABASE_URL;
