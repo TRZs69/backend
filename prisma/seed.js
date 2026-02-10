@@ -7,11 +7,11 @@ const { createClient } = require('@supabase/supabase-js');
 const prisma = new PrismaClient();
 
 async function ensureBadgesBucketAndUpload() {
-  const assetsUrl = process.env.SUPABASE_ASSETS_URL;
-  const serviceKey = process.env.SUPABASE_ASSETS_SERVICE_ROLE_KEY
+  const assetsUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   if (!serviceKey) {
-    console.warn('[seed] Skipping storage upload: missing SUPABASE_ASSETS_SERVICE_ROLE_KEY');
+    console.warn('[seed] Skipping storage upload: missing SUPABASE_SERVICE_ROLE_KEY');
     return { assetsUrl };
   }
 

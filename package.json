@@ -7,7 +7,8 @@
     "dev": "node --watch --env-file=.env ./src/index.js",
     "start": "node ./src/index.js",
     "test": "nodemon index.js",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "fix:badge-urls": "node scripts/fix_badge_image_urls.js"
   },
   "author": "archico",
   "license": "ISC",
