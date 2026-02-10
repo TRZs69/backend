@@ -1,6 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
+const prisma = require('../prismaClient');
 const supabase = require('../../supabase/supabase')
-const prisma = new PrismaClient();
 
 exports.getAllChapters = async () => {
   try {

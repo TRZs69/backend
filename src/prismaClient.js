@@ -1,4 +1,11 @@
-const { PrismaClient } = require('@prisma/client');  // Mengimpor PrismaClient
-const prisma = new PrismaClient();  // Membuat instance PrismaClient
+const { PrismaClient } = require('@prisma/client');
 
-module.exports = prisma;  // Mengekspor prisma untuk digunakan di tempat lain
+const globalForPrisma = globalThis;
+
+const prisma = globalForPrisma.prisma || new PrismaClient();
+
+if (process.env.NODE_ENV !== 'production') {
+	globalForPrisma.prisma = prisma;
+}
+
+module.exports = prisma;
