@@ -70,6 +70,25 @@ const evaluateSubmission = (questions = [], answerMap = new Map()) => {
     return { evaluations, correctAnswers };
 };
 
+const normaliseQuestions = (rawQuestions) => {
+    if (!rawQuestions) {
+        return [];
+    }
+    if (Array.isArray(rawQuestions)) {
+        return rawQuestions;
+    }
+    if (typeof rawQuestions === 'string') {
+        try {
+            const parsed = JSON.parse(rawQuestions);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            console.error('Failed to parse assessment questions JSON', error);
+            return [];
+        }
+    }
+    return [];
+};
+
 exports.getAllAssessments = async () => {
     try {
         return await prisma.assessment.findMany();
@@ -128,11 +147,12 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
         ensureUserChapter(userId, chapterId),
     ]);
 
-    if (!assessment || !Array.isArray(assessment.questions)) {
+    const questions = normaliseQuestions(assessment?.questions);
+
+    if (!assessment || questions.length === 0) {
         throw new Error('Assessment untuk chapter ini belum tersedia.');
     }
 
-    const questions = assessment.questions;
     const { evaluations, correctAnswers } = evaluateSubmission(questions, answerMap);
     const totalQuestions = questions.length;
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
