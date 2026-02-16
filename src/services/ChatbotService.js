@@ -1,9 +1,10 @@
+import { EMOJI } from '../misc/emojies.js';
 const { GoogleAIClient } = require('./GoogleAIClient');
 const chatHistoryStore = require('./ChatHistoryRepository');
 
 const SYSTEM_PROMPT =
 	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.';
-const FALLBACK_REPLY = 'Saat ini chatbot belum siap menjawab. Coba lagi nanti ya.';
+const FALLBACK_REPLY = `Saat ini Levely lagi kewalahan. Mohon coba lagi nanti ya. ${EMOJI.warm_smile}`;
 
 const ensureGoogleCredentials = () => {
 	if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
