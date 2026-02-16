@@ -49,10 +49,11 @@ class GoogleAIClient {
 			signal: abortSignal,
 		});
 
+		const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
+		const useEventStream = contentType.includes('text/event-stream');
+
 		return new Promise((resolve, reject) => {
 			let aggregated = '';
-			let buffer = '';
-			let eventBuffer = '';
 			let settled = false;
 
 			const emitChunk = (text) => {
@@ -65,57 +66,10 @@ class GoogleAIClient {
 				}
 			};
 
-			const tryProcessEvent = () => {
-				const trimmed = eventBuffer.trim();
-				if (!trimmed) {
-					return;
-				}
-				if (trimmed === '[DONE]') {
-					eventBuffer = '';
-					return;
-				}
-				try {
-					const parsed = JSON.parse(trimmed);
-					eventBuffer = '';
-					emitChunk(this._extractTextFromCandidates(parsed));
-				} catch (error) {
-					// Wait for more data.
-				}
-			};
-
-			const handleLine = (line) => {
-				const trimmedLine = line.replace(/\r$/, '');
-				if (!trimmedLine) {
-					tryProcessEvent();
-					return;
-				}
-				if (trimmedLine.startsWith('data:')) {
-					const payloadPart = trimmedLine.slice(5).trim();
-					eventBuffer += (eventBuffer ? '\n' : '') + payloadPart;
-					tryProcessEvent();
-					return;
-				}
-				eventBuffer += (eventBuffer ? '\n' : '') + trimmedLine;
-				tryProcessEvent();
-			};
-
-			const onData = (chunk) => {
-				buffer += chunk.toString('utf8');
-				let newlineIndex = buffer.indexOf('\n');
-				while (newlineIndex !== -1) {
-					const line = buffer.slice(0, newlineIndex);
-					buffer = buffer.slice(newlineIndex + 1);
-					handleLine(line);
-					newlineIndex = buffer.indexOf('\n');
-				}
-			};
-
 			const finalize = () => {
-				if (buffer) {
-					handleLine(buffer);
-					buffer = '';
+				if (settled) {
+					return;
 				}
-				tryProcessEvent();
 				settled = true;
 				cleanup();
 				resolve(aggregated.trim());
@@ -147,6 +101,134 @@ class GoogleAIClient {
 				response.data?.destroy(new Error('Stream aborted'));
 				fail(new Error('Stream aborted'));
 			};
+
+			const createSseHandler = () => {
+				let buffer = '';
+				let eventBuffer = '';
+
+				const tryProcessEvent = () => {
+					const trimmed = eventBuffer.trim();
+					if (!trimmed) {
+						return;
+					}
+					if (trimmed === '[DONE]') {
+						eventBuffer = '';
+						return;
+					}
+					try {
+						const parsed = JSON.parse(trimmed);
+						eventBuffer = '';
+						emitChunk(this._extractTextFromCandidates(parsed));
+					} catch (error) {
+						// Wait for more data.
+					}
+				};
+
+				const handleLine = (line) => {
+					const trimmedLine = line.replace(/\r$/, '');
+					if (!trimmedLine) {
+						tryProcessEvent();
+						return;
+					}
+					if (trimmedLine.startsWith('data:')) {
+						const payloadPart = trimmedLine.slice(5).trim();
+						eventBuffer += (eventBuffer ? '\n' : '') + payloadPart;
+						tryProcessEvent();
+						return;
+					}
+					eventBuffer += (eventBuffer ? '\n' : '') + trimmedLine;
+					tryProcessEvent();
+				};
+
+				const onDataChunk = (chunk) => {
+					buffer += chunk.toString('utf8');
+					let newlineIndex = buffer.indexOf('\n');
+					while (newlineIndex !== -1) {
+						const line = buffer.slice(0, newlineIndex);
+						buffer = buffer.slice(newlineIndex + 1);
+						handleLine(line);
+						newlineIndex = buffer.indexOf('\n');
+					}
+				};
+
+				return onDataChunk;
+			};
+
+			const createJsonArrayHandler = () => {
+				let depth = 0;
+				let inString = false;
+				let escape = false;
+				let current = '';
+
+				const tryEmitObject = () => {
+					const trimmed = current.trim();
+					if (!trimmed) {
+						return;
+					}
+					try {
+						const parsed = JSON.parse(trimmed);
+						emitChunk(this._extractTextFromCandidates(parsed));
+					} catch (error) {
+						// Ignore malformed chunks until complete.
+					}
+				};
+
+				const onDataChunk = (chunk) => {
+					const text = chunk.toString('utf8');
+					for (let i = 0; i < text.length; i += 1) {
+						const char = text[i];
+
+						if (depth === 0) {
+							if (char === '{') {
+								depth = 1;
+								current = '{';
+								inString = false;
+								escape = false;
+							}
+							continue;
+						}
+
+						current += char;
+
+						if (inString) {
+							if (escape) {
+								escape = false;
+								continue;
+							}
+							if (char === '\\') {
+								escape = true;
+								continue;
+							}
+							if (char === '"') {
+								inString = false;
+							}
+							continue;
+						}
+
+						if (char === '"') {
+							inString = true;
+							continue;
+						}
+
+						if (char === '{') {
+							depth += 1;
+							continue;
+						}
+
+						if (char === '}') {
+							depth -= 1;
+							if (depth === 0) {
+								tryEmitObject();
+								current = '';
+							}
+						}
+					}
+				};
+
+				return onDataChunk;
+			};
+
+			const onData = useEventStream ? createSseHandler() : createJsonArrayHandler();
 
 			if (abortSignal && typeof abortSignal.addEventListener === 'function') {
 				abortSignal.addEventListener('abort', onAbort);

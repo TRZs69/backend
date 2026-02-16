@@ -1,4 +1,4 @@
-import { EMOJI } from '../misc/emojies.js';
+const { EMOJI } = require('../misc/emojies.js');
 const { GoogleAIClient } = require('./GoogleAIClient');
 const chatHistoryStore = require('./ChatHistoryRepository');
 
