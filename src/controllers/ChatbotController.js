@@ -71,7 +71,7 @@ exports.streamMessage = async (req, res) => {
     abortController.abort();
   };
 
-  req.on('close', handleClose);
+  res.on('close', handleClose);
   sendEvent({ status: 'started' });
 
   try {
@@ -89,7 +89,7 @@ exports.streamMessage = async (req, res) => {
     console.error('ChatbotController stream error:', error.message);
     sendEvent({ error: 'Gagal memproses pesan chatbot' });
   } finally {
-    detachListener(req, 'close', handleClose);
+    detachListener(res, 'close', handleClose);
     if (!res.writableEnded) {
       res.write('data: [DONE]\n\n');
       res.end();
