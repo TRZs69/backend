@@ -36,6 +36,10 @@ const buildGoogleAIClient = () => {
 
 const llmClient = buildGoogleAIClient();
 
+if (!llmClient) {
+	console.error('ChatbotService: LLM client not configured. Ensure Gemini API key or Vertex credentials are set.');
+}
+
 const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt }) => {
 	let persistedSessionId = sessionId;
 	let persistedConversation = [];
