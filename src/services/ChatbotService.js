@@ -1,6 +1,10 @@
 const { GoogleAIClient } = require('./GoogleAIClient');
 const chatHistoryStore = require('./ChatHistoryRepository');
 
+const SYSTEM_PROMPT =
+	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.';
+const FALLBACK_REPLY = 'Saat ini chatbot belum siap menjawab. Coba lagi nanti ya.';
+
 const ensureGoogleCredentials = () => {
 	if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
 		return;
@@ -31,39 +35,7 @@ const buildGoogleAIClient = () => {
 
 const llmClient = buildGoogleAIClient();
 
-const normalizeHistory = (history = []) => {
-	if (!Array.isArray(history)) {
-		return [];
-	}
-
-	return history
-		.map((entry) => {
-			if (!entry || typeof entry !== 'object') {
-				return null;
-			}
-			const role = entry.role === 'assistant' ? 'assistant' : 'user';
-			const content = typeof entry.content === 'string' ? entry.content.trim() : '';
-			if (!content) {
-				return null;
-			}
-			return { role, content };
-		})
-		.filter(Boolean)
-		.slice(-10);
-};
-
-exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId }) => {
-	const prompt = (message || '').trim();
-	if (!prompt) {
-		throw new Error('Message is required');
-	}
-
-	const fallback = 'Saat ini chatbot belum siap menjawab. Coba lagi nanti ya.';
-
-	if (!llmClient) {
-		return { reply: fallback, sessionId };
-	}
-
+const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt }) => {
 	let persistedSessionId = sessionId;
 	let persistedConversation = [];
 	const useProvidedHistory = Array.isArray(history) && history.length > 0;
@@ -94,15 +66,56 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 	const conversation = normalizeHistory(baseHistory);
 	const messages = [...conversation, { role: 'user', content: prompt }];
 
+	return { persistedSessionId, messages };
+};
+
+const normalizeHistory = (history = []) => {
+	if (!Array.isArray(history)) {
+		return [];
+	}
+
+	return history
+		.map((entry) => {
+			if (!entry || typeof entry !== 'object') {
+				return null;
+			}
+			const role = entry.role === 'assistant' ? 'assistant' : 'user';
+			const content = typeof entry.content === 'string' ? entry.content.trim() : '';
+			if (!content) {
+				return null;
+			}
+			return { role, content };
+		})
+		.filter(Boolean)
+		.slice(-10);
+};
+
+exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId }) => {
+	const prompt = (message || '').trim();
+	if (!prompt) {
+		throw new Error('Message is required');
+	}
+
+	if (!llmClient) {
+		return { reply: FALLBACK_REPLY, sessionId };
+	}
+
+	const { persistedSessionId, messages } = await buildChatContext({
+		history,
+		sessionId,
+		deviceId,
+		userId,
+		prompt,
+	});
+
 	try {
 		const reply = await llmClient.complete({
-			system:
-				'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.',
+			system: SYSTEM_PROMPT,
 			messages,
 		});
 
 		if (!reply) {
-			return { reply: fallback, sessionId: persistedSessionId };
+			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
 		}
 
 		if (chatHistoryStore.isEnabled && persistedSessionId) {
@@ -126,7 +139,89 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 		} else {
 			console.error('ChatbotService error:', error.message);
 		}
-		return { reply: fallback, sessionId: persistedSessionId };
+		return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+	}
+};
+
+exports.streamMessage = async ({
+	message,
+	history = [],
+	sessionId,
+	deviceId,
+	userId,
+	onToken,
+	abortSignal,
+}) => {
+	const prompt = (message || '').trim();
+	if (!prompt) {
+		throw new Error('Message is required');
+	}
+
+	const emitChunk = (chunk) => {
+		if (!chunk || typeof onToken !== 'function') {
+			return;
+		}
+		onToken(chunk);
+	};
+
+	if (!llmClient) {
+		emitChunk(FALLBACK_REPLY);
+		return { reply: FALLBACK_REPLY, sessionId };
+	}
+
+	const { persistedSessionId, messages } = await buildChatContext({
+		history,
+		sessionId,
+		deviceId,
+		userId,
+		prompt,
+	});
+
+	try {
+		let reply = '';
+		if (typeof llmClient.streamComplete === 'function') {
+			reply = await llmClient.streamComplete({
+				system: SYSTEM_PROMPT,
+				messages,
+				onChunk: emitChunk,
+				abortSignal,
+			});
+		} else {
+			reply = await llmClient.complete({ system: SYSTEM_PROMPT, messages });
+			emitChunk(reply);
+		}
+
+		if (!reply) {
+			emitChunk(FALLBACK_REPLY);
+			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+		}
+
+		if (chatHistoryStore.isEnabled && persistedSessionId) {
+			chatHistoryStore
+				.appendMessages({
+					sessionId: persistedSessionId,
+					messages: [
+						{ role: 'user', content: prompt },
+						{ role: 'assistant', content: reply },
+					],
+				})
+				.catch((error) => console.error('ChatbotService history persist error:', error.message));
+		}
+
+		return { reply, sessionId: persistedSessionId };
+	} catch (error) {
+		const status = error?.response?.status;
+		const body = error?.response?.data;
+		if (!abortSignal?.aborted) {
+			if (status || body) {
+				console.error('ChatbotService stream error:', status || error.message, body || '');
+			} else {
+				console.error('ChatbotService stream error:', error.message);
+			}
+			emitChunk(FALLBACK_REPLY);
+			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+		}
+		throw error;
 	}
 };
 
