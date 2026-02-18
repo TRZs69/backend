@@ -40,6 +40,50 @@ if (!llmClient) {
 	console.error('ChatbotService: LLM client not configured. Ensure Gemini API key or Vertex credentials are set.');
 }
 
+const scheduleWarmup = () => {
+	const intervalMs = Number(process.env.LEVELY_LLM_WARMUP_INTERVAL_MS || 300000);
+	if (!llmClient || !Number.isFinite(intervalMs) || intervalMs <= 0) {
+		return;
+	}
+
+	const legacyPrompt = (process.env.LEVELY_LLM_WARMUP_PROMPT || '').trim();
+	const customPrompts = (process.env.LEVELY_LLM_WARMUP_PROMPTS || '')
+		.split('|')
+		.map((entry) => entry.trim())
+		.filter(Boolean);
+	if (legacyPrompt) {
+		customPrompts.unshift(legacyPrompt);
+	}
+	const defaultPrompts = [
+		'Apa kabar Levely?',
+		'Kasih aku fakta sains singkat dong.',
+		'Berikan motivasi belajar 1 kalimat.',
+		'Apa tips belajar efektif hari ini?',
+		'Bisa sapaan pembuka yang hangat?',
+	];
+	const warmupPrompts = customPrompts.length ? customPrompts : defaultPrompts;
+	const pickWarmupPrompt = () => {
+		const index = Math.floor(Math.random() * warmupPrompts.length);
+		return warmupPrompts[index] || 'ping';
+	};
+	const runWarmup = async () => {
+		try {
+			await llmClient.complete({
+				system: SYSTEM_PROMPT,
+				messages: [{ role: 'user', content: pickWarmupPrompt() }],
+			});
+			console.log('[LLM warmup] success');
+		} catch (error) {
+			console.error('[LLM warmup] failed:', error.message);
+		}
+	};
+
+	setTimeout(runWarmup, Number(process.env.LEVELY_LLM_WARMUP_INITIAL_DELAY_MS || 10000));
+	setInterval(runWarmup, intervalMs);
+};
+
+scheduleWarmup();
+
 const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt }) => {
 	let persistedSessionId = sessionId;
 	let persistedConversation = [];
@@ -93,6 +137,38 @@ const normalizeHistory = (history = []) => {
 		})
 		.filter(Boolean)
 		.slice(-10);
+};
+
+exports.createChatSession = async ({ userId, deviceId, title, metadata }) => {
+	if (!chatHistoryStore.isEnabled) {
+		throw new Error('Chat history belum diaktifkan');
+	}
+
+	const session = await chatHistoryStore.createSession({
+		userId,
+		deviceId,
+		title,
+		metadata,
+	});
+
+	return { session };
+};
+
+exports.listChatSessions = async ({ userId, limit = 20, offset = 0 }) => {
+	if (!chatHistoryStore.isEnabled) {
+		return [];
+	}
+	return chatHistoryStore.listSessions({ userId, limit, offset });
+};
+
+exports.renameChatSession = async ({ sessionId, title }) => {
+	if (!chatHistoryStore.isEnabled) {
+		throw new Error('Chat history belum diaktifkan');
+	}
+	if (!sessionId) {
+		throw new Error('SessionId is required');
+	}
+	return chatHistoryStore.renameSession({ sessionId, title });
 };
 
 exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId }) => {

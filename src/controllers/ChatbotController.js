@@ -97,6 +97,61 @@ exports.streamMessage = async (req, res) => {
   }
 };
 
+exports.createSession = async (req, res) => {
+  try {
+    const { userId, deviceId, title, metadata } = req.body || {};
+    if (userId === undefined || userId === null) {
+      return res.status(400).json({ message: 'UserId is required' });
+    }
+    const result = await chatbotService.createChatSession({
+      userId,
+      deviceId,
+      title,
+      metadata,
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('ChatbotController create session error:', error.message);
+    return res.status(400).json({ message: error.message || 'Gagal membuat sesi chat' });
+  }
+};
+
+exports.listSessionsByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { limit, offset } = req.query;
+    if (userId === undefined) {
+      return res.status(400).json({ message: 'UserId is required' });
+    }
+    const parsedLimit = Number(limit) || 20;
+    const parsedOffset = Number(offset) || 0;
+    const sessions = await chatbotService.listChatSessions({
+      userId: Number(userId),
+      limit: parsedLimit,
+      offset: parsedOffset,
+    });
+    return res.status(200).json({ sessions });
+  } catch (error) {
+    console.error('ChatbotController list sessions error:', error.message);
+    return res.status(400).json({ message: error.message || 'Gagal mengambil daftar sesi chat' });
+  }
+};
+
+exports.renameSession = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { title } = req.body || {};
+    if (!sessionId) {
+      return res.status(400).json({ message: 'SessionId is required' });
+    }
+    const session = await chatbotService.renameChatSession({ sessionId, title });
+    return res.status(200).json({ session });
+  } catch (error) {
+    console.error('ChatbotController rename session error:', error.message);
+    return res.status(400).json({ message: error.message || 'Gagal mengganti judul sesi chat' });
+  }
+};
+
 exports.getHistory = async (req, res) => {
   try {
     const { sessionId } = req.params;

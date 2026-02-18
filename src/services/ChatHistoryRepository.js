@@ -28,6 +28,17 @@ const mapRowToMessage = (row = {}) => ({
   createdAt: row.created_at,
 });
 
+const mapRowToSession = (row = {}) => ({
+  id: row.id,
+  userId: row.user_id,
+  deviceId: row.device_id,
+  title: row.title,
+  lastMessagePreview: row.last_message_preview,
+  metadata: row.metadata || {},
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+});
+
 const sanitizeRole = (role) => (role === 'assistant' ? 'assistant' : 'user');
 
 async function findLatestSessionForUser({ userId }) {
@@ -110,6 +121,52 @@ async function ensureSession({ sessionId, userId, deviceId }) {
   return data.id;
 }
 
+async function createSession({ userId, deviceId, title, metadata = {} }) {
+  if (!isEnabled) {
+    throw new Error('Chat history tidak aktif');
+  }
+
+  const payload = {
+    user_id: userId ?? null,
+    device_id: deviceId ?? null,
+    title: title ? title.toString().trim().slice(0, 120) : null,
+    metadata,
+  };
+
+  const { data, error } = await supabase
+    .from(TABLE_SESSIONS)
+    .insert(payload)
+    .select('*')
+    .single();
+
+  if (error) {
+    logError('createSession.insert', error);
+    throw new Error('Gagal membuat sesi chat baru');
+  }
+
+  return mapRowToSession(data);
+}
+
+async function listSessions({ userId, limit = 20, offset = 0 }) {
+  if (!isEnabled || userId === undefined || userId === null) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from(TABLE_SESSIONS)
+    .select('id, user_id, device_id, title, last_message_preview, metadata, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    logError('listSessions', error);
+    return [];
+  }
+
+  return data.map(mapRowToSession);
+}
+
 async function fetchMessages({ sessionId, limit = 50 }) {
   if (!isEnabled || !sessionId) {
     return [];
@@ -171,11 +228,35 @@ async function deleteSession({ sessionId }) {
   return { deleted: true };
 }
 
+async function renameSession({ sessionId, title }) {
+  if (!isEnabled || !sessionId) {
+    throw new Error('SessionId is required');
+  }
+
+  const normalizedTitle = title ? title.toString().trim().slice(0, 120) : null;
+  const { data, error } = await supabase
+    .from(TABLE_SESSIONS)
+    .update({ title: normalizedTitle })
+    .eq('id', sessionId)
+    .select('id, user_id, device_id, title, last_message_preview, metadata, created_at, updated_at')
+    .single();
+
+  if (error) {
+    logError('renameSession', error);
+    throw new Error('Gagal memperbarui judul sesi');
+  }
+
+  return mapRowToSession(data);
+}
+
 module.exports = {
   isEnabled,
   ensureSession,
+  createSession,
+  listSessions,
   fetchMessages,
   appendMessages,
   deleteSession,
+  renameSession,
   findLatestSessionForUser,
 };
