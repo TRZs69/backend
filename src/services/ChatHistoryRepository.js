@@ -91,12 +91,13 @@ async function ensureSession({ sessionId, userId, deviceId }) {
     }
   }
 
-  if (!sessionId && userId !== undefined && userId !== null) {
-    const latestSessionId = await findLatestSessionForUser({ userId });
-    if (latestSessionId) {
-      return latestSessionId;
-    }
-  }
+  // Removed auto-resume logic to support "lazy" new chat creation.
+  // if (!sessionId && userId !== undefined && userId !== null) {
+  //   const latestSessionId = await findLatestSessionForUser({ userId });
+  //   if (latestSessionId) {
+  //     return latestSessionId;
+  //   }
+  // }
 
   const payload = {
     user_id: userId ?? null,
