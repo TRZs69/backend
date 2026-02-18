@@ -208,6 +208,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 						{ role: 'assistant', content: reply },
 					],
 				})
+				.then(() => maybeUpdateSessionTitle({ sessionId: persistedSessionId }))
 				.catch((error) => console.error('ChatbotService history persist error:', error.message));
 		}
 
@@ -286,6 +287,7 @@ exports.streamMessage = async ({
 						{ role: 'assistant', content: reply },
 					],
 				})
+				.then(() => maybeUpdateSessionTitle({ sessionId: persistedSessionId }))
 				.catch((error) => console.error('ChatbotService history persist error:', error.message));
 		}
 
@@ -303,6 +305,53 @@ exports.streamMessage = async ({
 			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
 		}
 		throw error;
+	}
+};
+
+const maybeUpdateSessionTitle = async ({ sessionId }) => {
+	if (!chatHistoryStore.isEnabled || !llmClient || !sessionId) {
+		return;
+	}
+
+	try {
+		const messages = await chatHistoryStore.fetchMessages({ sessionId, limit: 5 });
+		// Only generate title if it's the beginning of a conversation (e.g. <= 2 exchanges)
+		// and the session likely doesn't have a custom title yet.
+		// We'll trust the caller or check if the title is default/empty if we had access to session details here.
+		// For now, let's just do it if we have 2-4 messages (1-2 turns).
+		if (messages.length >= 2 && messages.length <= 4) {
+			await generateSessionTitle({ sessionId, messages });
+		}
+	} catch (error) {
+		console.error('maybeUpdateSessionTitle error:', error.message);
+	}
+};
+
+const generateSessionTitle = async ({ sessionId, messages }) => {
+	const conversationText = messages
+		.map((m) => `${m.role}: ${m.content}`)
+		.join('\n')
+		.slice(0, 2000); // Limit context
+
+	const titlePrompt = `
+Buatkan judul pendek (maksimal 5 kata) yang menarik untuk percakapan berikut.
+Langsung berikan judulnya saja tanpa tanda kutip.
+
+Percakapan:
+${conversationText}
+	`.trim();
+
+	try {
+		const title = await llmClient.complete({
+			messages: [{ role: 'user', content: titlePrompt }],
+		});
+
+		if (title) {
+			const cleanTitle = title.replace(/^["']|["']$/g, '').trim();
+			await chatHistoryStore.renameSession({ sessionId, title: cleanTitle });
+		}
+	} catch (error) {
+		console.error('generateSessionTitle error:', error.message);
 	}
 };
 
