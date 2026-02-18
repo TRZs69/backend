@@ -200,16 +200,14 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 		}
 
 		if (chatHistoryStore.isEnabled && persistedSessionId) {
-			chatHistoryStore
-				.appendMessages({
-					sessionId: persistedSessionId,
-					messages: [
-						{ role: 'user', content: prompt },
-						{ role: 'assistant', content: reply },
-					],
-				})
-				.then(() => maybeUpdateSessionTitle({ sessionId: persistedSessionId }))
-				.catch((error) => console.error('ChatbotService history persist error:', error.message));
+			await chatHistoryStore.appendMessages({
+				sessionId: persistedSessionId,
+				messages: [
+					{ role: 'user', content: prompt },
+					{ role: 'assistant', content: reply },
+				],
+			});
+			await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
 		}
 
 		return { reply, sessionId: persistedSessionId };
@@ -279,16 +277,14 @@ exports.streamMessage = async ({
 		}
 
 		if (chatHistoryStore.isEnabled && persistedSessionId) {
-			chatHistoryStore
-				.appendMessages({
-					sessionId: persistedSessionId,
-					messages: [
-						{ role: 'user', content: prompt },
-						{ role: 'assistant', content: reply },
-					],
-				})
-				.then(() => maybeUpdateSessionTitle({ sessionId: persistedSessionId }))
-				.catch((error) => console.error('ChatbotService history persist error:', error.message));
+			await chatHistoryStore.appendMessages({
+				sessionId: persistedSessionId,
+				messages: [
+					{ role: 'user', content: prompt },
+					{ role: 'assistant', content: reply },
+				],
+			});
+			await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
 		}
 
 		return { reply, sessionId: persistedSessionId };
