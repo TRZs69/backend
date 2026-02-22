@@ -241,10 +241,22 @@ class GoogleAIClient {
 	}
 
 	_buildRequestPayload({ messages, system }) {
-		const contents = messages.map((message) => ({
-			role: message.role === 'assistant' ? 'model' : 'user',
-			parts: [{ text: message.content }],
-		}));
+		const contents = messages.map((message) => {
+			const parts = [];
+
+			if (message.content) {
+				parts.push({ text: message.content });
+			}
+
+			if (message.media && Array.isArray(message.media)) {
+				parts.push(...message.media);
+			}
+
+			return {
+				role: message.role === 'assistant' ? 'model' : 'user',
+				parts,
+			};
+		});
 
 		if (system && !this.supportsSystemInstruction) {
 			contents.unshift({

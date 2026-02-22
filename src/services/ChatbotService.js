@@ -2,6 +2,8 @@ const { EMOJI } = require('../misc/emojies.js');
 const { GoogleAIClient } = require('./GoogleAIClient');
 const chatHistoryStore = require('./ChatHistoryRepository');
 const prisma = require('../prismaClient');
+const fs = require('fs');
+const path = require('path');
 
 const SYSTEM_PROMPT =
 	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.';
@@ -135,13 +137,45 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 		}
 	}
 
+	let mediaContext = [];
+
 	if (materialId) {
 		try {
 			const material = await prisma.material.findUnique({
 				where: { id: parseInt(materialId, 10) }
 			});
 			if (material && material.content) {
-				const cleanContent = material.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+				// preserve image tags by converting them to text descriptions
+				let cleanContent = material.content.replace(/<img[^>]+src="([^">]+)"[^>]*>/g, ' [Image: $1] ');
+
+				// Extract those images to convert to base64
+				const imageRegex = /\[Image:\s*([^\]]+)\]/g;
+				let match;
+				while ((match = imageRegex.exec(cleanContent)) !== null) {
+					const imgPath = match[1];
+					// Paths look like "asset:lib/assets/alurHCI.png" in the seed
+					let relativePath = imgPath.replace('asset:', '');
+					// Resolve assuming backend is at c:/Projects/Levelearn/backend and Mobile is alongside it
+					const absolutePath = path.resolve(__dirname, '../../../Mobile', relativePath);
+
+					if (fs.existsSync(absolutePath)) {
+						const ext = path.extname(absolutePath).toLowerCase();
+						let mimeType = 'image/png';
+						if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+						else if (ext === '.webp') mimeType = 'image/webp';
+
+						const fileBuffer = fs.readFileSync(absolutePath);
+						mediaContext.push({
+							inlineData: {
+								data: fileBuffer.toString('base64'),
+								mimeType,
+							}
+						});
+					}
+				}
+
+				// strip remaining HTML tags
+				cleanContent = cleanContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 				contextualPrompt = `Konteks materi yang sedang dibaca:\nJudul: ${material.name}\nIsi Materi: ${cleanContent}\n\n${contextualPrompt}`;
 			}
 		} catch (error) {
@@ -151,7 +185,7 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 
 	const baseHistory = useProvidedHistory ? history : persistedConversation;
 	const conversation = normalizeHistory(baseHistory);
-	const messages = [...conversation, { role: 'user', content: contextualPrompt }];
+	const messages = [...conversation, { role: 'user', content: contextualPrompt, media: mediaContext.length > 0 ? mediaContext : undefined }];
 
 	return { persistedSessionId, messages };
 };
