@@ -1,6 +1,7 @@
 const { EMOJI } = require('../misc/emojies.js');
 const { GoogleAIClient } = require('./GoogleAIClient');
 const chatHistoryStore = require('./ChatHistoryRepository');
+const prisma = require('../prismaClient');
 
 const SYSTEM_PROMPT =
 	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.';
@@ -84,7 +85,7 @@ const scheduleWarmup = () => {
 
 scheduleWarmup();
 
-const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt }) => {
+const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, materialId }) => {
 	let persistedSessionId = sessionId;
 	let persistedConversation = [];
 	const useProvidedHistory = Array.isArray(history) && history.length > 0;
@@ -111,9 +112,46 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt }
 		}
 	}
 
+	let contextualPrompt = prompt;
+
+	if (userId) {
+		try {
+			const user = await prisma.user.findUnique({
+				where: { id: parseInt(userId, 10) },
+				include: {
+					enrolledCourses: { include: { course: true } },
+					userBadges: true,
+				},
+			});
+			if (user) {
+				const coursesText = user.enrolledCourses.map((uc) => `- ${uc.course.name}: ${uc.progress}%`).join('\n');
+				const badgesCount = user.userBadges.length;
+
+				const userContext = `Info Pengguna Saat Ini:\n- Nama: ${user.name}\n- Poin: ${user.points}\n- Lencana: ${badgesCount}\n- Progres Belajar:\n${coursesText}\n\n`;
+				contextualPrompt = userContext + contextualPrompt;
+			}
+		} catch (error) {
+			console.error('ChatbotService fetch user history error:', error.message);
+		}
+	}
+
+	if (materialId) {
+		try {
+			const material = await prisma.material.findUnique({
+				where: { id: parseInt(materialId, 10) }
+			});
+			if (material && material.content) {
+				const cleanContent = material.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+				contextualPrompt = `Konteks materi yang sedang dibaca:\nJudul: ${material.name}\nIsi Materi: ${cleanContent}\n\n${contextualPrompt}`;
+			}
+		} catch (error) {
+			console.error('ChatbotService fetch material error:', error.message);
+		}
+	}
+
 	const baseHistory = useProvidedHistory ? history : persistedConversation;
 	const conversation = normalizeHistory(baseHistory);
-	const messages = [...conversation, { role: 'user', content: prompt }];
+	const messages = [...conversation, { role: 'user', content: contextualPrompt }];
 
 	return { persistedSessionId, messages };
 };
@@ -171,7 +209,7 @@ exports.renameChatSession = async ({ sessionId, title }) => {
 	return chatHistoryStore.renameSession({ sessionId, title });
 };
 
-exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId }) => {
+exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId, materialId }) => {
 	const prompt = (message || '').trim();
 	if (!prompt) {
 		throw new Error('Message is required');
@@ -187,6 +225,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 		deviceId,
 		userId,
 		prompt,
+		materialId,
 	});
 
 	try {
@@ -229,6 +268,7 @@ exports.streamMessage = async ({
 	sessionId,
 	deviceId,
 	userId,
+	materialId,
 	onToken,
 	abortSignal,
 }) => {
@@ -255,6 +295,7 @@ exports.streamMessage = async ({
 		deviceId,
 		userId,
 		prompt,
+		materialId,
 	});
 
 	try {

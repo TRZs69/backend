@@ -20,7 +20,7 @@ const detachListener = (emitter, event, handler) => {
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { message, history, sessionId, deviceId, userId } = req.body || {};
+    const { message, history, sessionId, deviceId, userId, materialId } = req.body || {};
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ message: 'Message is required' });
     }
@@ -31,6 +31,7 @@ exports.sendMessage = async (req, res) => {
       sessionId,
       deviceId,
       userId,
+      materialId,
     });
     return res.status(200).json(result);
   } catch (error) {
@@ -40,7 +41,7 @@ exports.sendMessage = async (req, res) => {
 };
 
 exports.streamMessage = async (req, res) => {
-  const { message, history, sessionId, deviceId, userId } = req.body || {};
+  const { message, history, sessionId, deviceId, userId, materialId } = req.body || {};
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ message: 'Message is required' });
   }
@@ -81,6 +82,7 @@ exports.streamMessage = async (req, res) => {
       sessionId,
       deviceId,
       userId,
+      materialId,
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
