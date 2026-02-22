@@ -4,6 +4,7 @@ const chatHistoryStore = require('./ChatHistoryRepository');
 const prisma = require('../prismaClient');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const SYSTEM_PROMPT =
 	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.';
@@ -142,41 +143,105 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 	if (materialId) {
 		try {
 			const material = await prisma.material.findUnique({
-				where: { id: parseInt(materialId, 10) }
+				where: { id: parseInt(materialId, 10) },
+				include: { chapter: true } // Include chapter for assessment context
 			});
-			if (material && material.content) {
-				// preserve image tags by converting them to text descriptions
-				let cleanContent = material.content.replace(/<img[^>]+src="([^">]+)"[^>]*>/g, ' [Image: $1] ');
+			if (material) {
+				if (material.content) {
+					// preserve image tags by converting them to text descriptions
+					let cleanContent = material.content.replace(/<img[^>]+src="([^">]+)"[^>]*>/g, ' [Image: $1] ');
 
-				// Extract those images to convert to base64
-				const imageRegex = /\[Image:\s*([^\]]+)\]/g;
-				let match;
-				while ((match = imageRegex.exec(cleanContent)) !== null) {
-					const imgPath = match[1];
-					// Paths look like "asset:lib/assets/alurHCI.png" in the seed
-					let relativePath = imgPath.replace('asset:', '');
-					// Resolve assuming backend is at c:/Projects/Levelearn/backend and Mobile is alongside it
-					const absolutePath = path.resolve(__dirname, '../../../Mobile', relativePath);
+					// Extract those images to convert to base64
+					const imageRegex = /\[Image:\s*([^\]]+)\]/g;
+					let match;
+					while ((match = imageRegex.exec(cleanContent)) !== null) {
+						const imgPath = match[1];
 
-					if (fs.existsSync(absolutePath)) {
-						const ext = path.extname(absolutePath).toLowerCase();
-						let mimeType = 'image/png';
-						if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
-						else if (ext === '.webp') mimeType = 'image/webp';
+						if (imgPath.startsWith('http')) {
+							try {
+								const response = await axios.get(imgPath, { responseType: 'arraybuffer' });
+								const ext = path.extname(imgPath.split('?')[0]).toLowerCase();
+								let mimeType = 'image/png';
+								if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+								else if (ext === '.webp') mimeType = 'image/webp';
+								else if (ext === '.gif') mimeType = 'image/gif';
 
-						const fileBuffer = fs.readFileSync(absolutePath);
-						mediaContext.push({
-							inlineData: {
-								data: fileBuffer.toString('base64'),
-								mimeType,
+								const base64Str = Buffer.from(response.data, 'binary').toString('base64');
+								mediaContext.push({
+									inlineData: {
+										data: base64Str,
+										mimeType,
+									}
+								});
+							} catch (downloadError) {
+								console.error('Failed to download image from', imgPath, downloadError.message);
 							}
-						});
+						} else {
+							// Paths look like "asset:lib/assets/alurHCI.png" in the old seed
+							let relativePath = imgPath.replace('asset:', '');
+							// Resolve assuming backend is at c:/Projects/Levelearn/backend and Mobile is alongside it
+							const absolutePath = path.resolve(__dirname, '../../../Mobile', relativePath);
+
+							if (fs.existsSync(absolutePath)) {
+								const ext = path.extname(absolutePath).toLowerCase();
+								let mimeType = 'image/png';
+								if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg';
+								else if (ext === '.webp') mimeType = 'image/webp';
+
+								const fileBuffer = fs.readFileSync(absolutePath);
+								mediaContext.push({
+									inlineData: {
+										data: fileBuffer.toString('base64'),
+										mimeType,
+									}
+								});
+							}
+						}
 					}
+
+					// strip remaining HTML tags
+					cleanContent = cleanContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+					contextualPrompt = `Konteks materi yang sedang dibaca:\nJudul: ${material.name}\nIsi Materi: ${cleanContent}\n\n${contextualPrompt}`;
 				}
 
-				// strip remaining HTML tags
-				cleanContent = cleanContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-				contextualPrompt = `Konteks materi yang sedang dibaca:\nJudul: ${material.name}\nIsi Materi: ${cleanContent}\n\n${contextualPrompt}`;
+				// If we have a chapter, look up if user has assessment data for this chapter
+				if (material.chapter && userId) {
+					try {
+						const userChapter = await prisma.userChapter.findFirst({
+							where: {
+								userId: parseInt(userId, 10),
+								chapterId: material.chapter.id
+							}
+						});
+
+						if (userChapter && userChapter.assessmentDone) {
+							const assessment = await prisma.assessment.findFirst({
+								where: { chapterId: material.chapter.id }
+							});
+
+							if (assessment) {
+								let assessmentStats = `Informasi Kuis Bab "${material.chapter.name}":\n`;
+								assessmentStats += `- Nilai: ${userChapter.assessmentGrade}\n`;
+
+								if (userChapter.assessmentAnswer && Array.isArray(userChapter.assessmentAnswer)) {
+									assessmentStats += `- Jawaban Siswa:\n`;
+									userChapter.assessmentAnswer.forEach((ans, i) => {
+										assessmentStats += `  ${i + 1}. ${ans}\n`;
+									});
+								}
+
+								assessmentStats += `\nReferensi Soal & Kunci Jawaban Lengkap:\n`;
+								if (assessment.questions) {
+									assessmentStats += JSON.stringify(assessment.questions, null, 2) + '\n';
+								}
+
+								contextualPrompt = `${assessmentStats}\n(Berdasarkan nilai kuis di atas, berikan evaluasi atau pujian yang relevan kepada pengguna jika ditanya atau jika sesuai konteks)\n\n${contextualPrompt}`;
+							}
+						}
+					} catch (userChapterError) {
+						console.error('ChatbotService fetch userChapter/assessment error:', userChapterError.message);
+					}
+				}
 			}
 		} catch (error) {
 			console.error('ChatbotService fetch material error:', error.message);

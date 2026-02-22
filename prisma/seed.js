@@ -553,7 +553,7 @@ async function main() {
       data: {
         chapterId: chapter1.id,
         name: 'Pengantar',
-        content: `
+        content: replaceImgPaths(`
           <p>HCI adalah bidang studi yang mulai 
           berkembang pada tahun 1980-an, tetapi 
           konsep interaksi manusia dan mesin 
@@ -637,7 +637,7 @@ async function main() {
           <p>
             HCI telah berkembang sejak 1960-an, dimulai dengan komputer mainframe dan interaksi berbasis teks. Pada 1970-an, muncul konsep Graphical User Interface (GUI) yang lebih visual dan intuitif. Pada 1990-an, perhatian lebih difokuskan pada usability dan pendekatan desain yang berpusat pada pengguna (user-centered design). Hingga kini, HCI terus berkembang dengan kemajuan teknologi seperti mobile computing, AI, dan interaksi berbasis sensor. Human-centered design adalah pendekatan dalam HCI yang menempatkan manusia sebagai fokus utama dalam pengembangan sistem. Prinsip utama dalam pendekatan ini meliputi memahami kebutuhan pengguna, melibatkan pengguna dalam proses desain, dan mengevaluasi sistem berdasarkan pengalaman pengguna.
           </p>
-        `,
+        `),
       },
     });
 
@@ -645,7 +645,7 @@ async function main() {
       data: {
         chapterId: chapter2.id,
         name: 'Human Factors and Ergonomic Principles in Design Interaction',
-        content: `
+        content: replaceImgPaths(`
           <p><strong><i>Human Factor</i></strong> dalam desain interaksi mencakup pemahaman tentang manusia sebagai pengguna sistem interaktif, meliputi <strong>Fisiologi, Kognisi, Psikologi, Sosial, dan Budaya </strong>. Adapun Tujuan utama dari <strong><i>Human Factor</i></strong> yaitu:
     <ul> 
         <li>Usability (Mudah Dipahami)</li>
@@ -765,7 +765,7 @@ async function main() {
             <li><strong>Desain ATM</strong> → Posisi tombol dan layar dirancang agar mudah dijangkau oleh pengguna dengan tinggi badan yang berbeda.</li>
         </ul>
         <p>Studi kasus ini menunjukkan bahwa penerapan Human Factors dalam desain dapat meningkatkan efektivitas dan kenyamanan pengguna dalam berinteraksi dengan sistem.</p>
-        `,
+        `),
       },
     });
 
@@ -773,7 +773,7 @@ async function main() {
       data: {
         chapterId: chapter3.id,
         name: 'Usability',
-        content: `
+        content: replaceImgPaths(`
           <h3 data-start="52" data-end="82" id="isPasted"><strong data-start="56" data-end="80"><span style="font-size: 24px;">Pengertian Usability</span></strong></h3>
           <p data-start="83" data-end="552">Usability adalah kemampuan suatu sistem, produk, atau layanan untuk memungkinkan pengguna menyelesaikan tugas dengan mudah, efisien, dan menyenangkan. Konsep ini sangat penting dalam desain produk dan sistem interaktif karena berhubungan langsung dengan pengalaman pengguna. Dalam konteks interaksi manusia dan komputer, usability mencakup bagaimana pengguna berinteraksi dengan sistem dan memastikan bahwa pengalaman tersebut memenuhi tujuan pengguna secara optimal.</p>
           <p data-start="554" data-end="798">Menurut Nielsen (1993), usability adalah ukuran seberapa baik suatu produk dapat digunakan oleh pengguna untuk mencapai tujuan tertentu dengan efisiensi, efektivitas, dan kepuasan. Dimensi usability menurut Shneiderman et al. (2016) mencakup:</p>
@@ -846,7 +846,7 @@ async function main() {
           </p>
           <p><strong><span style="font-size: 24px;">Kesimpulan</span></strong></p>
           <p><span style="font-size: 14px;">Usability harus menjadi fokus dalam berbagai tahap pengembangan produk, terutama sejak tahap perancangan. Pengujian usability harus dilakukan sejak awal pengembangan untuk menghindari kesalahan desain yang dapat berdampak pada pengalaman pengguna. Oleh karena itu, usability bukan hanya sekadar fitur tambahan, melainkan merupakan elemen kunci dalam menciptakan produk yang sukses dan mudah digunakan oleh penggunanya.</span></p>
-        `,
+        `),
       },
     });
 
@@ -854,7 +854,7 @@ async function main() {
       data: {
         chapterId: chapter4.id,
         name: 'Heuristic Evaluation: Nielsen’s 10 Principles',
-        content: `
+        content: replaceImgPaths(`
           <h2>Definisi Usability Testing</h2>
     <p>Usability testing adalah proses evaluasi produk atau sistem dengan menguji langsung pada pengguna untuk mengukur kemudahan penggunaan, efisiensi, dan kepuasan pengguna dalam berinteraksi dengan antarmuka. Menurut Preece et al. (2019), usability testing membantu dalam memahami bagaimana pengguna berinteraksi dengan sistem dan mengidentifikasi kendala yang mereka hadapi selama proses penggunaan.</p>
     
@@ -1013,7 +1013,7 @@ async function main() {
             <li><strong>Help and Documentation:</strong> Dokumentasi harus mudah diakses dan dipahami oleh pengguna.</li>
         </ol>
     
-        `,
+        `),
       },
     });
 
@@ -1021,7 +1021,7 @@ async function main() {
       data: {
         chapterId: chapter5.id,
         name: 'VISUAL ELEMENTS, INFORMATION HIERARCHY, CONSISTENCY, AND INTERFACE READABILITY',
-        content: `
+        content: replaceImgPaths(`
           <p id="isPasted"><strong><span style="font-size: 24px;">Pendahuluan</span></strong></p>
           <p>Desain yang baik mempertimbangkan bagaimana pengguna memproses informasi, bernavigasi dalam antarmuka, dan memahami konten dengan cepat dan efisien. Prinsip-prinsip ini berlaku tidak hanya untuk aplikasi desktop atau web, tetapi juga untuk desain interaksi berbasis perangkat seluler, IoT (Internet of Things), dan teknologi lainnya. Secara khusus, file ini akan membahas tentang:</p>
           <ul style="list-style-type: disc;">
@@ -1071,7 +1071,7 @@ async function main() {
           <p style="margin-left: 20px;"><strong>Hierarchy (Hierarki Visual)</strong></p><p><br></p><ul style="list-style-type: disc;"><li style="font-weight: bold;"><strong>Whitespace (Ruang Kosong)</strong></li></ul>
           <p>Whitespace adalah area kosong dalam desain yang tidak berisi elemen visual, namun memiliki peran penting dalam meningkatkan keterbacaan, estetika, dan fokus pengguna. Whitespace dapat meningkatkan keterbacaan, membantu navigasi, dan memperkuat hierarki visual. Terdapat dua jenis whitespace, yaitu Whitespace Makro (ruang kosong antara bagian utama halaman) dan Whitespace Mikro (Ruang di antara elemen kecil seperti paragraf, ikon, atau tombol).</p>
           <p><br></p><ul style="list-style-type: disc;"><li style="font-weight: bold;"><strong>Alignment and Grids</strong></li></ul><p>Alignment memastikan bahwa elemen dalam desain UI/UX memiliki keteraturan yang konsisten, sedangkan grid adalah sistem tata letak berbasis garis bantu untuk menyusun elemen secara rapi. Alignment berkontribusi pada simplicity sebuah desain. File ini juga membahas tentang prinsip alignment dan elemen grid.</p><p><strong><br></strong></p><ul style="list-style-type: disc;"><li><strong>Konsistensi dan Keterbacaan Antarmuka</strong><br>Kedua aspek ini hanya disebutkan sebagai judul, tetapi tidak dijelaskan lebih lanjut. Secara umum, konsistensi dalam desain antarmuka berarti menggunakan pola dan elemen yang sama di seluruh aplikasi atau situs web. Keterbacaan antarmuka mengacu pada seberapa mudah pengguna dapat membaca dan memahami teks dalam antarmuka.</li></ul>
-        `,
+        `),
       },
     });
 
@@ -1079,7 +1079,7 @@ async function main() {
       data: {
         chapterId: chapter6.id,
         name: 'User-Centered Design (UCD)',
-        content: `
+        content: replaceImgPaths(`
           <p id="isPasted"><strong><span style="font-size: 24px;">Definisi User-Centered Design (UCD)</span></strong></p>
           <p>User-Centered Design (UCD) adalah pendekatan desain yang berfokus pada pengguna, di mana kebutuhan, keterbatasan, dan preferensi pengguna menjadi faktor utama dalam proses perancangan sistem atau produk digital (Preece et al., 2019; Benyon, 2019). UCD menempatkan pengguna sebagai fokus utama dalam setiap tahap pengembangan produk atau sistem. Tujuannya adalah untuk memastikan bahwa produk yang dikembangkan benar-benar sesuai dengan kebutuhan, keinginan, dan karakteristik pengguna.</p>
           <p><br></p><p><strong><span style="font-size: 24px;">Konsep Dasar UCD</span></strong></p><p id="isPasted">Konsep dasar UCD mencakup:</p>
@@ -1098,7 +1098,7 @@ async function main() {
           <li><strong>Meningkatkan kepuasan pengguna</strong>: Produk lebih sesuai dengan kebutuhan pengguna, sehingga meningkatkan engagement.<br><br><strong><span style="font-size: 24px;">Contoh Penerapan UCD: Aplikasi GoFood dan GrabFood</span></strong><br>Aplikasi Pemesanan Makanan:</li>
           <li id="isPasted">Desain antarmuka yang sederhana dan mudah digunakan.</li></ul><p>Proses pemesanan yang cepat dengan opsi pembayaran beragam.<br><strong><span style="font-size: 24px;"><br>Tahapan UCD</span></strong></p><p id="isPasted"><strong>Identify the User:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Menentukan siapa pengguna utama (primary user), sekunder (secondary user), dan tersier (tertiary user).</li><li>Memahami lingkungan, perilaku, dan pengalaman pengguna.</li></ul><p><br></p><p><strong>Research the User:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengumpulkan data melalui wawancara, kuesioner, diskusi kelompok (focus groups), observasi langsung di lokasi, dan rekaman video.</li><li>Memahami bagaimana pengguna berinteraksi dengan sistem atau produk yang sedang dikembangkan.</li></ul><p><br></p><p><strong>Create Goals:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengidentifikasi bagaimana kegunaan (usability) dapat diukur.</li><li>Mempertimbangkan faktor efektivitas, efisiensi, keamanan, utilitas, kemudahan belajar (learnability), dan daya ingat pengguna (memorability).</li></ul><p><br></p><p><strong>Design:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Membuat mock-ups atau model/desain awal produk yang dapat diuji oleh pengguna sepanjang proses pengembangan.</li><li>Memastikan instruksi mudah dipahami dengan batasan dan petunjuk visual.</li></ul><p><br></p><p><strong>Prototype:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Model awal atau versi percobaan dari suatu produk sebelum produk akhir dikembangkan.</li><li>Mengembangkan prototype fungsional yang dapat diuji dalam lingkungan nyata.</li></ul><p><br></p><p><strong>Test:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengevaluasi desain dengan melibatkan pengguna.</li><li>Menguji produk dalam lingkungan nyata dan mendokumentasikan hasilnya.</li>
           <li>Memberikan instruksi minimal kepada pengguna untuk melihat apakah produk intuitif.</li></ul><p><br></p><p><strong>Produce:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Melanjutkan evaluasi produk berdasarkan umpan balik melalui wawancara dan survei.</li><li>Menyempurnakan produk berdasarkan hasil evaluasi.</li></ul>
-        `,
+        `),
       },
     });
 
@@ -1106,7 +1106,7 @@ async function main() {
       data: {
         chapterId: chapter7.id,
         name: 'Implementasi User-Centered Design (UCD)',
-        content: `
+        content: replaceImgPaths(`
           <p id="isPasted"><strong><span style="font-size: 24px;">Definisi User-Centered Design (UCD)</span></strong></p>
           <p>User-Centered Design (UCD) adalah pendekatan desain yang berfokus pada pengguna, di mana kebutuhan, keterbatasan, dan preferensi pengguna menjadi faktor utama dalam proses perancangan sistem atau produk digital (Preece et al., 2019; Benyon, 2019). UCD menempatkan pengguna sebagai fokus utama dalam setiap tahap pengembangan produk atau sistem. Tujuannya adalah untuk memastikan bahwa produk yang dikembangkan benar-benar sesuai dengan kebutuhan, keinginan, dan karakteristik pengguna.</p>
           <p><br></p><p><strong><span style="font-size: 24px;">Konsep Dasar UCD</span></strong></p><p id="isPasted">Konsep dasar UCD mencakup:</p>
@@ -1125,7 +1125,7 @@ async function main() {
           <li><strong>Meningkatkan kepuasan pengguna</strong>: Produk lebih sesuai dengan kebutuhan pengguna, sehingga meningkatkan engagement.<br><br><strong><span style="font-size: 24px;">Contoh Penerapan UCD: Aplikasi GoFood dan GrabFood</span></strong><br>Aplikasi Pemesanan Makanan:</li>
           <li id="isPasted">Desain antarmuka yang sederhana dan mudah digunakan.</li></ul><p>Proses pemesanan yang cepat dengan opsi pembayaran beragam.<br><strong><span style="font-size: 24px;"><br>Tahapan UCD</span></strong></p><p id="isPasted"><strong>Identify the User:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Menentukan siapa pengguna utama (primary user), sekunder (secondary user), dan tersier (tertiary user).</li><li>Memahami lingkungan, perilaku, dan pengalaman pengguna.</li></ul><p><br></p><p><strong>Research the User:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengumpulkan data melalui wawancara, kuesioner, diskusi kelompok (focus groups), observasi langsung di lokasi, dan rekaman video.</li><li>Memahami bagaimana pengguna berinteraksi dengan sistem atau produk yang sedang dikembangkan.</li></ul><p><br></p><p><strong>Create Goals:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengidentifikasi bagaimana kegunaan (usability) dapat diukur.</li><li>Mempertimbangkan faktor efektivitas, efisiensi, keamanan, utilitas, kemudahan belajar (learnability), dan daya ingat pengguna (memorability).</li></ul><p><br></p><p><strong>Design:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Membuat mock-ups atau model/desain awal produk yang dapat diuji oleh pengguna sepanjang proses pengembangan.</li><li>Memastikan instruksi mudah dipahami dengan batasan dan petunjuk visual.</li></ul><p><br></p><p><strong>Prototype:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Model awal atau versi percobaan dari suatu produk sebelum produk akhir dikembangkan.</li><li>Mengembangkan prototype fungsional yang dapat diuji dalam lingkungan nyata.</li></ul><p><br></p><p><strong>Test:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengevaluasi desain dengan melibatkan pengguna.</li><li>Menguji produk dalam lingkungan nyata dan mendokumentasikan hasilnya.</li>
           <li>Memberikan instruksi minimal kepada pengguna untuk melihat apakah produk intuitif.</li></ul><p><br></p><p><strong>Produce:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Melanjutkan evaluasi produk berdasarkan umpan balik melalui wawancara dan survei.</li><li>Menyempurnakan produk berdasarkan hasil evaluasi.</li></ul>
-        `,
+        `),
       },
     });
 
@@ -1133,7 +1133,7 @@ async function main() {
       data: {
         chapterId: chapter8.id,
         name: 'UTS',
-        content: `
+        content: replaceImgPaths(`
           <p id="isPasted"><strong><span style="font-size: 24px;">Definisi User-Centered Design (UCD)</span></strong></p>
           <p>User-Centered Design (UCD) adalah pendekatan desain yang berfokus pada pengguna, di mana kebutuhan, keterbatasan, dan preferensi pengguna menjadi faktor utama dalam proses perancangan sistem atau produk digital (Preece et al., 2019; Benyon, 2019). UCD menempatkan pengguna sebagai fokus utama dalam setiap tahap pengembangan produk atau sistem. Tujuannya adalah untuk memastikan bahwa produk yang dikembangkan benar-benar sesuai dengan kebutuhan, keinginan, dan karakteristik pengguna.</p>
           <p><br></p><p><strong><span style="font-size: 24px;">Konsep Dasar UCD</span></strong></p><p id="isPasted">Konsep dasar UCD mencakup:</p>
@@ -1152,7 +1152,7 @@ async function main() {
           <li><strong>Meningkatkan kepuasan pengguna</strong>: Produk lebih sesuai dengan kebutuhan pengguna, sehingga meningkatkan engagement.<br><br><strong><span style="font-size: 24px;">Contoh Penerapan UCD: Aplikasi GoFood dan GrabFood</span></strong><br>Aplikasi Pemesanan Makanan:</li>
           <li id="isPasted">Desain antarmuka yang sederhana dan mudah digunakan.</li></ul><p>Proses pemesanan yang cepat dengan opsi pembayaran beragam.<br><strong><span style="font-size: 24px;"><br>Tahapan UCD</span></strong></p><p id="isPasted"><strong>Identify the User:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Menentukan siapa pengguna utama (primary user), sekunder (secondary user), dan tersier (tertiary user).</li><li>Memahami lingkungan, perilaku, dan pengalaman pengguna.</li></ul><p><br></p><p><strong>Research the User:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengumpulkan data melalui wawancara, kuesioner, diskusi kelompok (focus groups), observasi langsung di lokasi, dan rekaman video.</li><li>Memahami bagaimana pengguna berinteraksi dengan sistem atau produk yang sedang dikembangkan.</li></ul><p><br></p><p><strong>Create Goals:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengidentifikasi bagaimana kegunaan (usability) dapat diukur.</li><li>Mempertimbangkan faktor efektivitas, efisiensi, keamanan, utilitas, kemudahan belajar (learnability), dan daya ingat pengguna (memorability).</li></ul><p><br></p><p><strong>Design:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Membuat mock-ups atau model/desain awal produk yang dapat diuji oleh pengguna sepanjang proses pengembangan.</li><li>Memastikan instruksi mudah dipahami dengan batasan dan petunjuk visual.</li></ul><p><br></p><p><strong>Prototype:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Model awal atau versi percobaan dari suatu produk sebelum produk akhir dikembangkan.</li><li>Mengembangkan prototype fungsional yang dapat diuji dalam lingkungan nyata.</li></ul><p><br></p><p><strong>Test:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Mengevaluasi desain dengan melibatkan pengguna.</li><li>Menguji produk dalam lingkungan nyata dan mendokumentasikan hasilnya.</li>
           <li>Memberikan instruksi minimal kepada pengguna untuk melihat apakah produk intuitif.</li></ul><p><br></p><p><strong>Produce:</strong></p><ul style="list-style-type: disc;"><li id="isPasted">Melanjutkan evaluasi produk berdasarkan umpan balik melalui wawancara dan survei.</li><li>Menyempurnakan produk berdasarkan hasil evaluasi.</li></ul>
-        `,
+        `),
       },
     });
 
