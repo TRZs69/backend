@@ -398,6 +398,12 @@ exports.streamMessage = async ({
 	});
 
 	try {
+		let titlePromise = Promise.resolve();
+		if (chatHistoryStore.isEnabled && persistedSessionId && messages.length <= 3) {
+			emitChunk({ sessionId: persistedSessionId });
+			titlePromise = generateSessionTitleStream({ sessionId: persistedSessionId, messages, emitChunk });
+		}
+
 		let reply = '';
 		if (typeof llmClient.streamComplete === 'function') {
 			reply = await llmClient.streamComplete({
@@ -424,9 +430,10 @@ exports.streamMessage = async ({
 					{ role: 'assistant', content: reply },
 				],
 			});
-			await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
+			// When streaming, we run title generation concurrently instead of waiting till end
 		}
 
+		await titlePromise;
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
 		const status = error?.response?.status;
@@ -488,6 +495,48 @@ ${conversationText}
 		}
 	} catch (error) {
 		console.error('generateSessionTitle error:', error.message);
+	}
+};
+
+const generateSessionTitleStream = async ({ sessionId, messages, emitChunk }) => {
+	const conversationText = messages
+		.map((m) => `${m.role}: ${m.content}`)
+		.join('\n')
+		.slice(0, 2000);
+
+	const titlePrompt = `
+Buatkan judul pendek (maksimal 5 kata) yang menarik untuk percakapan berikut.
+Langsung berikan judulnya saja tanpa tanda kutip.
+
+Percakapan:
+${conversationText}
+	`.trim();
+
+	try {
+		let finalTitle = '';
+		if (typeof llmClient.streamComplete === 'function') {
+			finalTitle = await llmClient.streamComplete({
+				messages: [{ role: 'user', content: titlePrompt }],
+				onChunk: (chunk) => {
+					emitChunk({ titleDelta: chunk });
+				}
+			});
+		} else {
+			finalTitle = await llmClient.complete({
+				messages: [{ role: 'user', content: titlePrompt }],
+			});
+			if (finalTitle) {
+				emitChunk({ titleDelta: finalTitle });
+			}
+		}
+
+		if (finalTitle) {
+			const cleanTitle = finalTitle.replace(/^["']|["']$/g, '').trim();
+			await chatHistoryStore.renameSession({ sessionId, title: cleanTitle });
+			emitChunk({ title: cleanTitle });
+		}
+	} catch (error) {
+		console.error('generateSessionTitleStream error:', error.message);
 	}
 };
 

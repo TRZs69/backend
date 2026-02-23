@@ -66,7 +66,11 @@ exports.streamMessage = async (req, res) => {
     if (!delta) {
       return;
     }
-    sendEvent({ delta });
+    if (typeof delta === 'object') {
+      sendEvent(delta);
+    } else {
+      sendEvent({ delta });
+    }
   };
   const handleClose = () => {
     abortController.abort();
