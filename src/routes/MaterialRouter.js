@@ -1,6 +1,7 @@
 const express = require('express');
 // @ts-ignore
 const materialController = require('../controllers/MaterialController');
+const { uploadImage } = require('../middlewares/FileUpload');
 
 const router = express.Router();
 
@@ -12,6 +13,9 @@ router.get('/material/:id', materialController.getMaterialById);
 
 // Router for create material
 router.post('/material', materialController.createMaterial);
+
+// Router for uploading image from Froala Editor
+router.post('/material/upload-image', uploadImage, materialController.uploadImage);
 
 // Router for update material by id
 router.put('/material/:id', materialController.updateMaterial);
