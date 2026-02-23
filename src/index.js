@@ -34,6 +34,7 @@ const allowedOrigins = [
   "http://127.0.0.1:5173",
   "http://172.29.176.1:5173",
   "http://10.84.4.200:5173",
+  "https://frontend-web-83dm.vercel.app",
 ];
 
 app.use(
@@ -44,7 +45,9 @@ app.use(
         (origin.startsWith("http://localhost") ||
           origin.startsWith("http://127.0.0.1"));
 
-      if (!origin || allowedOrigins.includes(origin) || isLocalhost) {
+      const isVercel = origin && origin.endsWith(".vercel.app");
+
+      if (!origin || allowedOrigins.includes(origin) || isLocalhost || isVercel) {
         return callback(null, true);
       }
       return callback(new Error("Not allowed by CORS"));
@@ -82,8 +85,8 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 7000;
 if (process.env.VERCEL !== "1")
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
 
 module.exports = app;
