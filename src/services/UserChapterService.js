@@ -2,7 +2,7 @@ const prisma = require('../prismaClient');
 
 exports.getAllUserChapters = async () => {
     try {
-        const userChapters = await prisma.userChapter.findMany(); 
+        const userChapters = await prisma.userChapter.findMany();
         return userChapters;
     } catch (error) {
         throw new Error(error.message);
@@ -33,26 +33,26 @@ exports.createUserChapter = async (newData) => {
     }
 };
 
-exports.updateUserChapter = async(id, updateData) => {
+exports.updateUserChapter = async (id, updateData) => {
     try {
         const userChapter = await prisma.userChapter.update({
-            where: { id },      
-            data: updateData,     
+            where: { id },
+            data: updateData,
         });
-        return userChapter;  
+        return userChapter;
     } catch (error) {
-        throw new Error(error.message);  
+        throw new Error(error.message);
     }
 }
 
-exports.deleteUserChapter = async(id) => {
+exports.deleteUserChapter = async (id) => {
     try {
         await prisma.userChapter.delete({
             where: { id },
         });
         return `Successfully deleted userChapter with id: ${id}`;
     } catch (error) {
-        throw new Error('Error deleting userChapter: ' + error.message); 
+        throw new Error('Error deleting userChapter: ' + error.message);
     }
 }
 
@@ -90,8 +90,8 @@ exports.getCoursesByUser = async (userId) => {
             }
         });
 
-        if (!course.length) {
-            throw new Error(`No course found for user with id ${userId}`);
+        if (!course || !course.length) {
+            return [];
         }
 
         return course;
@@ -121,7 +121,7 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
                 userId,
                 chapterId
             },
-            data: updateData,  
+            data: updateData,
         });
         return userChapter;
     } catch (error) {

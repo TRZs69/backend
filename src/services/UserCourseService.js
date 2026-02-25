@@ -101,8 +101,8 @@ exports.getCoursesByUser = async (userId) => {
       },
     });
 
-    if (!userCourses.length) {
-      throw new Error(`No course found for user with id ${userId}`);
+    if (!userCourses || !userCourses.length) {
+      return [];
     }
 
     return userCourses.map((userCourse) => ({
