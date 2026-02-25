@@ -28,6 +28,9 @@ const buildFeedback = (grade, correct, total) => {
     if (grade >= 70) {
         return 'Hasilmu cukup bagus, coba tinjau kembali soal yang masih salah untuk memperkuat pemahaman.';
     }
+    if (grade > 0 && grade < 70) {
+        return 'Hasilmu masih perlu ditingkatkan, coba tinjau kembali soal yang masih salah untuk memperkuat pemahaman.';
+    }
     if (correct === 0) {
         return 'Belum ada jawaban yang tepat. Coba baca ulang materi, lalu kerjakan kembali secara bertahap.';
     }
@@ -186,9 +189,24 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
     // 2. Actual Score (Win/Loss/Partial) - mapped from 0.0 to 1.0 based on correctness
     const actualScore = getCorrectnessRatio(correctAnswers, totalQuestions);
 
-    // 3. Dynamic Points Calculation
-    const K_FACTOR = 30;
-    let eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
+    // 3. Dynamic Points Calculation with Provisional Rating (USCF N<8 approximation)
+    let K_FACTOR = 30; // Standard K-Factor
+    let eloChange = 0;
+
+    // Provisional Unrated Phase logic:
+    // If the user is at base floor (1000 points or less), they are considered "Unrated".
+    // We boost the K-Factor to act as a placement test multiplier, and inject a base reward.
+    if (userChapter.user?.points === undefined || userChapter.user?.points <= 1000) {
+        K_FACTOR = 80; // High volatility for placement
+        eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
+
+        // Add a "Placement Bonus" directly tied to grade so they don't get 0 on their first quiz
+        // If they get 50% correct, they get a raw +50 placement points on top of the Elo derivation.
+        eloChange += Math.round(grade * 0.5);
+    } else {
+        // Standard ELO for Established players
+        eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
+    }
 
     // Ensure we don't completely drain points, give minimum protection
     const pointsEarned = Math.max(-5, eloChange);
