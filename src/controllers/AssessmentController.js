@@ -13,16 +13,16 @@ const getAllAssessments = async (req, res) => {
 };
 
 // Controller untuk mendapatkan assessment by id
-const getAssessmentById = async(req, res) => {
+const getAssessmentById = async (req, res) => {
     const id = parseInt(req.params.id);
 
     try {
         const assessment = await assessmentService.getAssessmentById(id);
         res.status(200).json(assessment);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get assessment with id ${ id }`})
+        res.status(500).json({ message: `Failed to get assessment with id ${id}` })
         console.log(error.mesage);
-        
+
     }
 }
 
@@ -32,11 +32,11 @@ const createAssessment = async (req, res) => {
         const newData = req.body;
 
         const assessment = await assessmentService.createAssessment(newData);
-        res.status(201).json({message: `Successfully create new assessment ${newData.name}`, assessment: assessment});
+        res.status(201).json({ message: `Successfully create new assessment ${newData.name}`, assessment: assessment });
     } catch (error) {
         res.status(500).json({ message: "Failed to create new assessment", data: error.message });
         console.log(error.message);
-        
+
     }
 };
 
@@ -48,11 +48,11 @@ const updateAssessment = async (req, res) => {
 
     try {
         const updateAssessment = await assessmentService.updateAssessment(id, updateData);
-        res.status(200).json({message: "Successfully updated assessment", assessment: updateAssessment});
+        res.status(200).json({ message: "Successfully updated assessment", assessment: updateAssessment });
     } catch (error) {
         res.status(500).json({ message: "Failed to update assessment", detail: error.message });
         console.log(error.message);
-        
+
     }
 };
 
@@ -66,7 +66,7 @@ const deleteAssessment = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Failed to delete assessment' });
         console.log(error.message);
-        
+
     }
 };
 
@@ -76,7 +76,7 @@ const submitAssessment = async (req, res) => {
         const { userId, chapterId, answers } = req.body;
 
         const result = await assessmentService.processSubmission(userId, chapterId, answers);
-        
+
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });

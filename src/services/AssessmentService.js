@@ -144,7 +144,11 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
 
     const [assessment, userChapter] = await Promise.all([
         prisma.assessment.findFirst({ where: { chapterId } }),
-        ensureUserChapter(userId, chapterId),
+        ensureUserChapter(userId, chapterId).then(async (chapter) => {
+            // Also fetch the user to get their base points (Elo rating)
+            const user = await prisma.user.findUnique({ where: { id: userId } });
+            return { ...chapter, user };
+        }),
     ]);
 
     const questions = normaliseQuestions(assessment?.questions);
@@ -156,7 +160,39 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
     const { evaluations, correctAnswers } = evaluateSubmission(questions, answerMap);
     const totalQuestions = questions.length;
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
-    const pointsEarned = Math.max(0, Math.round(grade / 5));
+
+    // Fixed-Penalty Elo Scoring Logic (Vermeiren et al., 2025)
+    let userElo = userChapter.user?.points || 1000;
+    if (userElo < 1000) userElo = 1000; // Base floor
+
+    let itemDifficultyElo;
+    switch (userChapter.currentDifficulty) {
+        case EASY:
+            itemDifficultyElo = 800;
+            break;
+        case MEDIUM:
+            itemDifficultyElo = 1200;
+            break;
+        case HARD:
+            itemDifficultyElo = 1600;
+            break;
+        default:
+            itemDifficultyElo = 1200;
+    }
+
+    // 1. Expected Probability
+    const expectedProb = 1 / (1 + Math.pow(10, (itemDifficultyElo - userElo) / 400));
+
+    // 2. Actual Score (Win/Loss/Partial) - mapped from 0.0 to 1.0 based on correctness
+    const actualScore = getCorrectnessRatio(correctAnswers, totalQuestions);
+
+    // 3. Dynamic Points Calculation
+    const K_FACTOR = 30;
+    let eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
+
+    // Ensure we don't completely drain points, give minimum protection
+    const pointsEarned = Math.max(-5, eloChange);
+
     const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
     const orderedAnswers = questions.map((_, index) => answerMap.get(index) || '');
