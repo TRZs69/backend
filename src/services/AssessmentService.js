@@ -167,13 +167,13 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
 
     let itemDifficultyElo;
     switch (userChapter.currentDifficulty) {
-        case EASY:
+        case 'EASY':
             itemDifficultyElo = 800;
             break;
-        case MEDIUM:
+        case 'MEDIUM':
             itemDifficultyElo = 1200;
             break;
-        case HARD:
+        case 'HARD':
             itemDifficultyElo = 1600;
             break;
         default:
