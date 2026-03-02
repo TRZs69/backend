@@ -2,14 +2,15 @@ const express = require('express');
 // @ts-ignore
 const materialController = require('../controllers/MaterialController');
 const { uploadImage } = require('../middlewares/FileUpload');
+const cacheMiddleware = require('../middlewares/cacheMiddleware');
 
 const router = express.Router();
 
 // Route for get all materials
-router.get('/material', materialController.getAllMaterials);
+router.get('/material', cacheMiddleware(300), materialController.getAllMaterials);
 
 // Route for get material by id
-router.get('/material/:id', materialController.getMaterialById);
+router.get('/material/:id', cacheMiddleware(300), materialController.getMaterialById);
 
 // Router for create material
 router.post('/material', materialController.createMaterial);

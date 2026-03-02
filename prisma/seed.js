@@ -57,25 +57,39 @@ async function ensureBadgesBucketAndUpload() {
   return { assetsUrl };
 }
 
+function replaceImgPaths(content) {
+  // Pass the raw content through since assets aren't strictly replacing logic here currently,
+  // returning it prevents ReferenceError.
+  return content;
+}
+
 async function main() {
   try {
     const { assetsUrl } = await ensureBadgesBucketAndUpload();
 
+    // Clear existing data to avoid unique constraint failures on re-seeding
+    console.log('[seed] Clearing existing data (users, courses, chapters, materials, etc.)...');
+
+    // In Prisma, deleting a parent with cascade will also delete children, but we'll do this to be safe
+    await prisma.userCourse.deleteMany();
+    await prisma.userChapter.deleteMany();
+    await prisma.userBadge.deleteMany();
+    await prisma.userTrade.deleteMany();
+
+    await prisma.badge.deleteMany();
+    await prisma.trade.deleteMany();
+    await prisma.assignment.deleteMany();
+    await prisma.assessment.deleteMany();
+    await prisma.material.deleteMany();
+    await prisma.chapter.deleteMany();
+    await prisma.course.deleteMany();
+    await prisma.user.deleteMany();
+
     // Create Users
     const hashedPassword = await bcrypt.hash('password', 10);
     const userPassword = await bcrypt.hash('123', 10);
-    
-    const administrator = await prisma.user.create({
-      data: {
-        username: 'admin',
-        password: hashedPassword,
-        name: 'Admin',
-        role: Role.ADMIN,
-        image: '',
-      },
-    });
 
-    const administrator2 = await prisma.user.create({
+    const administrator = await prisma.user.create({
       data: {
         username: 'archico',
         password: hashedPassword,
@@ -95,8 +109,8 @@ async function main() {
         instructorCourses: 0,
         image: '',
       },
-    });     
-    
+    });
+
     const student = await prisma.user.create({
       data: {
         username: 'benhard',
@@ -110,7 +124,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const emely = await prisma.user.create({
       data: {
         username: 'emely',
@@ -124,7 +138,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const boy = await prisma.user.create({
       data: {
         username: 'boy',
@@ -138,7 +152,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const enrico = await prisma.user.create({
       data: {
         username: 'enrico',
@@ -152,7 +166,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const gerry = await prisma.user.create({
       data: {
         username: 'gerry',
@@ -166,7 +180,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const tabitha = await prisma.user.create({
       data: {
         username: 'tabitha',
@@ -180,7 +194,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const tesalonika = await prisma.user.create({
       data: {
         username: 'tesalonika',
@@ -194,7 +208,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const dedi = await prisma.user.create({
       data: {
         username: 'dedi',
@@ -208,7 +222,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const gerald = await prisma.user.create({
       data: {
         username: 'gerald',
@@ -222,7 +236,7 @@ async function main() {
         image: '',
       },
     });
-    
+
     const rds = await prisma.user.create({
       data: {
         username: 'ranty',
@@ -233,7 +247,7 @@ async function main() {
         instructorCourses: 0,
         image: '',
       },
-    }); 
+    });
 
     // Create Courses
     const course1 = await prisma.course.create({
@@ -1065,8 +1079,8 @@ async function main() {
             answer: "Human-centered design",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Interaksi Manusia Komputer', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Interaksi Manusia Komputer',
             options: [
               ''
             ],
@@ -1178,8 +1192,8 @@ async function main() {
             answer: "Overload kognitif pengguna",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Human Factors and Ergonomic Principles in Design Interaction ', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Human Factors and Ergonomic Principles in Design Interaction ',
             options: [
               ''
             ],
@@ -1196,76 +1210,76 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: JSON.stringify([
           {
-              question: "Dalam mendesain workspace virtual, pengembang harus mempertimbangkan...",
-              options: [
-                "Hanya aspek visual",
-                "Hanya aspek auditori",
-                "anya aspek kognitif",
-                "Multisensory ergonomics",
-                "Hanya aspek motor"
-              ],
-              answer: "Multisensory ergonomics",
-              type: "MC"
-            },
-            {
-              question: "Menggunakan warna merah untuk tombol Hapus dan hijau untuk tombol Simpan adalah contoh penerapan model mental yang baik.",
-              options: ["True", "False"],
-              answer: "True",
-              type: "MC"
-            },
-            {
-              question: "Aplikasi produktivitas menampilkan notifikasi setiap 5 menit untuk mengingatkan deadline. Dari perspektif Human Factors, ini problematik karena...",
-              options: [
-                "Terlalu banyak interupsi",
-                "Masalah baterai",
-                "Masalah jaringan",
-                "Keamanan data",
-                "Masalah storage"
-              ],
-              answer: "Terlalu banyak interupsi",
-              type: "MC"
-            },
-            {
-              question: "Dalam mendesain aplikasi untuk anak-anak, pertimbangan Human Factors yang paling penting adalah...",
-              options: [
-                "Kecepatan sistem",
-                "Kapasitas storage",
-                "Perkembangan motorik",
-                "Efisiensi database",
-                "Keamanan server"
-              ],
-              answer: "Perkembangan motorik",
-              type: "MC"
-            },
-            {
-              question: "Aplikasi video conference menggunakan layout yang dapat disesuaikan pengguna. Ini merupakan implementasi dari...",
-              options: [
-                "Fleksibilitas dan efisiensi",
-                "Kecepatan sistem",
-                "Keamanan data",
-                "Manajemen server",
-                "Protokol jaringan"
-              ],
-              answer: "Fleksibilitas dan efisiensi",
-              type: "MC"
-            },
-            {
-              question: "Aplikasi mobile banking memiliki fitur keamanan yang sangat ketat dengan 5 langkah verifikasi setiap kali login. Hal ini menunjukkan tingkat usability yang tinggi karena mengutamakan keamanan pengguna.",
-              options: ["True", "False"],
-              answer: "False",
-              type: "MC"
-            },
-            {
-              question: "Sebuah aplikasi pembelajaran online menampilkan pesan error seperti berikut: \"Error code: 0x80070057\". Dari perspektif usability, pesan ini bermasalah karena...",
-              options: [
-                "Terlalu pendek",
-                "Tidak informatif dan sulit dipahami",
-                "Menggunakan huruf kecil",
-                "Tidak berwarna merah",
-                "Tidak ada suara"
-              ],
-              answer: "Tidak informatif dan sulit dipahami",
-              type: "MC"
+            question: "Dalam mendesain workspace virtual, pengembang harus mempertimbangkan...",
+            options: [
+              "Hanya aspek visual",
+              "Hanya aspek auditori",
+              "anya aspek kognitif",
+              "Multisensory ergonomics",
+              "Hanya aspek motor"
+            ],
+            answer: "Multisensory ergonomics",
+            type: "MC"
+          },
+          {
+            question: "Menggunakan warna merah untuk tombol Hapus dan hijau untuk tombol Simpan adalah contoh penerapan model mental yang baik.",
+            options: ["True", "False"],
+            answer: "True",
+            type: "MC"
+          },
+          {
+            question: "Aplikasi produktivitas menampilkan notifikasi setiap 5 menit untuk mengingatkan deadline. Dari perspektif Human Factors, ini problematik karena...",
+            options: [
+              "Terlalu banyak interupsi",
+              "Masalah baterai",
+              "Masalah jaringan",
+              "Keamanan data",
+              "Masalah storage"
+            ],
+            answer: "Terlalu banyak interupsi",
+            type: "MC"
+          },
+          {
+            question: "Dalam mendesain aplikasi untuk anak-anak, pertimbangan Human Factors yang paling penting adalah...",
+            options: [
+              "Kecepatan sistem",
+              "Kapasitas storage",
+              "Perkembangan motorik",
+              "Efisiensi database",
+              "Keamanan server"
+            ],
+            answer: "Perkembangan motorik",
+            type: "MC"
+          },
+          {
+            question: "Aplikasi video conference menggunakan layout yang dapat disesuaikan pengguna. Ini merupakan implementasi dari...",
+            options: [
+              "Fleksibilitas dan efisiensi",
+              "Kecepatan sistem",
+              "Keamanan data",
+              "Manajemen server",
+              "Protokol jaringan"
+            ],
+            answer: "Fleksibilitas dan efisiensi",
+            type: "MC"
+          },
+          {
+            question: "Aplikasi mobile banking memiliki fitur keamanan yang sangat ketat dengan 5 langkah verifikasi setiap kali login. Hal ini menunjukkan tingkat usability yang tinggi karena mengutamakan keamanan pengguna.",
+            options: ["True", "False"],
+            answer: "False",
+            type: "MC"
+          },
+          {
+            question: "Sebuah aplikasi pembelajaran online menampilkan pesan error seperti berikut: \"Error code: 0x80070057\". Dari perspektif usability, pesan ini bermasalah karena...",
+            options: [
+              "Terlalu pendek",
+              "Tidak informatif dan sulit dipahami",
+              "Menggunakan huruf kecil",
+              "Tidak berwarna merah",
+              "Tidak ada suara"
+            ],
+            answer: "Tidak informatif dan sulit dipahami",
+            type: "MC"
           },
           {
             question: "Aplikasi pemesanan tiket bioskop memberikan waktu 5 menit untuk menyelesaikan transaksi. Hal ini merupakan implementasi..",
@@ -1291,8 +1305,8 @@ async function main() {
             answer: "Satisfaction",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Usability', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi Usability',
             options: [
               ''
             ],
@@ -1368,15 +1382,15 @@ async function main() {
             answer: "Error Prevention",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Heuristic Evaluation: Nielsens 10 principles ', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi Heuristic Evaluation: Nielsens 10 principles ',
             options: [
               ''
             ],
             answer: '',
             type: 'EY'
           },
-          
+
         ]),
       },
     });
@@ -1446,8 +1460,8 @@ async function main() {
             answer: "Aesthetic and Minimalist Design",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Visual Elements, Information Hierarchy, Consistency, and Interface Readability ', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi Visual Elements, Information Hierarchy, Consistency, and Interface Readability ',
             options: [
               ''
             ],
@@ -1583,8 +1597,8 @@ async function main() {
             answer: "Visual Hierarchy",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi User Centered Design', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi User Centered Design',
             options: [
               ''
             ],
@@ -1660,8 +1674,8 @@ async function main() {
             answer: "True",
             type: "MC"
           },
-          { 
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Implementation of User-centered Design', 
+          {
+            question: 'Jelaskan semua yang sudah anda pahami tentang materi Implementation of User-centered Design',
             options: [
               ''
             ],
@@ -1677,30 +1691,30 @@ async function main() {
         chapterId: chapter8.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: JSON.stringify([
-          { 
-            question: 'Apa yang dimaksud dengan Interaksi Manusia-Komputer (IMK)?', 
+          {
+            question: 'Apa yang dimaksud dengan Interaksi Manusia-Komputer (IMK)?',
             options: [
-              'Proses komunikasi antara dua komputer', 
-              'Proses interaksi antara manusia dan perangkat keras komputer', 
+              'Proses komunikasi antara dua komputer',
+              'Proses interaksi antara manusia dan perangkat keras komputer',
               'Proses interaksi antara manusia dan perangkat lunak komputer',
               'Proses komunikasi antara manusia dan komputer melalui antarmuka'
             ],
             answer: 'Proses komunikasi antara manusia dan komputer melalui antarmuka',
             type: 'MC'
           },
-          { 
-            question: 'Apa yang menjadi tujuan utama dalam desain User Interface (UI)?', 
+          {
+            question: 'Apa yang menjadi tujuan utama dalam desain User Interface (UI)?',
             options: [
-              'Membuat perangkat keras komputer lebih efisien', 
-              'Mempermudah pengguna dalam berinteraksi dengan sistem', 
+              'Membuat perangkat keras komputer lebih efisien',
+              'Mempermudah pengguna dalam berinteraksi dengan sistem',
               'Proses interaksi antara manusia dan perangkat lunak komputer',
               'Proses komunikasi antara manusia dan komputer melalui antarmuka'
             ],
             answer: 'Mempermudah pengguna dalam berinteraksi dengan sistem',
             type: 'MC'
           },
-          { 
-            question: 'User Experience (UX) merujuk pada:', 
+          {
+            question: 'User Experience (UX) merujuk pada:',
             options: [
               'Bagaimana pengguna merasakan pengalaman mereka selama menggunakan aplikasi',
               'Desain tampilan antarmuka pengguna',
@@ -1710,8 +1724,8 @@ async function main() {
             answer: 'Bagaimana pengguna merasakan pengalaman mereka selama menggunakan aplikasi',
             type: 'MC'
           },
-          { 
-            question: 'Apa yang dimaksud dengan usability dalam konteks desain UI/UX?', 
+          {
+            question: 'Apa yang dimaksud dengan usability dalam konteks desain UI/UX?',
             options: [
               'Pengukuran seberapa mudah dan efisien antarmuka digunakan',
               'Kualitas grafis yang ditampilkan pada antarmuka',
@@ -1721,35 +1735,35 @@ async function main() {
             answer: 'Pengukuran seberapa mudah dan efisien antarmuka digunakan',
             type: 'MC'
           },
-          { 
-            question: 'Wireframe adalah:', 
+          {
+            question: 'Wireframe adalah:',
             options: [
-              'Proses pengkodean aplikasi', 
-              'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi', 
-              'Proses pengujian aplikasi', 
+              'Proses pengkodean aplikasi',
+              'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi',
+              'Proses pengujian aplikasi',
               'Desain grafis yang menonjolkan warna dan font'
             ],
             answer: 'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi',
             type: 'MC'
           },
-          { 
-            question: 'Jelaskan Apa itu Penelitian', 
+          {
+            question: 'Jelaskan Apa itu Penelitian',
             options: [
               ''
             ],
             answer: '',
             type: 'EY'
           },
-          { 
-            question: 'Preferensi Pengguna seperti apa yang kalian maksud?', 
+          {
+            question: 'Preferensi Pengguna seperti apa yang kalian maksud?',
             options: [
               ''
             ],
             answer: '',
             type: 'EY'
           },
-          { 
-            question: 'Elearning seperti apa yang akan dibangun disini?', 
+          {
+            question: 'Elearning seperti apa yang akan dibangun disini?',
             options: [
               ''
             ],
@@ -1836,7 +1850,7 @@ async function main() {
         isCompleted: false,
       },
     });
-    
+
     await prisma.userCourse.create({
       data: {
         userId: emely.id,
@@ -1866,105 +1880,9 @@ async function main() {
       },
     });
 
-    await prisma.userCourse.create({
-      data: {
-        userId: user1.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
+    // Removing duplicate userCourse entries previously here.
 
-    await prisma.userCourse.create({
-      data: {
-        userId: user2.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user3.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user4.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user5.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user6.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user7.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user8.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user9.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
-
-    await prisma.userCourse.create({
-      data: {
-        userId: user10.id,
-        courseId: course1.id,
-        progress: 0,
-        currentChapter: 1,
-        isCompleted: false,
-      },
-    });
+    // Removed duplicate user3-user10 enrollments 
 
     // Create UserChapter relationship
     await prisma.userChapter.create({

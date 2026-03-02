@@ -183,7 +183,7 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
             itemDifficultyElo = 1200;
     }
 
-    // 1. Expected Probability
+    // 1. Rumus Elo Rating Standard
     const expectedProb = 1 / (1 + Math.pow(10, (itemDifficultyElo - userElo) / 400));
 
     // 2. Actual Score (Win/Loss/Partial) - mapped from 0.0 to 1.0 based on correctness

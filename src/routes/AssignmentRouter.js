@@ -1,14 +1,15 @@
 const express = require('express');
 // @ts-ignore
 const assignmentController = require('../controllers/AssignmentController');
+const cacheMiddleware = require('../middlewares/cacheMiddleware');
 
 const router = express.Router();
 
 // Route for get all assignments
-router.get('/assignment', assignmentController.getAllAssignments);
+router.get('/assignment', cacheMiddleware(300), assignmentController.getAllAssignments);
 
 // Route for get assignment by id
-router.get('/assignment/:id', assignmentController.getAssignmentById);
+router.get('/assignment/:id', cacheMiddleware(300), assignmentController.getAssignmentById);
 
 // Router for create assignment
 router.post('/assignment', assignmentController.createAssignment);

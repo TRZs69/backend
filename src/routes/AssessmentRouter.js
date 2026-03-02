@@ -1,14 +1,15 @@
 const express = require('express');
 // @ts-ignore
 const assessmentController = require('../controllers/AssessmentController');
+const cacheMiddleware = require('../middlewares/cacheMiddleware');
 
 const router = express.Router();
 
 // Route for get all assessments
-router.get('/assessment', assessmentController.getAllAssessments);
+router.get('/assessment', cacheMiddleware(300), assessmentController.getAllAssessments);
 
 // Route for get assessment by id
-router.get('/assessment/:id', assessmentController.getAssessmentById);
+router.get('/assessment/:id', cacheMiddleware(300), assessmentController.getAssessmentById);
 
 // Router for create assessment
 router.post('/assessment', assessmentController.createAssessment);
