@@ -1,4 +1,8 @@
 const supabase = require('../../supabase/supabase');
+const NodeCache = require('node-cache');
+
+// Initialize cache with a 10 minute TTL
+const chatCache = new NodeCache({ stdTTL: 600, checkperiod: 620 });
 
 const TABLE_SESSIONS = 'chat_sessions';
 const TABLE_MESSAGES = 'chat_messages';
@@ -173,6 +177,13 @@ async function fetchMessages({ sessionId, limit = 50 }) {
     return [];
   }
 
+  const cacheKey = `messages_${sessionId}_${limit}`;
+  const cachedMessages = chatCache.get(cacheKey);
+
+  if (cachedMessages) {
+    return cachedMessages;
+  }
+
   const { data, error } = await supabase
     .from(TABLE_MESSAGES)
     .select('id, session_id, role, content, created_at')
@@ -185,7 +196,10 @@ async function fetchMessages({ sessionId, limit = 50 }) {
     return [];
   }
 
-  return data.map(mapRowToMessage);
+  const formattedMessages = data.map(mapRowToMessage);
+  chatCache.set(cacheKey, formattedMessages);
+
+  return formattedMessages;
 }
 
 async function appendMessages({ sessionId, messages = [] }) {
@@ -211,6 +225,12 @@ async function appendMessages({ sessionId, messages = [] }) {
 
   if (error) {
     logError('appendMessages', error);
+  } else {
+    // Invalidate the cache for this session
+    const keys = chatCache.keys().filter(key => key.startsWith(`messages_${sessionId}`));
+    if (keys.length > 0) {
+      chatCache.del(keys);
+    }
   }
 }
 
