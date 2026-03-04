@@ -60,7 +60,7 @@ exports.updateChapter = async (id, updateData) => {
 
 exports.deleteChapter = async (id) => {
   try {
-     // Ambil semua assignment terkait dengan chapter yang akan dihapus
+    // Ambil semua assignment terkait dengan chapter yang akan dihapus
     const assignments = await prisma.assignment.findMany({
       where: { chapterId: id },
       select: { fileUrl: true },
@@ -123,7 +123,11 @@ exports.getAssessmentsByChapter = async (id) => {
         id: parseInt(id),
       },
       select: {
-        assessments: true,
+        assessments: {
+          include: {
+            questions: true
+          }
+        },
       },
     });
 
