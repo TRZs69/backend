@@ -1,5 +1,24 @@
 const prisma = require('../prismaClient');
 
+const calculateEloTitle = (points) => {
+  const p = points || 750;
+  if (p >= 2000) return 'Mastery';
+  if (p >= 1800) return 'Advanced';
+  if (p >= 1600) return 'Proficient';
+  if (p >= 1400) return 'Intermediate';
+  if (p >= 1200) return 'Developing Learner';
+  if (p >= 1000) return 'Basic Understanding';
+  return 'Beginner';
+};
+
+const formatUser = (user) => {
+  if (!user) return user;
+  return {
+    ...user,
+    eloTitle: calculateEloTitle(user.points)
+  };
+};
+
 exports.getAllUsers = async (role) => {
   try {
     let users;
@@ -10,7 +29,7 @@ exports.getAllUsers = async (role) => {
     } else {
       users = await prisma.user.findMany();
     }
-    return users;
+    return users.map(formatUser);
   } catch (error) {
     throw new Error("Error retrieving users");
   }
@@ -23,7 +42,7 @@ exports.getUserById = async (id) => {
         id,
       },
     });
-    return user;
+    return formatUser(user);
   } catch (error) {
     throw new Error(error.message);
   }
@@ -59,7 +78,7 @@ exports.createUser = async (
         createdAt: new Date(),
       },
     });
-    return newUser;
+    return formatUser(newUser);
   } catch (error) {
     throw new Error(error.message);
   }
@@ -71,7 +90,7 @@ exports.updateUser = async (id, updateData) => {
       where: { id },
       data: updateData,
     });
-    return user;
+    return formatUser(user);
   } catch (error) {
     throw new Error(error.message);
   }
