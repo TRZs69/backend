@@ -316,8 +316,36 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
         });
     }
 
-    // Bulatkan total perolehan skor user & beri limit min -5 agar tak frustasi
-    const pointsEarned = Math.max(-5, Math.round(totalUserEloEarned));
+    // 4. Modifikasi Hasil Akhir berdasarkan Total Grade Assessment (Sesuai Permintaan)
+    // Walaupun user melawan soal per-soal, kita beri korespondensi absolut terhadap nilai akhir.
+    // Jika User dapat nilai di bawah 50, pastikan Elo-nya "dihukum" secara pantas.
+    // Jika nilainya luar biasa, berikan bonus multiplier.
+
+    let totalEloChangeRaw = Math.round(totalUserEloEarned);
+
+    if (grade >= 90) {
+        // Outstanding: Beri bonus 1.5x lipat dari poin yang sudah dikumpulkan, minimal dapat +20
+        totalEloChangeRaw = Math.max(20, Math.round(totalEloChangeRaw * 1.5));
+    } else if (grade >= 70 && grade < 90) {
+        // Good: Normal win, pastikan dia tetap plus (minimal +5)
+        totalEloChangeRaw = Math.max(5, totalEloChangeRaw);
+    } else if (grade >= 50 && grade < 70) {
+        // Mediocre: Cenderung stagnan atau minus sangat kecil
+        totalEloChangeRaw = isProvisional ? Math.max(0, totalEloChangeRaw) : Math.min(0, totalEloChangeRaw);
+    } else if (grade >= 30 && grade < 50) {
+        // Poor: Hukuman kekalahan sedang (minus 10 sampai 20)
+        totalEloChangeRaw = -15;
+    } else {
+        // Fail (<30): Hukuman kekalahan keras (minus 25)
+        totalEloChangeRaw = -25;
+    }
+
+    // Safety net: User baru/Provisional tidak boleh sampai jatuh di bawah 750 poin sama sekali
+    if (isProvisional && totalEloChangeRaw < 0) {
+        totalEloChangeRaw = 0;
+    }
+
+    const pointsEarned = totalEloChangeRaw;
 
     const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
