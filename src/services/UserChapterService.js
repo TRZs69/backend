@@ -116,7 +116,7 @@ exports.getUserChapterByUserByChapter = async (userId, chapterId) => {
 
 exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData) => {
     try {
-        const userChapter = await prisma.userChapter.update({
+        const userChapter = await prisma.userChapter.updateMany({
             where: {
                 userId,
                 chapterId

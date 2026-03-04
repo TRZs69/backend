@@ -1036,7 +1036,8 @@ async function main() {
       data: {
         chapterId: chapter1.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Platform media sosial TikTok saat ini sangat populer di kalangan pengguna. Dari perspektif HCI, faktor utama yang membuat aplikasi ini sukses adalah...",
             options: [
@@ -1087,15 +1088,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment2 = await prisma.assessment.create({
       data: {
         chapterId: chapter2.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Sebuah game mobile memiliki tutorial interaktif yang memandu pemain baru step by step. Ini adalah contoh implementasi aspek computer dalam HCI.",
             options: ["True", "False"],
@@ -1200,15 +1203,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment3 = await prisma.assessment.create({
       data: {
         chapterId: chapter3.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Dalam mendesain workspace virtual, pengembang harus mempertimbangkan...",
             options: [
@@ -1313,15 +1318,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment4 = await prisma.assessment.create({
       data: {
         chapterId: chapter4.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Seorang pengguna sedang mengisi formulir pendaftaran dalam aplikasi layanan kesehatan. Namun, tidak ada indikator yang menunjukkan apakah sistem sedang memproses data atau tidak. Pengguna merasa bingung apakah formulir telah terkirim atau belum. Prinsip heuristik mana yang tidak diterapkan?",
             options: [
@@ -1390,16 +1397,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment5 = await prisma.assessment.create({
       data: {
         chapterId: chapter5.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Seorang desainer grafis menggunakan aplikasi edit foto, tetapi aplikasi tersebut tidak memiliki tombol “UNDO” untuk membatalkan perubahan. Hal ini melanggar prinsip:",
             options: [
@@ -1468,15 +1476,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment6 = await prisma.assessment.create({
       data: {
         chapterId: chapter6.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Sebuah aplikasi layanan kesehatan menggunakan latar belakang biru tua dengan teks hitam untuk menampilkan informasi pasien. Beberapa pengguna mengeluh bahwa mereka sulit membaca teks tersebut. Prinsip desain mana yang diabaikan?",
             options: [
@@ -1605,15 +1615,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment7 = await prisma.assessment.create({
       data: {
         chapterId: chapter7.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: "Seorang pengguna aplikasi peta digital merasa bingung karena tombol navigasi sering berubah posisi setiap kali memperbesar tampilan peta. Hal ini melanggar prinsip Consistency and Standards.",
             options: ["True", "False"],
@@ -1682,15 +1694,17 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     const assessment8 = await prisma.assessment.create({
       data: {
         chapterId: chapter8.id,
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
-        questions: JSON.stringify([
+        questions: {
+          create: [
           {
             question: 'Apa yang dimaksud dengan Interaksi Manusia-Komputer (IMK)?',
             options: [
@@ -1770,8 +1784,9 @@ async function main() {
             answer: '',
             type: 'EY'
           },
-        ]),
-      },
+        ]
+      }
+      }
     });
 
     // ASSIGNMENT

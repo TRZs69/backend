@@ -20,7 +20,7 @@ model User {
   name              String
   role              Role
   studentId         String?       // Data khusus student
-  points            Int? @default(0)
+  points            Int? @default(750)
   totalCourses      Int? @default(0)
   badges            Int? @default(0)
   instructorId      String?       // Data khusus instructor
@@ -123,16 +123,33 @@ model Assessment {
   id            Int       @id @default(autoincrement())
   chapterId     Int
   instruction   String    @db.Text
-  questions     Json?
-  answers       Json?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   // Relasi
   chapter       Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  questions     Question[]
 
   @@index([chapterId])
   @@map("assessments")
+}
+
+model Question {
+  id              Int        @id @default(autoincrement())
+  assessmentId    Int
+  question        String     @db.Text
+  type            String
+  options         Json?
+  answer          String?    @db.Text
+  correctedAnswer String?    @db.Text
+  elo             Int        @default(1200)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+  @@map("questions")
 }
 
 model Assignment {
@@ -166,6 +183,7 @@ model UserChapter {
   assignmentDone  Boolean   @default(false)
   assessmentAnswer Json? 
   assessmentGrade Int       @default(0)
+  assessmentEloDelta Int    @default(0)
   submission      String?
   timeStarted     DateTime  @default(now()) 
   timeFinished    DateTime  @default(now())

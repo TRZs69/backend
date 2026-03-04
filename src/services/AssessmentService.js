@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const { GoogleAIClient } = require('./GoogleAIClient');
 
 const EASY = 'EASY';
 const MEDIUM = 'MEDIUM';
@@ -54,23 +55,31 @@ const ensureUserChapter = async (userId, chapterId) => {
 
 const evaluateSubmission = (questions = [], answerMap = new Map()) => {
     let correctAnswers = 0;
+    let assessableQuestions = 0;
     const evaluations = questions.map((question, index) => {
+        const isEssay = question.type === 'EY';
         const submitted = (answerMap.get(index) || '').trim();
-        const correct = (question.correctedAnswer || '').trim();
-        const isCorrect = submitted && submitted.toLowerCase() === correct.toLowerCase();
-        if (isCorrect) {
-            correctAnswers += 1;
-        }
+        const correct = (question.answer || question.correctedAnswer || '').trim();
+        let isCorrect = false;
+
+        if (!isEssay) {
+            assessableQuestions += 1;
+            isCorrect = submitted && submitted.toLowerCase() === correct.toLowerCase();
+            if (isCorrect) {
+                correctAnswers += 1;
+            }
+        } // we assign isCorrect = false as default for essays to avoid counting them
+
         return {
             index,
             question: question.question,
             submittedAnswer: submitted,
-            correctAnswer: question.correctedAnswer,
+            correctAnswer: correct,
             isCorrect,
         };
     });
 
-    return { evaluations, correctAnswers };
+    return { evaluations, correctAnswers, assessableQuestions };
 };
 
 const normaliseQuestions = (rawQuestions) => {
@@ -92,9 +101,49 @@ const normaliseQuestions = (rawQuestions) => {
     return [];
 };
 
+const buildGoogleAIClient = () => {
+    const apiKey = process.env.LEVELY_GEMINI_API_KEY;
+    const model = process.env.LEVELY_GEMINI_MODEL || 'gemma-3-12b-it';
+    const baseUrl = process.env.LEVELY_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models';
+    if (!apiKey) return null;
+    return new GoogleAIClient({ apiKey, model, baseUrl });
+};
+
+const ensureQuestionsElo = async (questionsData) => {
+    let parsed = normaliseQuestions(questionsData);
+    if (!parsed || parsed.length === 0) return null;
+
+    const llmClient = buildGoogleAIClient();
+    if (!llmClient) return JSON.stringify(parsed);
+
+    // Iteratively ask LLM to provide ELO per question if missing
+    for (let q of parsed) {
+        if (!q.elo) {
+            try {
+                const prompt = `Anda adalah seorang ahli pendidikan dan spesialis desain kurikulum. Berdasarkan pertanyaan kuis berikut, tentukan tingkat kesulitannya dalam bentuk rating score ELO (dari 750 hingga 2000). Hanya jawab dengan SATU ANGKA BULAT saja, tanpa tambahan kata lain.\n\nAturan Rating:\n- 750-1000: Beginner (Pemahaman dasar / mudah)\n- 1000-1200: Basic Understanding (Penerapan awal)\n- 1200-1400: Developing Learner (Analisis menengah)\n- 1400-1600: Intermediate (Evaluasi)\n- 1600-1800: Proficient (Cukup rumit, butuh pemikiran dan konteks lanjut)\n- 1800-2000+: Advanced / Mastery (Sangat rumit, membingungkan, soal tingkat ahli tingkat tinggi dan teoritis)\n\nPertanyaan: ${q.question}\nTipe Soal: ${q.type}\nOpsi: ${q.options ? q.options.join(', ') : 'N/A'}\nJawaban Benar: ${q.answer || q.correctedAnswer}`;
+                const response = await llmClient.complete({ messages: [{ role: 'user', content: prompt }] });
+
+                const rawResponse = response.replace(/\D/g, '').trim();
+                let generatedElo = parseInt(rawResponse, 10);
+                if (generatedElo >= 750 && generatedElo <= 3000) {
+                    q.elo = generatedElo;
+                } else {
+                    q.elo = 1200; // default fallback if garbage string
+                }
+            } catch (err) {
+                console.error('Failed LLM Elo generation for question, defaulting to 1200', err.message);
+                q.elo = 1200;
+            }
+        }
+    }
+    return parsed;
+};
+
 exports.getAllAssessments = async () => {
     try {
-        return await prisma.assessment.findMany();
+        return await prisma.assessment.findMany({
+            include: { questions: true }
+        });
     } catch (error) {
         throw new Error(error.message);
     }
@@ -102,7 +151,10 @@ exports.getAllAssessments = async () => {
 
 exports.getAssessmentById = async (id) => {
     try {
-        return await prisma.assessment.findUnique({ where: { id } });
+        return await prisma.assessment.findUnique({
+            where: { id },
+            include: { questions: true }
+        });
     } catch (error) {
         throw new Error(error.message);
     }
@@ -110,7 +162,28 @@ exports.getAssessmentById = async (id) => {
 
 exports.createAssessment = async (newData) => {
     try {
-        return await prisma.assessment.create({ data: newData });
+        let questionsToCreate = [];
+        if (newData.questions) {
+            questionsToCreate = await ensureQuestionsElo(newData.questions) || normaliseQuestions(newData.questions);
+            delete newData.questions;
+        }
+
+        return await prisma.assessment.create({
+            data: {
+                ...newData,
+                questions: {
+                    create: questionsToCreate.map(q => ({
+                        question: q.question || '',
+                        type: q.type || 'MC',
+                        options: q.options || [],
+                        answer: q.answer || null,
+                        correctedAnswer: q.correctedAnswer || null,
+                        elo: q.elo || 1200
+                    }))
+                }
+            },
+            include: { questions: true }
+        });
     } catch (error) {
         throw new Error(error.message);
     }
@@ -118,7 +191,36 @@ exports.createAssessment = async (newData) => {
 
 exports.updateAssessment = async (id, updateData) => {
     try {
-        return await prisma.assessment.update({ where: { id }, data: updateData });
+        if (updateData.questions) {
+            const questionsToCreate = await ensureQuestionsElo(updateData.questions) || normaliseQuestions(updateData.questions);
+            delete updateData.questions;
+
+            await prisma.question.deleteMany({ where: { assessmentId: id } });
+
+            return await prisma.assessment.update({
+                where: { id },
+                data: {
+                    ...updateData,
+                    questions: {
+                        create: questionsToCreate.map(q => ({
+                            question: q.question || '',
+                            type: q.type || 'MC',
+                            options: q.options || [],
+                            answer: q.answer || null,
+                            correctedAnswer: q.correctedAnswer || null,
+                            elo: q.elo || 1200
+                        }))
+                    }
+                },
+                include: { questions: true }
+            });
+        }
+
+        return await prisma.assessment.update({
+            where: { id },
+            data: updateData,
+            include: { questions: true }
+        });
     } catch (error) {
         throw new Error(error.message);
     }
@@ -146,7 +248,10 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
     });
 
     const [assessment, userChapter] = await Promise.all([
-        prisma.assessment.findFirst({ where: { chapterId } }),
+        prisma.assessment.findFirst({
+            where: { chapterId },
+            include: { questions: true }
+        }),
         ensureUserChapter(userId, chapterId).then(async (chapter) => {
             // Also fetch the user to get their base points (Elo rating)
             const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -154,34 +259,25 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
         }),
     ]);
 
-    const questions = normaliseQuestions(assessment?.questions);
+    const questions = assessment?.questions || [];
 
     if (!assessment || questions.length === 0) {
         throw new Error('Assessment untuk chapter ini belum tersedia.');
     }
 
-    const { evaluations, correctAnswers } = evaluateSubmission(questions, answerMap);
-    const totalQuestions = questions.length;
+    const { evaluations, correctAnswers, assessableQuestions } = evaluateSubmission(questions, answerMap);
+    const totalQuestions = assessableQuestions > 0 ? assessableQuestions : 1;
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
 
     // Fixed-Penalty Elo Scoring Logic (Vermeiren et al., 2025)
-    let userElo = userChapter.user?.points || 1000;
-    if (userElo < 1000) userElo = 1000; // Base floor
+    let userElo = userChapter.user?.points || 750;
+    if (userElo < 750) userElo = 750; // Base floor
 
-    let itemDifficultyElo;
-    switch (userChapter.currentDifficulty) {
-        case 'EASY':
-            itemDifficultyElo = 800;
-            break;
-        case 'MEDIUM':
-            itemDifficultyElo = 1200;
-            break;
-        case 'HARD':
-            itemDifficultyElo = 1600;
-            break;
-        default:
-            itemDifficultyElo = 1200;
-    }
+    // Calculate itemDifficultyElo by averaging the individual Question ELOs.
+    const averageQuestionElo = questions.length > 0
+        ? questions.reduce((sum, q) => sum + (q.elo || 1200), 0) / questions.length
+        : 1200;
+    let itemDifficultyElo = Math.round(averageQuestionElo);
 
     // 1. Rumus Elo Rating Standard
     const expectedProb = 1 / (1 + Math.pow(10, (itemDifficultyElo - userElo) / 400));
@@ -194,9 +290,9 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
     let eloChange = 0;
 
     // Provisional Unrated Phase logic:
-    // If the user is at base floor (1000 points or less), they are considered "Unrated".
+    // If the user is at base floor (750 points or less), they are considered "Unrated".
     // We boost the K-Factor to act as a placement test multiplier, and inject a base reward.
-    if (userChapter.user?.points === undefined || userChapter.user?.points <= 1000) {
+    if (userChapter.user?.points === undefined || userChapter.user?.points <= 750) {
         K_FACTOR = 80; // High volatility for placement
         eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
 
@@ -222,6 +318,7 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
             isStarted: true,
             assessmentDone: true,
             assessmentGrade: grade,
+            assessmentEloDelta: pointsEarned,
             assessmentAnswer: orderedAnswers,
             currentDifficulty: newDifficulty,
             lastAiFeedback: aiFeedback,
