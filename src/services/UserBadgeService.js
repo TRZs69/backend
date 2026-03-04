@@ -72,11 +72,6 @@ exports.getBadgesByUser = async (userId) => {
                 badge: true
             }
         });
-
-        if (!badge.length) {
-            throw new Error(`No badge found for user with id ${userId}`);
-        }
-
         return badge;
     } catch (error) {
         throw new Error(error.message);

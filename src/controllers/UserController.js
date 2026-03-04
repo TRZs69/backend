@@ -191,7 +191,7 @@ const getBadgesByUser = async (req, res) => {
     res
       .status(500)
       .json({
-        message: `Failed to get badges in user ${userId}`,
+        message: `Failed to get trades in user ${userId}`,
         details: error.message,
       });
     console.log(error.message);

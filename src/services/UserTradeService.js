@@ -69,11 +69,6 @@ exports.getTradesByUser = async (userId) => {
                 trade: true
             }
         });
-
-        if (!trade.length) {
-            throw new Error(`No trade found for user with id ${userId}`);
-        }
-
         return trade;
     } catch (error) {
         throw new Error(error.message);
