@@ -352,6 +352,7 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
     }
 
     const pointsEarned = Math.round(totalEloChangeRaw);
+    const isExcellent = grade >= 75;
 
     const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
