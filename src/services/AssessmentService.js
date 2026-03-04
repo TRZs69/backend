@@ -316,48 +316,42 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
         });
     }
 
-    // 4. Modifikasi Hasil Akhir berdasarkan Skala Nilai Kampus (A, AB, B, BC, C, D, E)
-    // Referensi: D ke bawah = Tidak Lulus
-    let totalEloChangeRaw = Math.round(totalUserEloEarned);
+    // 4. Terapkan multiplier berdasarkan Skala Nilai Kampus (A, AB, B, BC, C, D, E)
+    // Tidak ada nilai yang dijamin — hasil tetap dari rumus Elo, hanya skalanya yang dikalikan.
+    // Grade lulus → amplifikasi keuntungan | Grade gagal → amplifikasi kerugian
+    let totalEloChangeRaw = totalUserEloEarned;
     let rank = '';
     let gpa = 0.0;
 
     if (grade >= 79.5) {
-        // A (GPA 4.0) - Lulus: Outstanding. Bonus 1.5x, minimal +25
         rank = 'A'; gpa = 4.0;
-        totalEloChangeRaw = Math.max(25, Math.round(totalEloChangeRaw * 1.5));
+        totalEloChangeRaw *= 1.5;   // Bonus 50% dari hasil murni rumus
     } else if (grade >= 72) {
-        // AB (GPA 3.5) - Lulus: Kenaikan solid, minimal +15
         rank = 'AB'; gpa = 3.5;
-        totalEloChangeRaw = Math.max(15, totalEloChangeRaw);
+        totalEloChangeRaw *= 1.25;  // Bonus 25%
     } else if (grade >= 64.5) {
-        // B (GPA 3.0) - Lulus: Kenaikan normal, minimal +10
         rank = 'B'; gpa = 3.0;
-        totalEloChangeRaw = Math.max(10, totalEloChangeRaw);
+        totalEloChangeRaw *= 1.1;   // Bonus 10%
     } else if (grade >= 57) {
-        // BC (GPA 2.5) - Lulus: Kenaikan kecil, minimal +5
         rank = 'BC'; gpa = 2.5;
-        totalEloChangeRaw = Math.max(5, totalEloChangeRaw);
+        totalEloChangeRaw *= 1.0;   // Hasil murni tanpa modifikasi
     } else if (grade >= 49.5) {
-        // C (GPA 2.0) - Lulus: Lulus pas-pasan, stagnan. User baru 0, veteran bisa -5
         rank = 'C'; gpa = 2.0;
-        totalEloChangeRaw = isProvisional ? Math.max(0, totalEloChangeRaw) : Math.min(0, Math.max(-5, totalEloChangeRaw));
+        totalEloChangeRaw *= 0.5;   // Reduksi 50% — efek hampir stagnan
     } else if (grade >= 34) {
-        // D (GPA 1.0) - TIDAK LULUS: Penalti -15
         rank = 'D'; gpa = 1.0;
-        totalEloChangeRaw = -15;
+        totalEloChangeRaw *= 1.5;   // Amplifikasi kerugian 50% (jika rumus sudah minus, makin minus)
     } else {
-        // E (GPA 0.0) - TIDAK LULUS: Penalti keras -25
         rank = 'E'; gpa = 0.0;
-        totalEloChangeRaw = -25;
+        totalEloChangeRaw *= 2.0;   // Amplifikasi kerugian 2x penuh
     }
 
-    // Safety net: User baru/Provisional tidak boleh turun di bawah titik awal
+    // Safety net: User Provisional tidak boleh turun di bawah titik awal (750)
     if (isProvisional && totalEloChangeRaw < 0) {
         totalEloChangeRaw = 0;
     }
 
-    const pointsEarned = totalEloChangeRaw;
+    const pointsEarned = Math.round(totalEloChangeRaw);
 
     const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
