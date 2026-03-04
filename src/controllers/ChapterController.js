@@ -13,14 +13,14 @@ const getAllChapters = async (req, res) => {
 };
 
 // Controller untuk mendapatkan chapter by id
-const getChapterById = async(req, res) => {
+const getChapterById = async (req, res) => {
     const id = parseInt(req.params.id);
 
     try {
         const chapter = await chapterService.getChapterById(id);
         res.status(200).json(chapter);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get chapter with id ${ id }`})
+        res.status(500).json({ message: `Failed to get chapter with id ${id}` })
         console.log(error.mesage);
     }
 }
@@ -31,11 +31,11 @@ const createChapter = async (req, res) => {
         const newData = req.body;
 
         const chapter = await chapterService.createChapter(newData);
-        res.status(201).json({message: `Successfully create new chapter ${newData.name}`, chapter: chapter});
+        res.status(201).json({ message: `Successfully create new chapter ${newData.name}`, chapter: chapter });
     } catch (error) {
         res.status(500).json({ message: "Failed to create new chapter", data: error.message });
         console.log(error.message);
-        
+
     }
 };
 
@@ -47,11 +47,11 @@ const updateChapter = async (req, res) => {
 
     try {
         const updateChapter = await chapterService.updateChapter(id, updateData);
-        res.status(200).json({message: "Successfully updated chapter", chapter: updateChapter});
+        res.status(200).json({ message: "Successfully updated chapter", chapter: updateChapter });
     } catch (error) {
         res.status(500).json({ message: "Failed to update chapter", detail: error.message });
         console.log(error.message);
-        
+
     }
 };
 
@@ -65,7 +65,7 @@ const deleteChapter = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: 'Failed to create chapter' });
         console.log(error.message);
-        
+
     }
 };
 
@@ -79,7 +79,7 @@ const getMaterialsByChapter = async (req, res) => {
         const materials = await chapterService.getMaterialsByChapter(chapterId);
         res.status(200).json(materials);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get material from chapter ${chapterId}`, detail: error.message});
+        res.status(500).json({ message: `Failed to get material from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
     }
 
@@ -87,15 +87,16 @@ const getMaterialsByChapter = async (req, res) => {
 
 const getAssessmentsByChapter = async (req, res) => {
     const chapterId = parseInt(req.params.id);
+    const userId = req.query.userId ? parseInt(req.query.userId) : null;
 
     try {
-        const assessments = await chapterService.getAssessmentsByChapter(chapterId);
+        const assessments = await chapterService.getAssessmentsByChapter(chapterId, userId);
         res.status(200).json(assessments);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get assessment from chapter ${chapterId}`, detail: error.message});
+        res.status(500).json({ message: `Failed to get assessment from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
     }
-    
+
 };
 
 const getAssignmentsByChapter = async (req, res) => {
@@ -105,10 +106,10 @@ const getAssignmentsByChapter = async (req, res) => {
         const assignments = await chapterService.getAssignmentsByChapter(chapterId);
         res.status(200).json(assignments);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get assignment from chapter ${chapterId}`, detail: error.message});
+        res.status(500).json({ message: `Failed to get assignment from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
     }
-    
+
 };
 
 const getContentByChapter = async (req, res) => {
@@ -119,11 +120,11 @@ const getContentByChapter = async (req, res) => {
         const assessments = await chapterService.getAssessmentsByChapter(chapterId);
         const assignments = await chapterService.getAssignmentsByChapter(chapterId);
 
-        chapterContent = {materials, assessments, assignments};
+        chapterContent = { materials, assessments, assignments };
 
         res.status(200).json(chapterContent);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get contents from chapter ${chapterId}`, detail: error.message});
+        res.status(500).json({ message: `Failed to get contents from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
     }
 }
@@ -135,7 +136,7 @@ const getUserChapterByChapterId = async (req, res) => {
         const userChapter = await chapterService.getUserChapterByChapterId(chapterId);
         res.status(200).json(userChapter);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get contents from chapter ${chapterId}`, detail: error.message});
+        res.status(500).json({ message: `Failed to get contents from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
     }
 }

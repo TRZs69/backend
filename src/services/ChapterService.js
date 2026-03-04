@@ -116,7 +116,7 @@ exports.getMaterialsByChapter = async (id) => {
   }
 };
 
-exports.getAssessmentsByChapter = async (id) => {
+exports.getAssessmentsByChapter = async (id, userId = null) => {
   try {
     const chapter = await prisma.chapter.findUnique({
       where: {
@@ -125,7 +125,7 @@ exports.getAssessmentsByChapter = async (id) => {
       select: {
         assessments: {
           include: {
-            questions: true
+            questions: true // Fetch all questions to allow filtering
           }
         },
       },
@@ -136,9 +136,38 @@ exports.getAssessmentsByChapter = async (id) => {
     }
 
     if (!chapter.assessments || chapter.assessments.length === 0) {
+      return null;
     }
 
-    return chapter.assessments[0];
+    let assessment = chapter.assessments[0];
+
+    // --- Dynamic Matchmaking / Adaptive Testing Logic ---
+    if (userId && assessment.questions && assessment.questions.length > 0) {
+      const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
+      const userElo = user ? (user.points || 750) : 750;
+
+      // 1. Hitung jarak Elo tiap soal terhadap Elo User
+      const sortedQuestions = assessment.questions.sort((a, b) => {
+        const diffA = Math.abs((a.elo || 1200) - userElo);
+        const diffB = Math.abs((b.elo || 1200) - userElo);
+        return diffA - diffB; // Terdekat (selisih terkecil) jadi prioritas pertama
+      });
+
+      // 2. Ambil pool soal (misal ambil 15 terdekat) untuk dimasukkan ke kuis
+      const MAX_QUESTIONS_IN_ASSESSMENT = 10;
+      const closestQuestions = sortedQuestions.slice(0, MAX_QUESTIONS_IN_ASSESSMENT + 5);
+
+      // 3. Acak (Shuffle) pool soal ini agar tidak selalu sama urutannya kalau mengulang
+      for (let i = closestQuestions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [closestQuestions[i], closestQuestions[j]] = [closestQuestions[j], closestQuestions[i]];
+      }
+
+      // 4. Potong hanya 10 soal saja untuk diberikan kepada user
+      assessment.questions = closestQuestions.slice(0, MAX_QUESTIONS_IN_ASSESSMENT);
+    }
+
+    return assessment;
   } catch (error) {
     throw new Error(error.message);
   }

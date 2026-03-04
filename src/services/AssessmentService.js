@@ -58,7 +58,8 @@ const evaluateSubmission = (questions = [], answerMap = new Map()) => {
     let assessableQuestions = 0;
     const evaluations = questions.map((question, index) => {
         const isEssay = question.type === 'EY';
-        const submitted = (answerMap.get(index) || '').trim();
+        // Compare dynamically via question.id instead of index
+        const submitted = (answerMap.get(question.id) || '').trim();
         const correct = (question.answer || question.correctedAnswer || '').trim();
         let isCorrect = false;
 
@@ -71,7 +72,8 @@ const evaluateSubmission = (questions = [], answerMap = new Map()) => {
         } // we assign isCorrect = false as default for essays to avoid counting them
 
         return {
-            index,
+            index, // store current loop index for the mobile app layout logic
+            questionId: question.id,
             question: question.question,
             submittedAnswer: submitted,
             correctAnswer: correct,
@@ -242,8 +244,8 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
 
     const answerMap = new Map();
     answers.forEach((entry) => {
-        if (entry && typeof entry.index === 'number') {
-            answerMap.set(entry.index, typeof entry.answer === 'string' ? entry.answer : '');
+        if (entry && typeof entry.questionId === 'number') {
+            answerMap.set(entry.questionId, typeof entry.answer === 'string' ? entry.answer : '');
         }
     });
 
@@ -269,69 +271,85 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
     const totalQuestions = assessableQuestions > 0 ? assessableQuestions : 1;
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
 
-    // Fixed-Penalty Elo Scoring Logic (Vermeiren et al., 2025)
+    // Dynamic Matchmaking Elo Logic (Per-Question Basis)
     let userElo = userChapter.user?.points || 750;
     if (userElo < 750) userElo = 750; // Base floor
 
-    // Calculate itemDifficultyElo by averaging the individual Question ELOs.
-    const averageQuestionElo = questions.length > 0
-        ? questions.reduce((sum, q) => sum + (q.elo || 1200), 0) / questions.length
-        : 1200;
-    let itemDifficultyElo = Math.round(averageQuestionElo);
+    let isProvisional = userElo <= 750;
+    let K_USER = isProvisional ? 80 : 30; // Volatilitas User
+    let K_QUESTION = 15; // Volatilitas soal biasanya lebih rendah agar tidak ekstrem
 
-    // 1. Rumus Elo Rating Standard
-    const expectedProb = 1 / (1 + Math.pow(10, (itemDifficultyElo - userElo) / 400));
+    let totalUserEloEarned = 0;
+    let questionsToUpdate = [];
 
-    // 2. Actual Score (Win/Loss/Partial) - mapped from 0.0 to 1.0 based on correctness
-    const actualScore = getCorrectnessRatio(correctAnswers, totalQuestions);
+    // Loop setiap soal layaknya sebuah pertandingan (User vs Question)
+    for (const evaluation of evaluations) {
+        const question = questions[evaluation.index];
+        const isEssay = question.type === 'EY';
+        // Lewati jika tipe essay (belum dinilai eksak)
+        if (isEssay) continue;
 
-    // 3. Dynamic Points Calculation with Provisional Rating (USCF N<8 approximation)
-    let K_FACTOR = 30; // Standard K-Factor
-    let eloChange = 0;
+        let questionElo = question.elo || 1200;
 
-    // Provisional Unrated Phase logic:
-    // If the user is at base floor (750 points or less), they are considered "Unrated".
-    // We boost the K-Factor to act as a placement test multiplier, and inject a base reward.
-    if (userChapter.user?.points === undefined || userChapter.user?.points <= 750) {
-        K_FACTOR = 80; // High volatility for placement
-        eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
+        // Hitung Ekspektasi (Probabilitas User Menang terhadap Soal ini)
+        const expectedProbUser = 1 / (1 + Math.pow(10, (questionElo - userElo) / 400));
 
-        // Add a "Placement Bonus" directly tied to grade so they don't get 0 on their first quiz
-        // If they get 50% correct, they get a raw +50 placement points on top of the Elo derivation.
-        eloChange += Math.round(grade * 0.5);
-    } else {
-        // Standard ELO for Established players
-        eloChange = Math.round(K_FACTOR * (actualScore - expectedProb));
+        // Hasil Pertandingan (1 = User Benar/Menang, 0 = User Salah/Kalah)
+        const actualUserScore = evaluation.isCorrect ? 1 : 0;
+        const actualQuestionScore = evaluation.isCorrect ? 0 : 1;
+
+        // Perubahan Elo
+        let userEloChange = K_USER * (actualUserScore - expectedProbUser);
+        let questionEloChange = K_QUESTION * (actualQuestionScore - (1 - expectedProbUser));
+
+        // Kalau user provisional & dia benar, tambahkan bonus placement
+        if (isProvisional && evaluation.isCorrect) {
+            userEloChange += (100 / totalQuestions) * 0.5; // Distribusi flat bonus per soal yang relevan
+        }
+
+        totalUserEloEarned += userEloChange;
+
+        // Rekam update untuk soalnya agar nanti di save ke DB
+        questionsToUpdate.push({
+            id: question.id,
+            newElo: Math.round(questionElo + questionEloChange)
+        });
     }
 
-    // Ensure we don't completely drain points, give minimum protection
-    const pointsEarned = Math.max(-5, eloChange);
+    // Bulatkan total perolehan skor user & beri limit min -5 agar tak frustasi
+    const pointsEarned = Math.max(-5, Math.round(totalUserEloEarned));
 
     const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
     const orderedAnswers = questions.map((_, index) => answerMap.get(index) || '');
 
-    const isExcellent = grade >= 80;
-    const updatedChapter = await prisma.userChapter.update({
-        where: { id: userChapter.id },
-        data: {
-            isStarted: true,
-            assessmentDone: true,
-            assessmentGrade: grade,
-            assessmentEloDelta: pointsEarned,
-            assessmentAnswer: orderedAnswers,
-            currentDifficulty: newDifficulty,
-            lastAiFeedback: aiFeedback,
-            correctStreak: isExcellent ? ((userChapter.correctStreak || 0) + 1) : 0,
-            wrongStreak: isExcellent ? 0 : ((userChapter.wrongStreak || 0) + 1),
-            timeFinished: new Date(),
-        },
-    });
-
-    await prisma.user.update({
-        where: { id: userId },
-        data: { points: { increment: pointsEarned } },
-    });
+    const [updatedChapter] = await prisma.$transaction([
+        prisma.userChapter.update({
+            where: { id: userChapter.id },
+            data: {
+                isStarted: true,
+                assessmentDone: true,
+                assessmentGrade: grade,
+                assessmentEloDelta: pointsEarned,
+                assessmentAnswer: orderedAnswers,
+                currentDifficulty: newDifficulty,
+                lastAiFeedback: aiFeedback,
+                correctStreak: isExcellent ? ((userChapter.correctStreak || 0) + 1) : 0,
+                wrongStreak: isExcellent ? 0 : ((userChapter.wrongStreak || 0) + 1),
+                timeFinished: new Date(),
+            },
+        }),
+        prisma.user.update({
+            where: { id: userId },
+            data: { points: { increment: pointsEarned } },
+        }),
+        ...questionsToUpdate.map(q =>
+            prisma.question.update({
+                where: { id: q.id },
+                data: { elo: Math.max(750, q.newElo) } // Batas minimum rating soal
+            })
+        )
+    ]);
 
     return {
         grade,
