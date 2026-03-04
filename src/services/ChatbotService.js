@@ -45,7 +45,7 @@ if (!llmClient) {
 }
 
 const scheduleWarmup = () => {
-	const intervalMs = Number(process.env.LEVELY_LLM_WARMUP_INTERVAL_MS || 300000);
+	const intervalMs = Number(process.env.LEVELY_LLM_WARMUP_INTERVAL_MS);
 	if (!llmClient || !Number.isFinite(intervalMs) || intervalMs <= 0) {
 		return;
 	}
@@ -82,7 +82,7 @@ const scheduleWarmup = () => {
 		}
 	};
 
-	setTimeout(runWarmup, Number(process.env.LEVELY_LLM_WARMUP_INITIAL_DELAY_MS || 10000));
+	setTimeout(runWarmup, Number(process.env.LEVELY_LLM_WARMUP_INITIAL_DELAY_MS));
 	setInterval(runWarmup, intervalMs);
 };
 
