@@ -316,31 +316,43 @@ exports.processSubmission = async (userId, chapterId, answers = []) => {
         });
     }
 
-    // 4. Modifikasi Hasil Akhir berdasarkan Total Grade Assessment (Sesuai Permintaan)
-    // Walaupun user melawan soal per-soal, kita beri korespondensi absolut terhadap nilai akhir.
-    // Jika User dapat nilai di bawah 50, pastikan Elo-nya "dihukum" secara pantas.
-    // Jika nilainya luar biasa, berikan bonus multiplier.
-
+    // 4. Modifikasi Hasil Akhir berdasarkan Skala Nilai Kampus (A, AB, B, BC, C, D, E)
+    // Referensi: D ke bawah = Tidak Lulus
     let totalEloChangeRaw = Math.round(totalUserEloEarned);
+    let rank = '';
+    let gpa = 0.0;
 
-    if (grade >= 90) {
-        // Outstanding: Beri bonus 1.5x lipat dari poin yang sudah dikumpulkan, minimal dapat +20
-        totalEloChangeRaw = Math.max(20, Math.round(totalEloChangeRaw * 1.5));
-    } else if (grade >= 70 && grade < 90) {
-        // Good: Normal win, pastikan dia tetap plus (minimal +5)
+    if (grade >= 79.5) {
+        // A (GPA 4.0) - Lulus: Outstanding. Bonus 1.5x, minimal +25
+        rank = 'A'; gpa = 4.0;
+        totalEloChangeRaw = Math.max(25, Math.round(totalEloChangeRaw * 1.5));
+    } else if (grade >= 72) {
+        // AB (GPA 3.5) - Lulus: Kenaikan solid, minimal +15
+        rank = 'AB'; gpa = 3.5;
+        totalEloChangeRaw = Math.max(15, totalEloChangeRaw);
+    } else if (grade >= 64.5) {
+        // B (GPA 3.0) - Lulus: Kenaikan normal, minimal +10
+        rank = 'B'; gpa = 3.0;
+        totalEloChangeRaw = Math.max(10, totalEloChangeRaw);
+    } else if (grade >= 57) {
+        // BC (GPA 2.5) - Lulus: Kenaikan kecil, minimal +5
+        rank = 'BC'; gpa = 2.5;
         totalEloChangeRaw = Math.max(5, totalEloChangeRaw);
-    } else if (grade >= 50 && grade < 70) {
-        // Mediocre: Cenderung stagnan atau minus sangat kecil
-        totalEloChangeRaw = isProvisional ? Math.max(0, totalEloChangeRaw) : Math.min(0, totalEloChangeRaw);
-    } else if (grade >= 30 && grade < 50) {
-        // Poor: Hukuman kekalahan sedang (minus 10 sampai 20)
+    } else if (grade >= 49.5) {
+        // C (GPA 2.0) - Lulus: Lulus pas-pasan, stagnan. User baru 0, veteran bisa -5
+        rank = 'C'; gpa = 2.0;
+        totalEloChangeRaw = isProvisional ? Math.max(0, totalEloChangeRaw) : Math.min(0, Math.max(-5, totalEloChangeRaw));
+    } else if (grade >= 34) {
+        // D (GPA 1.0) - TIDAK LULUS: Penalti -15
+        rank = 'D'; gpa = 1.0;
         totalEloChangeRaw = -15;
     } else {
-        // Fail (<30): Hukuman kekalahan keras (minus 25)
+        // E (GPA 0.0) - TIDAK LULUS: Penalti keras -25
+        rank = 'E'; gpa = 0.0;
         totalEloChangeRaw = -25;
     }
 
-    // Safety net: User baru/Provisional tidak boleh sampai jatuh di bawah 750 poin sama sekali
+    // Safety net: User baru/Provisional tidak boleh turun di bawah titik awal
     if (isProvisional && totalEloChangeRaw < 0) {
         totalEloChangeRaw = 0;
     }
