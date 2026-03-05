@@ -56,10 +56,105 @@ const calculateQuestionDuelElo = ({
     };
 };
 
+const ELO_BANDS = [
+    { name: 'Beginner', min: 750, max: 1000 },
+    { name: 'Basic Understanding', min: 1000, max: 1200 },
+    { name: 'Developing Learner', min: 1200, max: 1400 },
+    { name: 'Intermediate', min: 1400, max: 1600 },
+    { name: 'Proficient', min: 1600, max: 1800 },
+    { name: 'Advanced', min: 1800, max: 2000 },
+    { name: 'Mastery', min: 2000, max: MAX_ELO },
+];
+
+/**
+ * Determines the classification/badge based on a user's ELO score.
+ * Replaces the old grade-based determineDifficulty.
+ * 
+ * @param {number|string} userElo - Current ELO of the user
+ * @returns {string} The name/title of the ELO band they belong to.
+ */
+const determineDifficulty = (userElo) => {
+    const elo = clampElo(userElo);
+    for (let i = ELO_BANDS.length - 1; i >= 0; i--) {
+        if (elo >= ELO_BANDS[i].min) {
+            return ELO_BANDS[i].name;
+        }
+    }
+    return ELO_BANDS[0].name;
+};
+
+/**
+ * Resolves the array index of the band that a target ELO falls into.
+ * 
+ * @param {number} targetElo 
+ * @returns {number} The index (0 to 6)
+ */
+const resolveBandIndex = (targetElo) => {
+    const elo = clampElo(targetElo);
+    for (let i = 0; i < ELO_BANDS.length; i++) {
+        if (elo >= ELO_BANDS[i].min && elo < ELO_BANDS[i].max) {
+            return i;
+        }
+    }
+    return elo >= 2000 ? 6 : 0;
+};
+
+/**
+ * Given a starting index (e.g., 3 for Intermediate), returns an array of indices
+ * that radiate outwards (e.g., [3, 2, 4, 1, 5, 0, 6]) to search for questions 
+ * in adjacent difficulty bands gracefully.
+ * 
+ * @param {number} startIndex 
+ * @returns {number[]} Array of search indices
+ */
+const getBandTraversalOrder = (startIndex) => {
+    const totalBands = ELO_BANDS.length;
+    const safeStart = Math.max(0, Math.min(startIndex, totalBands - 1));
+    const order = [safeStart];
+
+    let left = safeStart - 1;
+    let right = safeStart + 1;
+
+    while (left >= 0 || right < totalBands) {
+        if (left >= 0) {
+            order.push(left);
+            left--;
+        }
+        if (right < totalBands) {
+            order.push(right);
+            right++;
+        }
+    }
+    return order;
+};
+
+/**
+ * Sorts questions based on how close their ELO is to a target.
+ * 
+ * @param {Array} list - Array of question objects containing an `elo` property
+ * @param {number} targetElo - The specific ELO number we want to match as closely as possible
+ * @returns {Array} New array sorted by proximity
+ */
+const sortByDistanceToTarget = (list = [], targetElo = MIN_ELO) => {
+    return [...list].sort((a, b) => {
+        const diffA = Math.abs(clampElo(a.elo) - targetElo);
+        const diffB = Math.abs(clampElo(b.elo) - targetElo);
+        if (diffA !== diffB) {
+            return diffA - diffB;
+        }
+        return clampElo(a.elo) - clampElo(b.elo);
+    });
+};
+
 module.exports = {
     DEFAULT_ELO,
     MIN_ELO,
     MAX_ELO,
+    ELO_BANDS,
     clampElo,
     calculateQuestionDuelElo,
+    determineDifficulty,
+    resolveBandIndex,
+    getBandTraversalOrder,
+    sortByDistanceToTarget,
 };

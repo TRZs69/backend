@@ -1,10 +1,17 @@
 const prisma = require('../prismaClient');
 const { GoogleAIClient } = require('./GoogleAIClient');
-const { clampElo, MIN_ELO, MAX_ELO, DEFAULT_ELO, calculateQuestionDuelElo } = require('../utils/elo');
-
-const EASY = 'EASY';
-const MEDIUM = 'MEDIUM';
-const HARD = 'HARD';
+const {
+    clampElo,
+    MIN_ELO,
+    MAX_ELO,
+    DEFAULT_ELO,
+    ELO_BANDS,
+    calculateQuestionDuelElo,
+    determineDifficulty,
+    resolveBandIndex,
+    getBandTraversalOrder,
+    sortByDistanceToTarget
+} = require('../utils/elo');
 
 const ATTEMPT_STATUS = {
     IN_PROGRESS: 'IN_PROGRESS',
@@ -30,11 +37,7 @@ const GENERATED_POOL_COMPOSITION = {
     TF: 2,
     EY: 1,
 };
-const ELO_BANDS = [
-    { name: 'EASY', min: 800, max: 900 },
-    { name: 'MEDIUM', min: 900, max: 1100 },
-    { name: 'HARD', min: 1100, max: 1300 },
-];
+
 
 const K_STUDENT = 30;
 const K_QUESTION = 15;
@@ -44,16 +47,6 @@ const getCorrectnessRatio = (correct, total) => {
         return 0;
     }
     return correct / total;
-};
-
-const determineDifficulty = (previousDifficulty = EASY, grade) => {
-    if (grade >= 85) {
-        return HARD;
-    }
-    if (grade >= 60) {
-        return MEDIUM;
-    }
-    return EASY;
 };
 
 const buildFeedback = (grade, correct) => {
@@ -593,36 +586,6 @@ const getPreferredObjectiveTypes = (questions = [], objectiveTarget = ATTEMPT_OB
     return preferred;
 };
 
-const resolveBandIndex = (targetElo) => {
-    if (targetElo < ELO_BANDS[1].min) {
-        return 0;
-    }
-    if (targetElo <= ELO_BANDS[1].max) {
-        return 1;
-    }
-    return 2;
-};
-
-const getBandTraversalOrder = (startIndex) => {
-    if (startIndex <= 0) {
-        return [0, 1, 2];
-    }
-    if (startIndex >= 2) {
-        return [2, 1, 0];
-    }
-    return [1, 0, 2];
-};
-
-const sortByDistanceToTarget = (list = [], targetElo = MIN_ELO) =>
-    [...list].sort((a, b) => {
-        const diffA = Math.abs(clampElo(a.elo) - targetElo);
-        const diffB = Math.abs(clampElo(b.elo) - targetElo);
-        if (diffA !== diffB) {
-            return diffA - diffB;
-        }
-        return clampElo(a.elo) - clampElo(b.elo);
-    });
-
 const pickFirstObjectiveQuestion = (questions = []) => {
     const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
     if (unansweredObjective.length === 0) {
@@ -949,7 +912,7 @@ const buildSubmissionSummary = ({
     totalQuestions,
 }) => {
     const isExcellent = grade >= 75;
-    const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
+    const newDifficulty = determineDifficulty(userChapter.user?.points ?? MIN_ELO);
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
     const orderedAnswers = questions.map((q) => answerMap.get(q.id) || '');
 
@@ -1158,7 +1121,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     const pointsEarned = isStudent ? Math.max(0, eloDeltaSigned) : 0;
 
     const isExcellent = grade >= 75;
-    const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
+    const newDifficulty = determineDifficulty(courseEloEnd);
     const aiFeedback = buildFeedback(grade, correctAnswers);
     const orderedAnswers = servedQuestions.map((q) => q.submittedAnswer || '');
 

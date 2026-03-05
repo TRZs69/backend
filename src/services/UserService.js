@@ -1,15 +1,5 @@
 const prisma = require('../prismaClient');
-
-const calculateEloTitle = (points) => {
-  const p = points || 750;
-  if (p >= 2000) return 'Mastery';
-  if (p >= 1800) return 'Advanced';
-  if (p >= 1600) return 'Proficient';
-  if (p >= 1400) return 'Intermediate';
-  if (p >= 1200) return 'Developing Learner';
-  if (p >= 1000) return 'Basic Understanding';
-  return 'Beginner';
-};
+const { determineDifficulty } = require('../utils/elo');
 
 const formatUser = (user) => {
   if (!user) return user;
@@ -17,7 +7,7 @@ const formatUser = (user) => {
   return {
     ...user,
     points: isStudent ? user.points : null,
-    eloTitle: isStudent ? calculateEloTitle(user.points) : null
+    eloTitle: isStudent ? determineDifficulty(user.points) : null
   };
 };
 
