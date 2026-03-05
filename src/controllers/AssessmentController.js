@@ -83,6 +83,16 @@ const submitAssessment = async (req, res) => {
     }
 };
 
+const prefetchAttempt = async (req, res) => {
+    try {
+        const { userId, chapterId } = req.body || {};
+        const result = await assessmentService.prefetchAttempt(userId, chapterId);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 const startAttempt = async (req, res) => {
     try {
         const { userId, chapterId, forceNew } = req.body || {};
@@ -115,6 +125,22 @@ const getLatestAttempt = async (req, res) => {
     }
 };
 
+const answerAttemptQuestion = async (req, res) => {
+    try {
+        const { userId, chapterId, attemptId, questionId, answer } = req.body || {};
+        const result = await assessmentService.answerAttemptQuestion(
+            userId,
+            chapterId,
+            attemptId,
+            questionId,
+            answer,
+        );
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
 module.exports = {
     getAllAssessments,
     getAssessmentById,
@@ -122,7 +148,9 @@ module.exports = {
     updateAssessment,
     deleteAssessment,
     submitAssessment,
+    prefetchAttempt,
     startAttempt,
     getCurrentAttempt,
-    getLatestAttempt
+    getLatestAttempt,
+    answerAttemptQuestion
 };

@@ -66,6 +66,7 @@ model UserCourse {
   id              Int       @id @default(autoincrement())
   userId          Int
   courseId        Int
+  elo             Int       @default(750)
   progress        Int       @default(0)
   currentChapter  Int       @default(1)
   isCompleted     Boolean   @default(false)
@@ -164,6 +165,15 @@ model AssessmentAttempt {
   status        AssessmentAttemptStatus @default(IN_PROGRESS)
   source        AssessmentAttemptSource @default(GENERATED)
   instruction   String                  @db.Text
+  poolSize      Int                     @default(12)
+  objectiveTarget Int                   @default(5)
+  totalTarget   Int                     @default(6)
+  currentUserElo Int                    @default(750)
+  courseEloStart Int                    @default(750)
+  courseEloEnd   Int                    @default(750)
+  rawEloDelta   Float                   @default(0)
+  objectiveAnswered Int                 @default(0)
+  objectiveCorrect Int                  @default(0)
   grade         Int?
   pointsEarned  Int?
   correctAnswers Int?
@@ -198,9 +208,13 @@ model AssessmentAttemptQuestion {
   correctedAnswer String?           @db.Text
   elo             Int               @default(1200)
   order           Int
+  servedOrder     Int?
   submittedAnswer String?           @db.Text
   isCorrect       Boolean?
   score           Int?
+  answeredAt      DateTime?
+  userEloDeltaRaw Float?
+  questionEloDeltaRaw Float?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
@@ -210,6 +224,8 @@ model AssessmentAttemptQuestion {
   @@index([attemptId])
   @@index([sourceQuestionId])
   @@index([attemptId, order])
+  @@index([attemptId, servedOrder])
+  @@index([attemptId, answeredAt])
   @@map("assessment_attempt_questions")
 }
 
@@ -256,6 +272,7 @@ model UserChapter {
   assessmentAnswer Json? 
   assessmentGrade Int       @default(0)
   assessmentEloDelta Int    @default(0)
+  assessmentPointsEarned Int @default(0)
   submission      String?
   timeStarted     DateTime  @default(now()) 
   timeFinished    DateTime  @default(now())

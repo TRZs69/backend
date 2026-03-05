@@ -16,10 +16,31 @@ const ATTEMPT_SOURCE = {
     FALLBACK_BANK: 'FALLBACK_BANK',
 };
 
-const TARGET_QUESTION_PATTERN = ['MC', 'MC', 'MC', 'MC', 'TF', 'EY'];
 const DEFAULT_ELO = 1200;
 const MIN_ELO = 750;
 const MAX_ELO = 3000;
+
+const ATTEMPT_POOL_SIZE = 12;
+const ATTEMPT_OBJECTIVE_TARGET = 5;
+const ATTEMPT_TOTAL_TARGET = 6;
+const FIRST_QUESTION_ELO = 800;
+const DISPLAY_OBJECTIVE_COMPOSITION = {
+    MC: 4,
+    TF: 1,
+};
+const GENERATED_POOL_COMPOSITION = {
+    MC: 9,
+    TF: 2,
+    EY: 1,
+};
+const ELO_BANDS = [
+    { name: 'EASY', min: 800, max: 900 },
+    { name: 'MEDIUM', min: 900, max: 1100 },
+    { name: 'HARD', min: 1100, max: 1300 },
+];
+
+const K_STUDENT = 30;
+const K_QUESTION = 15;
 
 const getCorrectnessRatio = (correct, total) => {
     if (!total) {
@@ -38,7 +59,7 @@ const determineDifficulty = (previousDifficulty = EASY, grade) => {
     return EASY;
 };
 
-const buildFeedback = (grade, correct, total) => {
+const buildFeedback = (grade, correct) => {
     if (grade >= 90) {
         return 'Jawabanmu sudah sangat baik! Pertahankan ritme belajarmu.';
     }
@@ -55,7 +76,9 @@ const buildFeedback = (grade, correct, total) => {
 };
 
 const ensureUserChapter = async (userId, chapterId) => {
-    const existing = await prisma.userChapter.findFirst({ where: { userId, chapterId } });
+    const existing = await prisma.userChapter.findFirst({
+        where: { userId, chapterId },
+    });
     if (existing) {
         return existing;
     }
@@ -65,6 +88,57 @@ const ensureUserChapter = async (userId, chapterId) => {
             userId,
             chapterId,
             isStarted: true,
+        },
+    });
+};
+
+const ensureUserChapterTx = async (tx, userId, chapterId) => {
+    const existing = await tx.userChapter.findFirst({
+        where: { userId, chapterId },
+    });
+    if (existing) {
+        return existing;
+    }
+
+    return tx.userChapter.create({
+        data: {
+            userId,
+            chapterId,
+            isStarted: true,
+        },
+    });
+};
+
+const ensureUserCourse = async (userId, courseId) => {
+    const existing = await prisma.userCourse.findFirst({
+        where: { userId, courseId },
+    });
+    if (existing) {
+        return existing;
+    }
+
+    return prisma.userCourse.create({
+        data: {
+            userId,
+            courseId,
+            elo: MIN_ELO,
+        },
+    });
+};
+
+const ensureUserCourseTx = async (tx, userId, courseId) => {
+    const existing = await tx.userCourse.findFirst({
+        where: { userId, courseId },
+    });
+    if (existing) {
+        return existing;
+    }
+
+    return tx.userCourse.create({
+        data: {
+            userId,
+            courseId,
+            elo: MIN_ELO,
         },
     });
 };
@@ -91,55 +165,218 @@ const isObjectiveType = (type) => {
     return normalized === 'MC' || normalized === 'TF';
 };
 
-const evaluateSubmission = (questions = [], answerMap = new Map()) => {
-    let correctAnswers = 0;
-    let assessableQuestions = 0;
-    const evaluations = questions.map((question, index) => {
-        const normalizedType = normaliseAttemptQuestionType(question.type);
-        const isEssay = normalizedType === 'EY';
-        const submitted = (answerMap.get(question.id) || '').trim();
-        const correct = (question.answer || question.correctedAnswer || '').trim();
-        let isCorrect = false;
-
-        if (!isEssay) {
-            assessableQuestions += 1;
-            isCorrect = submitted && submitted.toLowerCase() === correct.toLowerCase();
-            if (isCorrect) {
-                correctAnswers += 1;
-            }
-        }
-
-        return {
-            index,
-            questionId: question.id,
-            question: question.question,
-            submittedAnswer: submitted,
-            correctAnswer: correct,
-            isCorrect,
-        };
-    });
-
-    return { evaluations, correctAnswers, assessableQuestions };
-};
-
-const normaliseQuestions = (rawQuestions) => {
-    if (!rawQuestions) {
+const normalizeTextOptions = (raw) => {
+    if (!Array.isArray(raw)) {
         return [];
     }
-    if (Array.isArray(rawQuestions)) {
-        return rawQuestions;
+    return raw
+        .map((item) => String(item ?? '').trim())
+        .filter((item) => item.length > 0);
+};
+
+const matchOptionCaseInsensitive = (options = [], answer = '') => {
+    const normalizedAnswer = String(answer || '').trim().toLowerCase();
+    if (!normalizedAnswer) {
+        return null;
     }
-    if (typeof rawQuestions === 'string') {
+    const found = options.find((option) => option.toLowerCase() === normalizedAnswer);
+    return found || null;
+};
+
+const clampElo = (value) => {
+    const parsed = parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed >= MIN_ELO && parsed <= MAX_ELO) {
+        return parsed;
+    }
+    return DEFAULT_ELO;
+};
+
+const shuffleArray = (arr = []) => [...arr].sort(() => Math.random() - 0.5);
+
+const parseJsonPayload = (text) => {
+    if (typeof text !== 'string' || !text.trim()) {
+        throw new Error('LLM response is empty');
+    }
+
+    const trimmed = text.trim();
+    const directCandidates = [trimmed, trimmed.replace(/```json|```/gi, '').trim()];
+
+    for (const candidate of directCandidates) {
+        if (!candidate) {
+            continue;
+        }
         try {
-            const parsed = JSON.parse(rawQuestions);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (error) {
-            console.error('Failed to parse assessment questions JSON', error);
-            return [];
+            return JSON.parse(candidate);
+        } catch (_error) {
+            // continue
         }
     }
-    return [];
+
+    const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+    if (objectMatch?.[0]) {
+        try {
+            return JSON.parse(objectMatch[0]);
+        } catch (_error) {
+            // continue
+        }
+    }
+
+    const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
+    if (arrayMatch?.[0]) {
+        return JSON.parse(arrayMatch[0]);
+    }
+
+    throw new Error('Failed to parse JSON payload from LLM response');
 };
+
+const inferGeneratedType = (questionData) => {
+    const declaredType = normaliseAttemptQuestionType(questionData?.type);
+    if (declaredType) {
+        return declaredType;
+    }
+
+    const options = normalizeTextOptions(questionData?.options ?? questionData?.option ?? []);
+    if (options.length > 0) {
+        const normalized = options.map((item) => item.toLowerCase());
+        const hasTrueFalse = normalized.includes('true') && normalized.includes('false') && options.length <= 2;
+        return hasTrueFalse ? 'TF' : 'MC';
+    }
+
+    return 'EY';
+};
+
+const normalizeGeneratedQuestion = (questionData, index) => {
+    const type = inferGeneratedType(questionData);
+    if (!type) {
+        throw new Error(`Question type tidak bisa ditentukan pada index ${index + 1}`);
+    }
+
+    const questionText = String(questionData?.question || '').trim();
+    if (!questionText) {
+        throw new Error(`Question text is required at index ${index + 1}`);
+    }
+
+    const rawOptions = questionData?.options ?? questionData?.option ?? [];
+    let options = normalizeTextOptions(rawOptions);
+    let correctedAnswer = String(questionData?.correctedAnswer ?? questionData?.answer ?? '').trim();
+
+    if (type === 'MC') {
+        if (options.length < 2) {
+            throw new Error(`MC options minimal 2 pada index ${index + 1}`);
+        }
+        if (options.length > 4) {
+            options = options.slice(0, 4);
+        }
+        while (options.length < 4) {
+            options.push(`Pilihan ${options.length + 1}`);
+        }
+        correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0];
+    } else if (type === 'TF') {
+        options = ['True', 'False'];
+        const normalized = correctedAnswer.toLowerCase();
+        if (normalized === 'true') {
+            correctedAnswer = 'True';
+        } else if (normalized === 'false') {
+            correctedAnswer = 'False';
+        } else {
+            correctedAnswer = 'True';
+        }
+    } else {
+        options = [];
+        if (!correctedAnswer) {
+            correctedAnswer = 'Jawaban esai berdasarkan materi pada chapter ini.';
+        }
+    }
+
+    return {
+        sourceQuestionId: null,
+        question: questionText,
+        type,
+        options,
+        answer: correctedAnswer,
+        correctedAnswer,
+        elo: clampElo(questionData?.elo),
+    };
+};
+
+const normalizeStoredQuestion = (question) => {
+    const type = normaliseAttemptQuestionType(question.type);
+    let options = normalizeTextOptions(question.options || []);
+    let correctedAnswer = String(question.correctedAnswer || question.answer || '').trim();
+
+    if (type === 'TF') {
+        options = ['True', 'False'];
+        correctedAnswer = correctedAnswer.toLowerCase() === 'false' ? 'False' : 'True';
+    } else if (type === 'MC') {
+        if (options.length > 4) {
+            options = options.slice(0, 4);
+        }
+        while (options.length < 4 && options.length > 0) {
+            options.push(`Pilihan ${options.length + 1}`);
+        }
+        correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0] || correctedAnswer;
+    } else if (type === 'EY' && !correctedAnswer) {
+        correctedAnswer = String(question.answer || '').trim();
+    }
+
+    return {
+        sourceQuestionId: question.id ?? null,
+        question: String(question.question || '').trim(),
+        type: type || 'MC',
+        options,
+        answer: correctedAnswer || null,
+        correctedAnswer: correctedAnswer || null,
+        elo: clampElo(question.elo),
+    };
+};
+
+const normaliseGeneratedPoolQuestions = (rawQuestions) => {
+    if (!Array.isArray(rawQuestions)) {
+        throw new Error('Generated questions payload must be an array');
+    }
+
+    if (rawQuestions.length < ATTEMPT_POOL_SIZE) {
+        throw new Error(`Generated questions must be at least ${ATTEMPT_POOL_SIZE}`);
+    }
+
+    const normalizedPool = rawQuestions.map((questionData, index) =>
+        normalizeGeneratedQuestion(questionData, index),
+    );
+
+    const mc = shuffleArray(normalizedPool.filter((q) => q.type === 'MC'));
+    const tf = shuffleArray(normalizedPool.filter((q) => q.type === 'TF'));
+    const ey = shuffleArray(normalizedPool.filter((q) => q.type === 'EY'));
+
+    if (mc.length < GENERATED_POOL_COMPOSITION.MC || tf.length < GENERATED_POOL_COMPOSITION.TF || ey.length < GENERATED_POOL_COMPOSITION.EY) {
+        throw new Error('Komposisi soal LLM tidak memenuhi 9 MC + 2 TF + 1 EY');
+    }
+
+    const selected = [
+        ...mc.slice(0, GENERATED_POOL_COMPOSITION.MC),
+        ...tf.slice(0, GENERATED_POOL_COMPOSITION.TF),
+        ...ey.slice(0, GENERATED_POOL_COMPOSITION.EY),
+    ];
+
+    return shuffleArray(selected).slice(0, ATTEMPT_POOL_SIZE);
+};
+
+const sortQuestionsByServedThenOrder = (a, b) => {
+    const servedA = Number.isInteger(a.servedOrder) ? a.servedOrder : Number.MAX_SAFE_INTEGER;
+    const servedB = Number.isInteger(b.servedOrder) ? b.servedOrder : Number.MAX_SAFE_INTEGER;
+    if (servedA !== servedB) {
+        return servedA - servedB;
+    }
+    return (a.order || 0) - (b.order || 0);
+};
+
+const stripHtml = (content = '') =>
+    String(content || '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const buildAttemptInstruction = (chapterName) =>
+    `Kerjakan assessment adaptif bab "${chapterName}" dengan fokus. Kamu akan mengerjakan 6 soal (5 objektif + 1 essay).`;
 
 const ensureGoogleCredentials = () => {
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -171,193 +408,18 @@ const buildGoogleAIClient = () => {
     return new GoogleAIClient({ apiKey, model, baseUrl });
 };
 
-const clampElo = (value) => {
-    const parsed = parseInt(value, 10);
-    if (Number.isFinite(parsed) && parsed >= MIN_ELO && parsed <= MAX_ELO) {
-        return parsed;
-    }
-    return DEFAULT_ELO;
-};
-
-const parseJsonPayload = (text) => {
-    if (typeof text !== 'string' || !text.trim()) {
-        throw new Error('LLM response is empty');
-    }
-
-    const trimmed = text.trim();
-    const directCandidates = [trimmed, trimmed.replace(/```json|```/gi, '').trim()];
-
-    for (const candidate of directCandidates) {
-        if (!candidate) {
-            continue;
-        }
-        try {
-            return JSON.parse(candidate);
-        } catch (_error) {
-            // Ignore and continue fallback parsing.
-        }
-    }
-
-    const objectMatch = trimmed.match(/\{[\s\S]*\}/);
-    if (objectMatch?.[0]) {
-        try {
-            return JSON.parse(objectMatch[0]);
-        } catch (_error) {
-            // Ignore and continue fallback parsing.
-        }
-    }
-
-    const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
-    if (arrayMatch?.[0]) {
-        return JSON.parse(arrayMatch[0]);
-    }
-
-    throw new Error('Failed to parse JSON payload from LLM response');
-};
-
-const normalizeTextOptions = (raw) => {
-    if (!Array.isArray(raw)) {
-        return [];
-    }
-    return raw
-        .map((item) => String(item ?? '').trim())
-        .filter((item) => item.length > 0);
-};
-
-const matchOptionCaseInsensitive = (options = [], answer = '') => {
-    const normalizedAnswer = String(answer || '').trim().toLowerCase();
-    if (!normalizedAnswer) {
-        return null;
-    }
-    const found = options.find((option) => option.toLowerCase() === normalizedAnswer);
-    return found || null;
-};
-
-const inferGeneratedType = (questionData) => {
-    const declaredType = normaliseAttemptQuestionType(questionData?.type);
-    if (declaredType) {
-        return declaredType;
-    }
-
-    const options = normalizeTextOptions(questionData?.options ?? questionData?.option ?? []);
-    if (options.length > 0) {
-        const normalized = options.map((item) => item.toLowerCase());
-        const hasTrueFalse =
-            normalized.includes('true') &&
-            normalized.includes('false') &&
-            options.length <= 2;
-        return hasTrueFalse ? 'TF' : 'MC';
-    }
-
-    return 'EY';
-};
-
-const normalizeGeneratedQuestion = (questionData, index) => {
-    const type = inferGeneratedType(questionData);
-    if (!type) {
-        throw new Error(`Question type tidak bisa ditentukan pada index ${index + 1}`);
-    }
-
-    const questionText = String(questionData?.question || '').trim();
-    if (!questionText) {
-        throw new Error(`Question text is required at index ${index + 1}`);
-    }
-
-    const rawOptions = questionData?.options ?? questionData?.option ?? [];
-    let options = normalizeTextOptions(rawOptions);
-    let correctedAnswer = String(questionData?.correctedAnswer ?? questionData?.answer ?? '').trim();
-
-    if (type === 'MC') {
-        if (options.length < 2) {
-            throw new Error(`MC options minimal 2 pada index ${index + 1}`);
-        }
-        if (options.length > 4) {
-            options = options.slice(0, 4);
-        }
-        while (options.length < 4) {
-            options.add(`Pilihan ${options.length + 1}`);
-        }
-        const matched = matchOptionCaseInsensitive(options, correctedAnswer);
-        correctedAnswer = matched || options.first;
-    } else if (type === 'TF') {
-        options = ['True', 'False'];
-        const normalized = correctedAnswer.toLowerCase();
-        if (normalized === 'true') {
-            correctedAnswer = 'True';
-        } else if (normalized === 'false') {
-            correctedAnswer = 'False';
-        } else {
-            correctedAnswer = 'True';
-        }
-    } else if (type === 'EY') {
-        options = [];
-        if (!correctedAnswer) {
-            correctedAnswer = 'Jawaban esai berdasarkan materi pada chapter ini.';
-        }
-    }
-
-    const elo = clampElo(questionData?.elo);
-
-    return {
-        question: questionText,
-        type,
-        options,
-        answer: correctedAnswer,
-        correctedAnswer,
-        elo,
-        sourceQuestionId: null,
-    };
-};
-
-const normaliseGeneratedAttemptQuestions = (rawQuestions) => {
-    if (!Array.isArray(rawQuestions)) {
-        throw new Error('Generated questions payload must be an array');
-    }
-
-    if (rawQuestions.length < TARGET_QUESTION_PATTERN.length) {
-        throw new Error(`Generated questions must be at least ${TARGET_QUESTION_PATTERN.length}`);
-    }
-
-    const normalizedPool = rawQuestions.map((questionData, index) =>
-        normalizeGeneratedQuestion(questionData, index),
-    );
-
-    const shuffle = (list) => [...list].sort(() => Math.random() - 0.5);
-    const mc = shuffle(normalizedPool.filter((q) => q.type === 'MC'));
-    const tf = shuffle(normalizedPool.filter((q) => q.type === 'TF'));
-    const ey = shuffle(normalizedPool.filter((q) => q.type === 'EY'));
-
-    if (mc.length < 4 || tf.length < 1 || ey.length < 1) {
-        throw new Error('Komposisi soal LLM tidak memenuhi 4 MC + 1 TF + 1 EY');
-    }
-
-    return [
-        ...mc.slice(0, 4),
-        tf[0],
-        ey[0],
-    ];
-};
-
-const stripHtml = (content = '') =>
-    String(content || '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-const buildAttemptInstruction = (chapterName) =>
-    `Jawab 6 soal assessment bab "${chapterName}" dengan teliti. Format: 4 MC, 1 TF, dan 1 Essay.`;
-
 const buildGenerationPrompt = ({ chapterName, chapterDescription, materialContent, userElo }) => {
     return `
-Anda adalah asisten pengajar untuk aplikasi Levelearn.
+Anda adalah asisten pengajar aplikasi Levelearn.
 
 Tugas:
-- Buat EXACT 6 soal assessment berbahasa Indonesia untuk satu chapter.
-- Urutan WAJIB: 1) MC, 2) MC, 3) MC, 4) MC, 5) TF, 6) EY.
-- Untuk MC: opsi harus tepat 4 item dan correctedAnswer harus salah satu opsi.
-- Untuk TF: options harus ["True","False"] dan correctedAnswer harus True/False.
-- Untuk EY: wajib ada correctedAnswer (jawaban referensi).
-- Setiap soal harus punya elo (bilangan bulat 750-3000), sesuaikan dengan target Elo siswa.
+- Buat EXACT 12 soal assessment berbahasa Indonesia untuk satu chapter.
+- Komposisi WAJIB: 9 MC, 2 TF, 1 EY.
+- MC: options tepat 4 item, correctedAnswer wajib salah satu options.
+- TF: options wajib ["True","False"], correctedAnswer wajib True atau False.
+- EY: wajib memiliki correctedAnswer sebagai referensi.
+- Setiap soal wajib punya elo bilangan bulat 750-3000.
+- Sesuaikan tingkat kesulitan dengan target Elo siswa.
 
 Konteks chapter:
 - Nama: ${chapterName}
@@ -366,7 +428,7 @@ Konteks chapter:
 - Ringkasan materi:
 ${materialContent || '-'}
 
-Kembalikan JSON valid SAJA (tanpa markdown/code fence) dengan struktur persis:
+Kembalikan JSON valid SAJA (tanpa markdown/code fence) dengan format:
 {
   "instruction": "string",
   "questions": [
@@ -406,8 +468,10 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
 
             const parsed = parseJsonPayload(raw);
             const payload = Array.isArray(parsed) ? { questions: parsed } : parsed;
-            const instruction = String(payload?.instruction || '').trim() || buildAttemptInstruction(chapter?.name || 'Assessment');
-            const questions = normaliseGeneratedAttemptQuestions(payload?.questions);
+            const instruction =
+                String(payload?.instruction || '').trim() ||
+                buildAttemptInstruction(chapter?.name || 'Assessment');
+            const questions = normaliseGeneratedPoolQuestions(payload?.questions);
 
             return { instruction, questions };
         } catch (error) {
@@ -419,134 +483,255 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
     throw lastError || new Error('LLM generation failed');
 };
 
-const normalizeStoredQuestion = (question) => {
-    const type = normaliseAttemptQuestionType(question.type);
-    let options = normalizeTextOptions(question.options || []);
-    let correctedAnswer = String(question.correctedAnswer || question.answer || '').trim();
-
-    if (type === 'TF') {
-        options = ['True', 'False'];
-        correctedAnswer = correctedAnswer.toLowerCase() === 'false' ? 'False' : 'True';
-    }
-
-    if (type === 'MC') {
-        const matched = matchOptionCaseInsensitive(options, correctedAnswer);
-        if (matched) {
-            correctedAnswer = matched;
-        } else if (options.length > 0) {
-            correctedAnswer = options[0];
-        }
-    }
-
-    if (type === 'EY' && !correctedAnswer) {
-        correctedAnswer = String(question.answer || '').trim();
-    }
-
-    return {
-        sourceQuestionId: question.id,
-        question: String(question.question || '').trim(),
-        type: type || 'MC',
-        options,
-        answer: correctedAnswer || null,
-        correctedAnswer: correctedAnswer || null,
-        elo: clampElo(question.elo),
-    };
-};
-
-const reorderQuestionsByPattern = (questions) => {
-    const pool = [...questions];
-    const usedIndexes = new Set();
-    const ordered = [];
-
-    for (const expectedType of TARGET_QUESTION_PATTERN) {
-        let pickedIndex = pool.findIndex((q, idx) =>
-            !usedIndexes.has(idx) && normaliseAttemptQuestionType(q.type) === expectedType,
-        );
-
-        if (pickedIndex < 0) {
-            pickedIndex = pool.findIndex((_, idx) => !usedIndexes.has(idx));
-        }
-
-        if (pickedIndex < 0) {
-            break;
-        }
-
-        usedIndexes.add(pickedIndex);
-        ordered.push(pool[pickedIndex]);
-    }
-
-    return ordered.slice(0, TARGET_QUESTION_PATTERN.length);
-};
-
-const buildFallbackQuestionsFromBank = (questions = [], userElo = MIN_ELO) => {
+const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterName = 'chapter') => {
     if (!Array.isArray(questions) || questions.length === 0) {
         throw new Error('Fallback bank kosong');
     }
 
-    const sortedByDistance = [...questions].sort((a, b) => {
-        const eloA = clampElo(a.elo);
-        const eloB = clampElo(b.elo);
-        const diffA = Math.abs(eloA - userElo);
-        const diffB = Math.abs(eloB - userElo);
-        return diffA - diffB;
-    });
+    const normalized = questions.map((q) => normalizeStoredQuestion(q)).filter((q) => q.question.length > 0);
+    const objective = normalized.filter((q) => isObjectiveType(q.type));
+    const essays = normalized.filter((q) => normaliseAttemptQuestionType(q.type) === 'EY');
 
-    const used = new Set();
-    const pickBy = (predicate, count) => {
-        const picked = [];
-        while (picked.length < count) {
-            const candidates = [];
-            for (let idx = 0; idx < sortedByDistance.length; idx += 1) {
-                if (used.has(idx)) {
-                    continue;
-                }
-                const item = sortedByDistance[idx];
-                if (predicate(item)) {
-                    candidates.push(idx);
-                }
-            }
-            if (candidates.length === 0) {
-                break;
-            }
+    if (objective.length === 0) {
+        throw new Error('Fallback bank tidak memiliki soal objektif.');
+    }
 
-            const sampledPool = candidates.slice(0, Math.min(5, candidates.length));
-            const selectedIndex = sampledPool[Math.floor(Math.random() * sampledPool.length)];
-            used.add(selectedIndex);
-            picked.push(sortedByDistance[selectedIndex]);
+    const sortByDistance = (list) =>
+        [...list].sort((a, b) => {
+            const diffA = Math.abs(clampElo(a.elo) - userElo);
+            const diffB = Math.abs(clampElo(b.elo) - userElo);
+            return diffA - diffB;
+        });
+
+    const objectiveSorted = sortByDistance(objective);
+    const objectivePool = objectiveSorted.slice(0, Math.max(ATTEMPT_POOL_SIZE * 3, objectiveSorted.length));
+    const shuffledObjectivePool = shuffleArray(objectivePool);
+
+    const selectedObjective = [];
+    for (const item of shuffledObjectivePool) {
+        if (selectedObjective.length >= ATTEMPT_POOL_SIZE - 1) {
+            break;
         }
-        return picked;
-    };
+        selectedObjective.push({ ...item, options: [...(item.options || [])] });
+    }
 
-    const isMC = (q) => normaliseAttemptQuestionType(q.type) === 'MC';
-    const isTF = (q) => normaliseAttemptQuestionType(q.type) === 'TF';
-    const isEY = (q) => normaliseAttemptQuestionType(q.type) === 'EY';
+    let cursor = 0;
+    while (selectedObjective.length < ATTEMPT_POOL_SIZE - 1) {
+        const source = objectiveSorted[cursor % objectiveSorted.length];
+        selectedObjective.push({ ...source, options: [...(source.options || [])] });
+        cursor += 1;
+    }
 
-    const selected = [
-        ...pickBy(isMC, 4),
-        ...pickBy(isTF, 1),
-        ...pickBy(isEY, 1),
+    const pickedEssay = essays.length > 0
+        ? sortByDistance(essays)[0]
+        : {
+            sourceQuestionId: null,
+            question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri.`,
+            type: 'EY',
+            options: [],
+            answer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            correctedAnswer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            elo: clampElo(userElo),
+        };
+
+    const finalPool = [
+        ...selectedObjective.slice(0, ATTEMPT_POOL_SIZE - 1),
+        { ...pickedEssay, options: [...(pickedEssay.options || [])] },
     ];
 
-    if (selected.length < TARGET_QUESTION_PATTERN.length) {
-        for (let idx = 0; idx < sortedByDistance.length && selected.length < TARGET_QUESTION_PATTERN.length; idx += 1) {
-            if (used.has(idx)) {
-                continue;
-            }
-            used.add(idx);
-            selected.push(sortedByDistance[idx]);
+    return shuffleArray(finalPool).slice(0, ATTEMPT_POOL_SIZE);
+};
+
+const findActiveQuestion = (questions = []) => {
+    const sorted = [...questions].sort(sortQuestionsByServedThenOrder);
+    return sorted.find((q) => Number.isInteger(q.servedOrder) && !q.answeredAt) || null;
+};
+
+const getServedObjectiveTypeCounts = (questions = []) => {
+    let mcServed = 0;
+    let tfServed = 0;
+
+    for (const q of questions) {
+        if (!Number.isInteger(q.servedOrder) || !isObjectiveType(q.type)) {
+            continue;
+        }
+        const type = normaliseAttemptQuestionType(q.type);
+        if (type === 'MC') {
+            mcServed += 1;
+        } else if (type === 'TF') {
+            tfServed += 1;
         }
     }
 
-    if (selected.length < TARGET_QUESTION_PATTERN.length) {
-        throw new Error('Fallback bank tidak memiliki minimal 6 soal');
+    return {
+        mcServed,
+        tfServed,
+        totalServed: mcServed + tfServed,
+    };
+};
+
+const getPreferredObjectiveTypes = (questions = [], objectiveTarget = ATTEMPT_OBJECTIVE_TARGET) => {
+    const served = getServedObjectiveTypeCounts(questions);
+    const remainingSlots = Math.max(0, objectiveTarget - served.totalServed);
+    const remainingMc = Math.max(0, DISPLAY_OBJECTIVE_COMPOSITION.MC - served.mcServed);
+    const remainingTf = Math.max(0, DISPLAY_OBJECTIVE_COMPOSITION.TF - served.tfServed);
+
+    const preferred = new Set();
+
+    if (remainingSlots <= remainingTf && remainingTf > 0) {
+        preferred.add('TF');
+    }
+    if (remainingSlots <= remainingMc && remainingMc > 0) {
+        preferred.add('MC');
     }
 
-    const ordered = reorderQuestionsByPattern(selected);
-    if (ordered.length < TARGET_QUESTION_PATTERN.length) {
-        throw new Error('Fallback bank gagal membentuk 6 soal');
+    if (preferred.size === 0) {
+        if (remainingMc > 0) {
+            preferred.add('MC');
+        }
+        if (remainingTf > 0) {
+            preferred.add('TF');
+        }
     }
 
-    return ordered.map((q) => normalizeStoredQuestion(q));
+    if (preferred.size === 0) {
+        preferred.add('MC');
+        preferred.add('TF');
+    }
+
+    return preferred;
+};
+
+const resolveBandIndex = (targetElo) => {
+    if (targetElo < ELO_BANDS[1].min) {
+        return 0;
+    }
+    if (targetElo <= ELO_BANDS[1].max) {
+        return 1;
+    }
+    return 2;
+};
+
+const getBandTraversalOrder = (startIndex) => {
+    if (startIndex <= 0) {
+        return [0, 1, 2];
+    }
+    if (startIndex >= 2) {
+        return [2, 1, 0];
+    }
+    return [1, 0, 2];
+};
+
+const sortByDistanceToTarget = (list = [], targetElo = MIN_ELO) =>
+    [...list].sort((a, b) => {
+        const diffA = Math.abs(clampElo(a.elo) - targetElo);
+        const diffB = Math.abs(clampElo(b.elo) - targetElo);
+        if (diffA !== diffB) {
+            return diffA - diffB;
+        }
+        return clampElo(a.elo) - clampElo(b.elo);
+    });
+
+const pickFirstObjectiveQuestion = (questions = []) => {
+    const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
+    if (unansweredObjective.length === 0) {
+        return null;
+    }
+
+    const mcObjective = unansweredObjective.filter((q) => normaliseAttemptQuestionType(q.type) === 'MC');
+    const tfObjective = unansweredObjective.filter((q) => normaliseAttemptQuestionType(q.type) === 'TF');
+    const candidatePool = mcObjective.length > 0 ? mcObjective : tfObjective;
+
+    const exact800 = candidatePool.find((q) => clampElo(q.elo) === FIRST_QUESTION_ELO);
+    if (exact800) {
+        return exact800;
+    }
+
+    return sortByDistanceToTarget(candidatePool, FIRST_QUESTION_ELO)[0] || null;
+};
+
+const pickNextObjectiveQuestion = (
+    questions = [],
+    targetElo = MIN_ELO,
+    objectiveTarget = ATTEMPT_OBJECTIVE_TARGET,
+) => {
+    const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
+    if (unansweredObjective.length === 0) {
+        return null;
+    }
+
+    const preferredTypes = getPreferredObjectiveTypes(questions, objectiveTarget);
+    const constrainedByType = unansweredObjective.filter((q) =>
+        preferredTypes.has(normaliseAttemptQuestionType(q.type)),
+    );
+    const candidatePool = constrainedByType.length > 0 ? constrainedByType : unansweredObjective;
+
+    const bandIndex = resolveBandIndex(targetElo);
+    const bandOrder = getBandTraversalOrder(bandIndex);
+
+    for (const idx of bandOrder) {
+        const band = ELO_BANDS[idx];
+        const inBand = candidatePool.filter((q) => {
+            const elo = clampElo(q.elo);
+            return elo >= band.min && elo <= band.max;
+        });
+        if (inBand.length > 0) {
+            return sortByDistanceToTarget(inBand, targetElo)[0];
+        }
+    }
+
+    return sortByDistanceToTarget(candidatePool, targetElo)[0];
+};
+
+const pickEssayQuestion = (questions = []) => {
+    const essays = questions.filter((q) => normaliseAttemptQuestionType(q.type) === 'EY' && !q.answeredAt);
+    if (essays.length === 0) {
+        return null;
+    }
+    const unservedEssay = essays.find((q) => !Number.isInteger(q.servedOrder));
+    if (unservedEssay) {
+        return unservedEssay;
+    }
+    return essays.sort(sortQuestionsByServedThenOrder)[0];
+};
+
+const buildAttemptProgress = (attempt, questions = []) => {
+    const servedQuestions = questions.filter((q) => Number.isInteger(q.servedOrder));
+    const answeredQuestions = servedQuestions.filter((q) => q.answeredAt);
+    return {
+        poolSize: attempt.poolSize || ATTEMPT_POOL_SIZE,
+        objectiveTarget: attempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET,
+        totalTarget: attempt.totalTarget || ATTEMPT_TOTAL_TARGET,
+        objectiveAnswered: attempt.objectiveAnswered || 0,
+        objectiveCorrect: attempt.objectiveCorrect || 0,
+        servedCount: servedQuestions.length,
+        answeredCount: answeredQuestions.length,
+        completed: attempt.status === ATTEMPT_STATUS.SUBMITTED,
+    };
+};
+
+const toPublicQuestion = (question, includeCorrect = false) => {
+    const payload = {
+        id: question.id,
+        sourceQuestionId: question.sourceQuestionId ?? null,
+        question: question.question,
+        type: normaliseAttemptQuestionType(question.type) || 'MC',
+        options: Array.isArray(question.options) ? question.options : [],
+        elo: clampElo(question.elo),
+        order: question.order,
+        servedOrder: question.servedOrder ?? null,
+        submittedAnswer: question.submittedAnswer ?? '',
+        isCorrect: question.isCorrect ?? false,
+        score: question.score ?? 0,
+        answeredAt: question.answeredAt ?? null,
+    };
+
+    if (includeCorrect) {
+        payload.answer = question.answer ?? '';
+        payload.correctedAnswer = question.correctedAnswer || question.answer || '';
+    }
+
+    return payload;
 };
 
 const formatAttemptResponse = (attempt, resumed = false) => {
@@ -554,33 +739,76 @@ const formatAttemptResponse = (attempt, resumed = false) => {
         return null;
     }
 
-    const questions = (attempt.questions || [])
-        .slice()
-        .sort((a, b) => a.order - b.order)
-        .map((q) => ({
-            id: q.id,
-            sourceQuestionId: q.sourceQuestionId ?? null,
-            question: q.question,
-            type: normaliseAttemptQuestionType(q.type) || 'MC',
-            options: Array.isArray(q.options) ? q.options : [],
-            answer: q.answer,
-            correctedAnswer: q.correctedAnswer || q.answer || '',
-            elo: clampElo(q.elo),
-            submittedAnswer: q.submittedAnswer ?? '',
-            isCorrect: q.isCorrect ?? false,
-            score: q.score ?? 0,
-            order: q.order,
-        }));
+    const sortedQuestions = [...(attempt.questions || [])].sort(sortQuestionsByServedThenOrder);
+    let visibleQuestions = sortedQuestions.filter((q) => Number.isInteger(q.servedOrder));
+    if (visibleQuestions.length === 0 && attempt.status === ATTEMPT_STATUS.SUBMITTED) {
+        visibleQuestions = sortedQuestions;
+    }
+    const includeCorrect = attempt.status === ATTEMPT_STATUS.SUBMITTED;
+    const activeQuestion = findActiveQuestion(sortedQuestions);
 
     return {
         attemptId: attempt.id,
         chapterId: attempt.chapterId,
         instruction: attempt.instruction,
-        questions,
         resumed,
         source: attempt.source,
         status: attempt.status,
         submittedAt: attempt.submittedAt,
+        progress: buildAttemptProgress(attempt, sortedQuestions),
+        currentQuestion: activeQuestion ? toPublicQuestion(activeQuestion, false) : null,
+        questions: visibleQuestions.map((q) => toPublicQuestion(q, includeCorrect)),
+    };
+};
+
+const getGradeMultiplier = (grade) => {
+    if (grade >= 79.5) {
+        return 1.5;
+    }
+    if (grade >= 72) {
+        return 1.25;
+    }
+    if (grade >= 64.5) {
+        return 1.1;
+    }
+    if (grade >= 57) {
+        return 1.0;
+    }
+    if (grade >= 49.5) {
+        return 0.5;
+    }
+    if (grade >= 34) {
+        return 1.5;
+    }
+    return 2.0;
+};
+
+const calculateQuestionDuelElo = ({
+    userElo,
+    questionElo,
+    isCorrect,
+}) => {
+    const currentUserElo = Math.max(MIN_ELO, Number(userElo) || MIN_ELO);
+    const currentQuestionElo = clampElo(questionElo);
+
+    const K_USER = 30;
+    const K_QUESTION = 15;
+
+    const expectedUser = 1 / (1 + Math.pow(10, (currentQuestionElo - currentUserElo) / 400));
+    const actualUserScore = isCorrect ? 1 : 0;
+    const actualQuestionScore = isCorrect ? 0 : 1;
+
+    const userDeltaRaw = K_USER * (actualUserScore - expectedUser);
+    const questionDeltaRaw = K_QUESTION * (actualQuestionScore - (1 - expectedUser));
+
+    const nextUserElo = Math.max(MIN_ELO, Math.round(currentUserElo + userDeltaRaw));
+    const nextQuestionElo = Math.max(MIN_ELO, Math.round(currentQuestionElo + questionDeltaRaw));
+
+    return {
+        userDeltaRaw,
+        questionDeltaRaw,
+        nextUserElo,
+        nextQuestionElo,
     };
 };
 
@@ -593,6 +821,39 @@ const buildAnswerMap = (answers = []) => {
         }
     });
     return answerMap;
+};
+
+const evaluateSubmission = (questions = [], answerMap = new Map()) => {
+    let correctAnswers = 0;
+    let assessableQuestions = 0;
+
+    const evaluations = questions.map((question, index) => {
+        const normalizedType = normaliseAttemptQuestionType(question.type);
+        const isEssay = normalizedType === 'EY';
+        const submitted = (answerMap.get(question.id) || '').trim();
+        const correct = (question.answer || question.correctedAnswer || '').trim();
+        let isCorrect = false;
+
+        if (!isEssay) {
+            assessableQuestions += 1;
+            isCorrect = submitted && submitted.toLowerCase() === correct.toLowerCase();
+            if (isCorrect) {
+                correctAnswers += 1;
+            }
+        }
+
+        return {
+            index,
+            questionId: question.id,
+            question: question.question,
+            submittedAnswer: submitted,
+            correctAnswer: correct,
+            isCorrect,
+            type: normalizedType,
+        };
+    });
+
+    return { evaluations, correctAnswers, assessableQuestions };
 };
 
 const calculateEloOutcome = ({
@@ -639,24 +900,7 @@ const calculateEloOutcome = ({
         });
     }
 
-    let totalEloChangeRaw = totalUserEloEarned;
-
-    if (grade >= 79.5) {
-        totalEloChangeRaw *= 1.5;
-    } else if (grade >= 72) {
-        totalEloChangeRaw *= 1.25;
-    } else if (grade >= 64.5) {
-        totalEloChangeRaw *= 1.1;
-    } else if (grade >= 57) {
-        totalEloChangeRaw *= 1.0;
-    } else if (grade >= 49.5) {
-        totalEloChangeRaw *= 0.5;
-    } else if (grade >= 34) {
-        totalEloChangeRaw *= 1.5;
-    } else {
-        totalEloChangeRaw *= 2.0;
-    }
-
+    let totalEloChangeRaw = totalUserEloEarned * getGradeMultiplier(grade);
     if (isProvisional && totalEloChangeRaw < 0) {
         totalEloChangeRaw = 0;
     }
@@ -665,6 +909,25 @@ const calculateEloOutcome = ({
         pointsEarned: Math.round(totalEloChangeRaw),
         questionUpdates,
     };
+};
+
+const normaliseQuestions = (rawQuestions) => {
+    if (!rawQuestions) {
+        return [];
+    }
+    if (Array.isArray(rawQuestions)) {
+        return rawQuestions;
+    }
+    if (typeof rawQuestions === 'string') {
+        try {
+            const parsed = JSON.parse(rawQuestions);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (error) {
+            console.error('Failed to parse assessment questions JSON', error);
+            return [];
+        }
+    }
+    return [];
 };
 
 const ensureQuestionsElo = async (questionsData) => {
@@ -697,6 +960,7 @@ const ensureQuestionsElo = async (questionsData) => {
             q.elo = clampElo(q.elo);
         }
     }
+
     return parsed;
 };
 
@@ -805,6 +1069,344 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
     };
 };
 
+const getAttemptByIdTx = (tx, attemptId) =>
+    tx.assessmentAttempt.findUnique({
+        where: { id: attemptId },
+        include: { questions: true },
+    });
+
+const getCurrentAttemptTx = (tx, userId, chapterId) =>
+    tx.assessmentAttempt.findFirst({
+        where: {
+            userId,
+            chapterId,
+            status: ATTEMPT_STATUS.IN_PROGRESS,
+        },
+        include: { questions: true },
+        orderBy: { createdAt: 'desc' },
+    });
+
+const ensureCurrentQuestionServedTx = async (tx, attemptOrId) => {
+    let attempt = null;
+    if (typeof attemptOrId === 'number') {
+        attempt = await getAttemptByIdTx(tx, attemptOrId);
+    } else {
+        attempt = attemptOrId;
+    }
+
+    if (!attempt || attempt.status !== ATTEMPT_STATUS.IN_PROGRESS) {
+        return attempt;
+    }
+
+    const questions = [...(attempt.questions || [])].sort(sortQuestionsByServedThenOrder);
+    const activeQuestion = findActiveQuestion(questions);
+    if (activeQuestion) {
+        return attempt;
+    }
+
+    const nextServedOrder = questions.reduce((acc, q) => {
+        if (!Number.isInteger(q.servedOrder)) {
+            return acc;
+        }
+        return Math.max(acc, q.servedOrder);
+    }, 0) + 1;
+
+    const objectiveAnswered = attempt.objectiveAnswered || 0;
+    const objectiveTarget = attempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
+    const servedObjectiveCount = questions.filter(
+        (q) => Number.isInteger(q.servedOrder) && isObjectiveType(q.type),
+    ).length;
+    let nextQuestion = null;
+
+    if (objectiveAnswered >= objectiveTarget) {
+        nextQuestion = pickEssayQuestion(questions);
+    } else if (servedObjectiveCount === 0) {
+        nextQuestion = pickFirstObjectiveQuestion(questions);
+    } else {
+        nextQuestion = pickNextObjectiveQuestion(
+            questions,
+            attempt.currentUserElo || MIN_ELO,
+            objectiveTarget,
+        );
+    }
+
+    if (!nextQuestion) {
+        return attempt;
+    }
+
+    if (!Number.isInteger(nextQuestion.servedOrder)) {
+        const shouldForceFirstQuestionElo = objectiveAnswered === 0 && servedObjectiveCount === 0;
+        await tx.assessmentAttemptQuestion.update({
+            where: { id: nextQuestion.id },
+            data: {
+                servedOrder: nextServedOrder,
+                ...(shouldForceFirstQuestionElo ? { elo: FIRST_QUESTION_ELO } : {}),
+            },
+        });
+        return getAttemptByIdTx(tx, attempt.id);
+    }
+
+    return attempt;
+};
+
+const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
+    const refreshedAttempt = await getAttemptByIdTx(tx, attempt.id);
+    if (!refreshedAttempt) {
+        throw new Error('Assessment attempt tidak ditemukan');
+    }
+
+    const servedQuestions = [...(refreshedAttempt.questions || [])]
+        .filter((q) => Number.isInteger(q.servedOrder))
+        .sort(sortQuestionsByServedThenOrder);
+
+    const objectiveQuestions = servedQuestions.filter((q) => isObjectiveType(q.type));
+    const objectiveTarget = refreshedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
+    const correctAnswers = objectiveQuestions.filter((q) => q.isCorrect === true).length;
+    const grade = Math.round(getCorrectnessRatio(correctAnswers, Math.max(1, objectiveTarget)) * 100);
+
+    const chapter = await tx.chapter.findUnique({
+        where: { id: chapterId },
+        select: { courseId: true },
+    });
+    if (!chapter) {
+        throw new Error('Chapter tidak ditemukan untuk finalisasi attempt');
+    }
+
+    const userChapter = await ensureUserChapterTx(tx, userId, chapterId);
+    const userCourse = await ensureUserCourseTx(tx, userId, chapter.courseId);
+    const courseEloStart = refreshedAttempt.courseEloStart || userCourse.elo || MIN_ELO;
+    const courseEloEnd = refreshedAttempt.currentUserElo || courseEloStart;
+    const eloDeltaSigned = Math.round(courseEloEnd - courseEloStart);
+    const pointsEarned = Math.max(0, eloDeltaSigned);
+
+    const isExcellent = grade >= 75;
+    const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
+    const aiFeedback = buildFeedback(grade, correctAnswers);
+    const orderedAnswers = servedQuestions.map((q) => q.submittedAnswer || '');
+
+    const updatedChapter = await tx.userChapter.update({
+        where: { id: userChapter.id },
+        data: {
+            isStarted: true,
+            assessmentDone: true,
+            assessmentGrade: grade,
+            assessmentEloDelta: eloDeltaSigned,
+            assessmentPointsEarned: pointsEarned,
+            assessmentAnswer: orderedAnswers,
+            currentDifficulty: newDifficulty,
+            lastAiFeedback: aiFeedback,
+            correctStreak: isExcellent ? ((userChapter.correctStreak || 0) + 1) : 0,
+            wrongStreak: isExcellent ? 0 : ((userChapter.wrongStreak || 0) + 1),
+            timeFinished: new Date(),
+        },
+    });
+
+    await tx.userCourse.update({
+        where: { id: userCourse.id },
+        data: { elo: courseEloEnd },
+    });
+
+    await tx.user.update({
+        where: { id: userId },
+        data: { points: { increment: pointsEarned } },
+    });
+
+    await tx.assessmentAttempt.update({
+        where: { id: refreshedAttempt.id },
+        data: {
+            status: ATTEMPT_STATUS.SUBMITTED,
+            grade,
+            pointsEarned,
+            correctAnswers,
+            totalQuestions: objectiveTarget,
+            courseEloEnd,
+            newDifficulty,
+            aiFeedback,
+            submittedAt: new Date(),
+        },
+    });
+
+    const sourceQuestionUpdates = new Map();
+    for (const question of objectiveQuestions) {
+        if (!Number.isInteger(question.sourceQuestionId)) {
+            continue;
+        }
+        sourceQuestionUpdates.set(question.sourceQuestionId, Math.max(MIN_ELO, clampElo(question.elo)));
+    }
+
+    for (const [sourceQuestionId, nextElo] of sourceQuestionUpdates.entries()) {
+        await tx.question.update({
+            where: { id: sourceQuestionId },
+            data: { elo: nextElo },
+        });
+    }
+
+    const evaluations = servedQuestions.map((q, index) => ({
+        index,
+        questionId: q.id,
+        question: q.question,
+        submittedAnswer: q.submittedAnswer || '',
+        correctAnswer: q.correctedAnswer || q.answer || '',
+        isCorrect: q.isCorrect === true,
+        type: normaliseAttemptQuestionType(q.type),
+    }));
+
+    return {
+        attemptId: refreshedAttempt.id,
+        grade,
+        pointsEarned,
+        courseEloStart,
+        courseEloEnd,
+        eloDeltaSigned,
+        correctAnswers,
+        totalQuestions: objectiveTarget,
+        newDifficulty,
+        aiFeedback,
+        evaluations,
+        userChapter: updatedChapter,
+    };
+};
+
+const createOrResumeAttempt = async (
+    userId,
+    chapterId,
+    forceNew = false,
+    { allowCreateWhenSubmitted = true } = {},
+) => {
+    if (!userId || !chapterId) {
+        throw new Error('userId dan chapterId wajib diisi');
+    }
+
+    const normalizedUserId = Number(userId);
+    const normalizedChapterId = Number(chapterId);
+    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
+        throw new Error('userId dan chapterId harus berupa angka');
+    }
+
+    if (forceNew) {
+        await prisma.assessmentAttempt.updateMany({
+            where: {
+                userId: normalizedUserId,
+                chapterId: normalizedChapterId,
+                status: ATTEMPT_STATUS.IN_PROGRESS,
+            },
+            data: { status: ATTEMPT_STATUS.ABANDONED },
+        });
+    } else {
+        const existingAttempt = await prisma.$transaction(async (tx) => {
+            const current = await getCurrentAttemptTx(tx, normalizedUserId, normalizedChapterId);
+            if (!current) {
+                return null;
+            }
+            return ensureCurrentQuestionServedTx(tx, current);
+        });
+        if (existingAttempt) {
+            return { attempt: existingAttempt, resumed: true };
+        }
+
+        if (!allowCreateWhenSubmitted) {
+            const latestSubmitted = await prisma.assessmentAttempt.findFirst({
+                where: {
+                    userId: normalizedUserId,
+                    chapterId: normalizedChapterId,
+                    status: ATTEMPT_STATUS.SUBMITTED,
+                },
+                select: { id: true },
+            });
+            if (latestSubmitted) {
+                return { attempt: null, resumed: false, skipped: true };
+            }
+        }
+    }
+
+    const [chapter, assessment] = await Promise.all([
+        prisma.chapter.findUnique({
+            where: { id: normalizedChapterId },
+            include: {
+                materials: {
+                    take: 1,
+                    orderBy: { id: 'asc' },
+                },
+            },
+        }),
+        prisma.assessment.findFirst({
+            where: { chapterId: normalizedChapterId },
+            include: { questions: true },
+        }),
+    ]);
+
+    if (!chapter) {
+        throw new Error('Chapter tidak ditemukan');
+    }
+
+    await ensureUserChapter(normalizedUserId, normalizedChapterId);
+    const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
+
+    const userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
+    let source = ATTEMPT_SOURCE.GENERATED;
+    let instruction = buildAttemptInstruction(chapter.name);
+    let questionPool = [];
+
+    try {
+        const generated = await generateAttemptQuestionsWithLLM({
+            chapter,
+            material: chapter.materials?.[0] || null,
+            userElo,
+        });
+        instruction = generated.instruction;
+        questionPool = generated.questions;
+    } catch (error) {
+        console.error('LLM generation failed, fallback to bank:', error.message);
+        source = ATTEMPT_SOURCE.FALLBACK_BANK;
+        if (!assessment || !Array.isArray(assessment.questions) || assessment.questions.length === 0) {
+            throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
+        }
+        questionPool = buildFallbackPoolFromBank(assessment.questions, userElo, chapter.name);
+    }
+
+    if (!questionPool.length) {
+        throw new Error('Gagal membangun pool assessment attempt.');
+    }
+
+    const createdAttempt = await prisma.assessmentAttempt.create({
+        data: {
+            userId: normalizedUserId,
+            chapterId: normalizedChapterId,
+            assessmentId: assessment?.id || null,
+            status: ATTEMPT_STATUS.IN_PROGRESS,
+            source,
+            instruction,
+            poolSize: ATTEMPT_POOL_SIZE,
+            objectiveTarget: ATTEMPT_OBJECTIVE_TARGET,
+            totalTarget: ATTEMPT_TOTAL_TARGET,
+            currentUserElo: userElo,
+            courseEloStart: userElo,
+            courseEloEnd: userElo,
+            rawEloDelta: 0,
+            objectiveAnswered: 0,
+            objectiveCorrect: 0,
+            questions: {
+                create: questionPool.map((q, index) => ({
+                    sourceQuestionId: Number.isInteger(q.sourceQuestionId) ? q.sourceQuestionId : null,
+                    question: q.question,
+                    type: normaliseAttemptQuestionType(q.type) || 'MC',
+                    options: q.options || [],
+                    answer: q.answer || null,
+                    correctedAnswer: q.correctedAnswer || null,
+                    elo: clampElo(q.elo),
+                    order: index + 1,
+                })),
+            },
+        },
+    });
+
+    const attemptWithServed = await prisma.$transaction(async (tx) => {
+        return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
+    });
+
+    return { attempt: attemptWithServed, resumed: false };
+};
+
 const processAttemptSubmission = async (userId, chapterId, attemptId, answers = []) => {
     const normalizedAttemptId = Number(attemptId);
     if (!Number.isInteger(normalizedAttemptId)) {
@@ -820,9 +1422,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 chapterId,
             },
             include: {
-                questions: {
-                    orderBy: { order: 'asc' },
-                },
+                questions: true,
             },
         }),
         ensureUserChapter(userId, chapterId).then(async (chapter) => {
@@ -839,13 +1439,17 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         throw new Error('Assessment attempt sudah disubmit atau tidak aktif');
     }
 
-    const questions = attempt.questions || [];
+    const servedQuestions = (attempt.questions || []).filter((q) => Number.isInteger(q.servedOrder));
+    const questions = servedQuestions.length > 0 ? servedQuestions : (attempt.questions || []);
     if (questions.length === 0) {
         throw new Error('Assessment attempt tidak memiliki soal');
     }
 
     const { evaluations, correctAnswers, assessableQuestions } = evaluateSubmission(questions, answerMap);
-    const totalQuestions = assessableQuestions > 0 ? assessableQuestions : 1;
+    const objectiveTarget = attempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
+    const totalQuestions = servedQuestions.length > 0
+        ? Math.max(1, objectiveTarget)
+        : (assessableQuestions > 0 ? assessableQuestions : 1);
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
 
     const { pointsEarned, questionUpdates } = calculateEloOutcome({
@@ -865,7 +1469,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         totalQuestions,
     });
 
-    const objectiveQuestionScore = Math.ceil(100 / totalQuestions);
+    const objectiveQuestionScore = Math.ceil(100 / Math.max(1, totalQuestions));
     const evaluationByQuestionId = new Map(evaluations.map((evaluation) => [evaluation.questionId, evaluation]));
     const eloByQuestionId = new Map(questionUpdates.map((update) => [update.questionId, update.newElo]));
 
@@ -925,6 +1529,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                     submittedAnswer: currentAnswer,
                     isCorrect: isEssay ? false : (evaluation?.isCorrect || false),
                     score: isEssay ? 0 : ((evaluation?.isCorrect || false) ? objectiveQuestionScore : 0),
+                    answeredAt: new Date(),
                     elo: Math.max(MIN_ELO, Number.isFinite(nextElo) ? nextElo : clampElo(question.elo)),
                 },
             });
@@ -950,6 +1555,276 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         evaluations,
         userChapter: updatedChapter,
     };
+};
+
+exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId, answer) => {
+    const normalizedUserId = Number(userId);
+    const normalizedChapterId = Number(chapterId);
+    const normalizedAttemptId = Number(attemptId);
+    const normalizedQuestionId = Number(questionId);
+
+    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
+        throw new Error('userId dan chapterId harus berupa angka');
+    }
+    if (!Number.isInteger(normalizedAttemptId) || !Number.isInteger(normalizedQuestionId)) {
+        throw new Error('attemptId dan questionId harus berupa angka');
+    }
+
+    const submittedAnswer = String(answer ?? '').trim();
+    if (!submittedAnswer) {
+        throw new Error('Jawaban tidak boleh kosong');
+    }
+
+    return prisma.$transaction(async (tx) => {
+        let attempt = await tx.assessmentAttempt.findFirst({
+            where: {
+                id: normalizedAttemptId,
+                userId: normalizedUserId,
+                chapterId: normalizedChapterId,
+                status: ATTEMPT_STATUS.IN_PROGRESS,
+            },
+            include: { questions: true },
+        });
+
+        if (!attempt) {
+            throw new Error('Assessment attempt tidak ditemukan atau sudah selesai');
+        }
+
+        attempt = await ensureCurrentQuestionServedTx(tx, attempt);
+        const questions = [...(attempt.questions || [])].sort(sortQuestionsByServedThenOrder);
+        const activeQuestion = findActiveQuestion(questions);
+
+        if (!activeQuestion) {
+            const result = await finalizeAttemptInTransaction(tx, attempt, normalizedUserId, normalizedChapterId);
+            return {
+                completed: true,
+                result,
+            };
+        }
+
+        if (activeQuestion.id !== normalizedQuestionId) {
+            throw new Error('Jawaban harus dikirim untuk soal aktif saat ini.');
+        }
+
+        if (activeQuestion.answeredAt) {
+            throw new Error('Soal ini sudah dijawab.');
+        }
+
+        const normalizedType = normaliseAttemptQuestionType(activeQuestion.type);
+        const isObjective = isObjectiveType(normalizedType);
+        const objectiveTarget = attempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
+        const objectiveScore = Math.ceil(100 / Math.max(1, objectiveTarget));
+
+        let isCorrect = false;
+        let userDeltaRaw = 0;
+        let questionDeltaRaw = 0;
+        let nextUserEloPreview = Math.max(MIN_ELO, attempt.currentUserElo || MIN_ELO);
+        let nextQuestionElo = clampElo(activeQuestion.elo);
+
+        let nextObjectiveAnswered = attempt.objectiveAnswered || 0;
+        let nextObjectiveCorrect = attempt.objectiveCorrect || 0;
+        let nextRawEloDelta = Number(attempt.rawEloDelta || 0);
+        const courseEloBefore = Math.max(MIN_ELO, attempt.currentUserElo || MIN_ELO);
+        const courseEloStart = Math.max(MIN_ELO, attempt.courseEloStart || courseEloBefore);
+        let targetNextQuestionElo = courseEloBefore;
+
+        if (isObjective) {
+            const correctAnswer = String(activeQuestion.answer || activeQuestion.correctedAnswer || '').trim().toLowerCase();
+            isCorrect = submittedAnswer.toLowerCase() === correctAnswer;
+            const duel = calculateQuestionDuelElo({
+                userElo: nextUserEloPreview,
+                questionElo: activeQuestion.elo,
+                isCorrect,
+            });
+            userDeltaRaw = duel.userDeltaRaw;
+            questionDeltaRaw = duel.questionDeltaRaw;
+            nextUserEloPreview = duel.nextUserElo;
+            nextQuestionElo = duel.nextQuestionElo;
+            nextRawEloDelta += userDeltaRaw;
+            targetNextQuestionElo = Math.max(
+                MIN_ELO,
+                nextUserEloPreview + (isCorrect ? 50 : -50),
+            );
+            nextObjectiveAnswered += 1;
+            if (isCorrect) {
+                nextObjectiveCorrect += 1;
+            }
+        }
+
+        await tx.assessmentAttemptQuestion.update({
+            where: { id: activeQuestion.id },
+            data: {
+                submittedAnswer,
+                isCorrect: isObjective ? isCorrect : false,
+                score: isObjective ? (isCorrect ? objectiveScore : 0) : 0,
+                answeredAt: new Date(),
+                userEloDeltaRaw: isObjective ? (Number.isNaN(userDeltaRaw) ? 0 : userDeltaRaw) : null,
+                questionEloDeltaRaw: isObjective ? (Number.isNaN(questionDeltaRaw) ? 0 : questionDeltaRaw) : null,
+                elo: isObjective ? (Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo) : clampElo(activeQuestion.elo),
+            },
+        });
+
+        await tx.assessmentAttempt.update({
+            where: { id: attempt.id },
+            data: {
+                currentUserElo: Number.isNaN(nextUserEloPreview) ? 750 : nextUserEloPreview,
+                courseEloEnd: Number.isNaN(nextUserEloPreview) ? 750 : nextUserEloPreview,
+                rawEloDelta: Number.isNaN(nextRawEloDelta) ? 0 : nextRawEloDelta,
+                objectiveAnswered: nextObjectiveAnswered,
+                objectiveCorrect: nextObjectiveCorrect,
+            },
+        });
+
+        if (isObjective && Number.isInteger(activeQuestion.sourceQuestionId)) {
+            await tx.question.update({
+                where: { id: activeQuestion.sourceQuestionId },
+                data: { elo: Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo },
+            });
+        }
+
+        let updatedAttempt = await getAttemptByIdTx(tx, attempt.id);
+        let updatedQuestions = [...(updatedAttempt.questions || [])].sort(sortQuestionsByServedThenOrder);
+
+        const currentObjectiveAnswered = updatedAttempt.objectiveAnswered || 0;
+        const currentObjectiveTarget = updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
+        const nextServedOrder = updatedQuestions.reduce((acc, q) => {
+            if (!Number.isInteger(q.servedOrder)) {
+                return acc;
+            }
+            return Math.max(acc, q.servedOrder);
+        }, 0) + 1;
+
+        let nextQuestion = null;
+        if (currentObjectiveAnswered >= currentObjectiveTarget) {
+            nextQuestion = pickEssayQuestion(updatedQuestions);
+        } else {
+            nextQuestion = pickNextObjectiveQuestion(
+                updatedQuestions,
+                targetNextQuestionElo,
+                currentObjectiveTarget,
+            );
+        }
+
+        if (nextQuestion && !Number.isInteger(nextQuestion.servedOrder)) {
+            await tx.assessmentAttemptQuestion.update({
+                where: { id: nextQuestion.id },
+                data: { servedOrder: nextServedOrder },
+            });
+            updatedAttempt = await getAttemptByIdTx(tx, attempt.id);
+            updatedQuestions = [...(updatedAttempt.questions || [])].sort(sortQuestionsByServedThenOrder);
+        }
+
+        const activeAfterAnswer = findActiveQuestion(updatedQuestions);
+        const essayAnswered = updatedQuestions.some(
+            (q) => normaliseAttemptQuestionType(q.type) === 'EY' && q.answeredAt,
+        );
+        const objectiveCompleted =
+            (updatedAttempt.objectiveAnswered || 0) >= (updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET);
+
+        if ((objectiveCompleted && essayAnswered) || !activeAfterAnswer) {
+            const result = await finalizeAttemptInTransaction(tx, updatedAttempt, normalizedUserId, normalizedChapterId);
+            return {
+                completed: true,
+                result,
+            };
+        }
+
+        return {
+            attemptId: updatedAttempt.id,
+            completed: false,
+            isCorrect: isObjective ? isCorrect : false,
+            questionEloDelta: Math.round(questionDeltaRaw),
+            eloDeltaQuestion: Number(userDeltaRaw.toFixed(2)),
+            courseEloBefore,
+            courseEloAfter: updatedAttempt.currentUserElo || MIN_ELO,
+            targetNextQuestionElo,
+            pointsAwardedPreview: Math.max(0, (updatedAttempt.currentUserElo || MIN_ELO) - courseEloStart),
+            userEloPreview: updatedAttempt.currentUserElo || MIN_ELO,
+            nextQuestion: activeAfterAnswer ? toPublicQuestion(activeAfterAnswer, false) : null,
+            progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
+        };
+    });
+};
+
+exports.prefetchAttempt = async (userId, chapterId) => {
+    const { attempt, resumed } = await createOrResumeAttempt(userId, chapterId, false, {
+        allowCreateWhenSubmitted: false,
+    });
+    if (!attempt) {
+        return null;
+    }
+    return formatAttemptResponse(attempt, resumed);
+};
+
+exports.startAttempt = async (userId, chapterId, forceNew = false) => {
+    const { attempt, resumed } = await createOrResumeAttempt(userId, chapterId, forceNew === true, {
+        allowCreateWhenSubmitted: true,
+    });
+    return formatAttemptResponse(attempt, resumed);
+};
+
+exports.getCurrentAttempt = async (userId, chapterId) => {
+    if (!userId || !chapterId) {
+        throw new Error('userId dan chapterId wajib diisi');
+    }
+
+    const normalizedUserId = Number(userId);
+    const normalizedChapterId = Number(chapterId);
+    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
+        throw new Error('userId dan chapterId harus berupa angka');
+    }
+
+    const attempt = await prisma.$transaction(async (tx) => {
+        const current = await getCurrentAttemptTx(tx, normalizedUserId, normalizedChapterId);
+        if (!current) {
+            return null;
+        }
+        return ensureCurrentQuestionServedTx(tx, current);
+    });
+
+    return formatAttemptResponse(attempt, true);
+};
+
+exports.getLatestAttempt = async (userId, chapterId) => {
+    if (!userId || !chapterId) {
+        throw new Error('userId dan chapterId wajib diisi');
+    }
+
+    const normalizedUserId = Number(userId);
+    const normalizedChapterId = Number(chapterId);
+    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
+        throw new Error('userId dan chapterId harus berupa angka');
+    }
+
+    const attempt = await prisma.assessmentAttempt.findFirst({
+        where: {
+            userId: normalizedUserId,
+            chapterId: normalizedChapterId,
+            status: ATTEMPT_STATUS.SUBMITTED,
+        },
+        include: { questions: true },
+        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return formatAttemptResponse(attempt, false);
+};
+
+exports.processSubmission = async (userId, chapterId, answers = [], attemptId = null) => {
+    if (!userId || !chapterId) {
+        throw new Error('userId and chapterId are required');
+    }
+
+    const normalizedUserId = Number(userId);
+    const normalizedChapterId = Number(chapterId);
+    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
+        throw new Error('userId and chapterId must be numeric');
+    }
+
+    if (attemptId !== null && attemptId !== undefined) {
+        return processAttemptSubmission(normalizedUserId, normalizedChapterId, attemptId, answers);
+    }
+
+    return processLegacySubmission(normalizedUserId, normalizedChapterId, answers);
 };
 
 exports.getAllAssessments = async () => {
@@ -1044,198 +1919,6 @@ exports.deleteAssessment = async (id) => {
         await prisma.assessment.delete({ where: { id } });
         return `Successfully deleted assessment with id: ${id}`;
     } catch (error) {
-        throw new Error('Error deleting assessment: ' + error.message);
+        throw new Error(`Error deleting assessment: ${error.message}`);
     }
-};
-
-exports.startAttempt = async (userId, chapterId, forceNew = false) => {
-    if (!userId || !chapterId) {
-        throw new Error('userId dan chapterId wajib diisi');
-    }
-
-    const normalizedUserId = Number(userId);
-    const normalizedChapterId = Number(chapterId);
-    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
-        throw new Error('userId dan chapterId harus berupa angka');
-    }
-
-    const existingAttempt = await prisma.assessmentAttempt.findFirst({
-        where: {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-            status: ATTEMPT_STATUS.IN_PROGRESS,
-        },
-        include: {
-            questions: { orderBy: { order: 'asc' } },
-        },
-        orderBy: { createdAt: 'desc' },
-    });
-
-    if (existingAttempt && !forceNew) {
-        return formatAttemptResponse(existingAttempt, true);
-    }
-
-    if (existingAttempt && forceNew) {
-        await prisma.assessmentAttempt.updateMany({
-            where: {
-                userId: normalizedUserId,
-                chapterId: normalizedChapterId,
-                status: ATTEMPT_STATUS.IN_PROGRESS,
-            },
-            data: { status: ATTEMPT_STATUS.ABANDONED },
-        });
-    }
-
-    const [user, chapter, assessment] = await Promise.all([
-        prisma.user.findUnique({ where: { id: normalizedUserId } }),
-        prisma.chapter.findUnique({
-            where: { id: normalizedChapterId },
-            include: {
-                materials: {
-                    take: 1,
-                    orderBy: { id: 'asc' },
-                },
-            },
-        }),
-        prisma.assessment.findFirst({
-            where: { chapterId: normalizedChapterId },
-            include: { questions: true },
-        }),
-    ]);
-
-    if (!chapter) {
-        throw new Error('Chapter tidak ditemukan');
-    }
-
-    await ensureUserChapter(normalizedUserId, normalizedChapterId);
-
-    const userElo = Math.max(MIN_ELO, user?.points || MIN_ELO);
-    let source = ATTEMPT_SOURCE.GENERATED;
-    let instruction = buildAttemptInstruction(chapter.name);
-    let questionsForAttempt = [];
-
-    try {
-        const generated = await generateAttemptQuestionsWithLLM({
-            chapter,
-            material: chapter.materials?.[0] || null,
-            userElo,
-        });
-        instruction = generated.instruction;
-        questionsForAttempt = generated.questions;
-    } catch (error) {
-        console.error('LLM generation failed, fallback to bank:', error.message);
-        source = ATTEMPT_SOURCE.FALLBACK_BANK;
-        if (!assessment || !assessment.questions || assessment.questions.length === 0) {
-            throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
-        }
-        questionsForAttempt = buildFallbackQuestionsFromBank(assessment.questions, userElo);
-    }
-
-    if (!questionsForAttempt.length) {
-        throw new Error('Gagal membangun soal assessment untuk attempt baru.');
-    }
-
-    const createdAttempt = await prisma.assessmentAttempt.create({
-        data: {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-            assessmentId: assessment?.id || null,
-            status: ATTEMPT_STATUS.IN_PROGRESS,
-            source,
-            instruction,
-            questions: {
-                create: questionsForAttempt.map((q, index) => ({
-                    sourceQuestionId: Number.isInteger(q.sourceQuestionId) ? q.sourceQuestionId : null,
-                    question: q.question,
-                    type: normaliseAttemptQuestionType(q.type) || 'MC',
-                    options: q.options || [],
-                    answer: q.answer || null,
-                    correctedAnswer: q.correctedAnswer || null,
-                    elo: clampElo(q.elo),
-                    order: index + 1,
-                })),
-            },
-        },
-        include: {
-            questions: {
-                orderBy: { order: 'asc' },
-            },
-        },
-    });
-
-    return formatAttemptResponse(createdAttempt, false);
-};
-
-exports.getCurrentAttempt = async (userId, chapterId) => {
-    if (!userId || !chapterId) {
-        throw new Error('userId dan chapterId wajib diisi');
-    }
-
-    const normalizedUserId = Number(userId);
-    const normalizedChapterId = Number(chapterId);
-    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
-        throw new Error('userId dan chapterId harus berupa angka');
-    }
-
-    const attempt = await prisma.assessmentAttempt.findFirst({
-        where: {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-            status: ATTEMPT_STATUS.IN_PROGRESS,
-        },
-        include: {
-            questions: {
-                orderBy: { order: 'asc' },
-            },
-        },
-        orderBy: { createdAt: 'desc' },
-    });
-
-    return formatAttemptResponse(attempt, true);
-};
-
-exports.getLatestAttempt = async (userId, chapterId) => {
-    if (!userId || !chapterId) {
-        throw new Error('userId dan chapterId wajib diisi');
-    }
-
-    const normalizedUserId = Number(userId);
-    const normalizedChapterId = Number(chapterId);
-    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
-        throw new Error('userId dan chapterId harus berupa angka');
-    }
-
-    const attempt = await prisma.assessmentAttempt.findFirst({
-        where: {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-            status: ATTEMPT_STATUS.SUBMITTED,
-        },
-        include: {
-            questions: {
-                orderBy: { order: 'asc' },
-            },
-        },
-        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-    });
-
-    return formatAttemptResponse(attempt, false);
-};
-
-exports.processSubmission = async (userId, chapterId, answers = [], attemptId = null) => {
-    if (!userId || !chapterId) {
-        throw new Error('userId and chapterId are required');
-    }
-
-    const normalizedUserId = Number(userId);
-    const normalizedChapterId = Number(chapterId);
-    if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
-        throw new Error('userId and chapterId must be numeric');
-    }
-
-    if (attemptId !== null && attemptId !== undefined) {
-        return processAttemptSubmission(normalizedUserId, normalizedChapterId, attemptId, answers);
-    }
-
-    return processLegacySubmission(normalizedUserId, normalizedChapterId, answers);
 };

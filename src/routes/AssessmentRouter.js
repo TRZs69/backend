@@ -6,7 +6,9 @@ const cacheMiddleware = require('../middlewares/cacheMiddleware');
 const router = express.Router();
 
 // Attempt-based assessment routes (must be defined before /assessment/:id)
+router.post('/assessment/attempt/prefetch', assessmentController.prefetchAttempt);
 router.post('/assessment/attempt/start', assessmentController.startAttempt);
+router.post('/assessment/attempt/answer', assessmentController.answerAttemptQuestion);
 router.get('/assessment/attempt/current', assessmentController.getCurrentAttempt);
 router.get('/assessment/attempt/latest', assessmentController.getLatestAttempt);
 
