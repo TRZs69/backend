@@ -73,10 +73,42 @@ const deleteAssessment = async (req, res) => {
 // Controller untuk submit assessment
 const submitAssessment = async (req, res) => {
     try {
-        const { userId, chapterId, answers } = req.body;
+        const { userId, chapterId, answers, attemptId } = req.body;
 
-        const result = await assessmentService.processSubmission(userId, chapterId, answers);
+        const result = await assessmentService.processSubmission(userId, chapterId, answers, attemptId);
 
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const startAttempt = async (req, res) => {
+    try {
+        const { userId, chapterId, forceNew } = req.body || {};
+        const result = await assessmentService.startAttempt(userId, chapterId, forceNew === true);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getCurrentAttempt = async (req, res) => {
+    try {
+        const userId = req.query.userId ? Number(req.query.userId) : null;
+        const chapterId = req.query.chapterId ? Number(req.query.chapterId) : null;
+        const result = await assessmentService.getCurrentAttempt(userId, chapterId);
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+const getLatestAttempt = async (req, res) => {
+    try {
+        const userId = req.query.userId ? Number(req.query.userId) : null;
+        const chapterId = req.query.chapterId ? Number(req.query.chapterId) : null;
+        const result = await assessmentService.getLatestAttempt(userId, chapterId);
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -89,5 +121,8 @@ module.exports = {
     createAssessment,
     updateAssessment,
     deleteAssessment,
-    submitAssessment
+    submitAssessment,
+    startAttempt,
+    getCurrentAttempt,
+    getLatestAttempt
 };
