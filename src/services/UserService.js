@@ -13,9 +13,11 @@ const calculateEloTitle = (points) => {
 
 const formatUser = (user) => {
   if (!user) return user;
+  const isStudent = String(user.role || '').toUpperCase() === 'STUDENT';
   return {
     ...user,
-    eloTitle: calculateEloTitle(user.points)
+    points: isStudent ? user.points : null,
+    eloTitle: isStudent ? calculateEloTitle(user.points) : null
   };
 };
 
@@ -62,14 +64,20 @@ exports.createUser = async (
   image
 ) => {
   try {
+    const normalizedRole = String(role || '').toUpperCase();
+    const isStudent = normalizedRole === 'STUDENT';
+    const finalPoints = isStudent
+      ? (points === null || points === undefined || points === '' ? 750 : points)
+      : null;
+
     const newUser = await prisma.user.create({
       data: {
         name,
         username,
         password,
-        role,
+        role: normalizedRole || role,
         studentId,
-        points,
+        points: finalPoints,
         totalCourses,
         badges,
         instructorId,
@@ -86,6 +94,24 @@ exports.createUser = async (
 
 exports.updateUser = async (id, updateData) => {
   try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+
+    if (!existingUser) {
+      throw new Error(`User with id ${id} not found`);
+    }
+
+    const normalizedRole = updateData?.role ? String(updateData.role).toUpperCase() : null;
+    const effectiveRole = normalizedRole || String(existingUser.role || '').toUpperCase();
+
+    if (effectiveRole !== 'STUDENT') {
+      updateData.points = null;
+    } else if (updateData.points === null || updateData.points === undefined || updateData.points === '') {
+      updateData.points = 750;
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: updateData,

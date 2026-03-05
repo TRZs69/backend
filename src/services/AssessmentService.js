@@ -191,6 +191,8 @@ const clampElo = (value) => {
     return DEFAULT_ELO;
 };
 
+const isStudentRole = (role) => String(role || '').toUpperCase() === 'STUDENT';
+
 const shuffleArray = (arr = []) => [...arr].sort(() => Math.random() - 0.5);
 
 const parseJsonPayload = (text) => {
@@ -1019,6 +1021,9 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         totalQuestions,
         userElo: userChapter.user?.points || MIN_ELO,
     });
+    const isStudent = isStudentRole(userChapter.user?.role);
+    const userPointsEarned = isStudent ? pointsEarned : 0;
+    const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
     const summary = buildSubmissionSummary({
         questions,
@@ -1029,14 +1034,14 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         totalQuestions,
     });
 
-    const [updatedChapter] = await prisma.$transaction([
+    const transactionOperations = [
         prisma.userChapter.update({
             where: { id: userChapter.id },
             data: {
                 isStarted: true,
                 assessmentDone: true,
                 assessmentGrade: grade,
-                assessmentEloDelta: pointsEarned,
+                assessmentEloDelta: userPointsEarned,
                 assessmentAnswer: summary.orderedAnswers,
                 currentDifficulty: summary.newDifficulty,
                 lastAiFeedback: summary.aiFeedback,
@@ -1045,21 +1050,28 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
                 timeFinished: new Date(),
             },
         }),
-        prisma.user.update({
-            where: { id: userId },
-            data: { points: { increment: pointsEarned } },
-        }),
-        ...questionUpdates.map((q) =>
+        ...effectiveQuestionUpdates.map((q) =>
             prisma.question.update({
                 where: { id: q.questionId },
                 data: { elo: Math.max(MIN_ELO, q.newElo) },
             }),
         ),
-    ]);
+    ];
+
+    if (isStudent) {
+        transactionOperations.splice(1, 0,
+            prisma.user.update({
+                where: { id: userId },
+                data: { points: { increment: userPointsEarned } },
+            }),
+        );
+    }
+
+    const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
     return {
         grade,
-        pointsEarned,
+        pointsEarned: userPointsEarned,
         correctAnswers,
         totalQuestions,
         newDifficulty: summary.newDifficulty,
@@ -1149,7 +1161,7 @@ const ensureCurrentQuestionServedTx = async (tx, attemptOrId) => {
     return attempt;
 };
 
-const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
+const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isStudentParam = null) => {
     const refreshedAttempt = await getAttemptByIdTx(tx, attempt.id);
     if (!refreshedAttempt) {
         throw new Error('Assessment attempt tidak ditemukan');
@@ -1172,12 +1184,18 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
         throw new Error('Chapter tidak ditemukan untuk finalisasi attempt');
     }
 
+    const user = isStudentParam === null
+        ? await tx.user.findUnique({ where: { id: userId }, select: { role: true } })
+        : null;
+    const isStudent = isStudentParam === null ? isStudentRole(user?.role) : isStudentParam;
+
     const userChapter = await ensureUserChapterTx(tx, userId, chapterId);
     const userCourse = await ensureUserCourseTx(tx, userId, chapter.courseId);
     const courseEloStart = refreshedAttempt.courseEloStart || userCourse.elo || MIN_ELO;
     const courseEloEnd = refreshedAttempt.currentUserElo || courseEloStart;
-    const eloDeltaSigned = Math.round(courseEloEnd - courseEloStart);
-    const pointsEarned = Math.max(0, eloDeltaSigned);
+    const effectiveCourseEloEnd = isStudent ? courseEloEnd : courseEloStart;
+    const eloDeltaSigned = isStudent ? Math.round(courseEloEnd - courseEloStart) : 0;
+    const pointsEarned = isStudent ? Math.max(0, eloDeltaSigned) : 0;
 
     const isExcellent = grade >= 75;
     const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
@@ -1203,13 +1221,15 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
 
     await tx.userCourse.update({
         where: { id: userCourse.id },
-        data: { elo: courseEloEnd },
+        data: { elo: effectiveCourseEloEnd },
     });
 
-    await tx.user.update({
-        where: { id: userId },
-        data: { points: { increment: pointsEarned } },
-    });
+    if (isStudent && pointsEarned > 0) {
+        await tx.user.update({
+            where: { id: userId },
+            data: { points: { increment: pointsEarned } },
+        });
+    }
 
     await tx.assessmentAttempt.update({
         where: { id: refreshedAttempt.id },
@@ -1219,7 +1239,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
             pointsEarned,
             correctAnswers,
             totalQuestions: objectiveTarget,
-            courseEloEnd,
+            courseEloEnd: effectiveCourseEloEnd,
             newDifficulty,
             aiFeedback,
             submittedAt: new Date(),
@@ -1234,11 +1254,13 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
         sourceQuestionUpdates.set(question.sourceQuestionId, Math.max(MIN_ELO, clampElo(question.elo)));
     }
 
-    for (const [sourceQuestionId, nextElo] of sourceQuestionUpdates.entries()) {
-        await tx.question.update({
-            where: { id: sourceQuestionId },
-            data: { elo: nextElo },
-        });
+    if (isStudent) {
+        for (const [sourceQuestionId, nextElo] of sourceQuestionUpdates.entries()) {
+            await tx.question.update({
+                where: { id: sourceQuestionId },
+                data: { elo: nextElo },
+            });
+        }
     }
 
     const evaluations = servedQuestions.map((q, index) => ({
@@ -1256,7 +1278,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
         grade,
         pointsEarned,
         courseEloStart,
-        courseEloEnd,
+        courseEloEnd: effectiveCourseEloEnd,
         eloDeltaSigned,
         correctAnswers,
         totalQuestions: objectiveTarget,
@@ -1459,6 +1481,9 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         totalQuestions,
         userElo: userChapter.user?.points || MIN_ELO,
     });
+    const isStudent = isStudentRole(userChapter.user?.role);
+    const userPointsEarned = isStudent ? pointsEarned : 0;
+    const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
     const summary = buildSubmissionSummary({
         questions,
@@ -1471,7 +1496,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
 
     const objectiveQuestionScore = Math.ceil(100 / Math.max(1, totalQuestions));
     const evaluationByQuestionId = new Map(evaluations.map((evaluation) => [evaluation.questionId, evaluation]));
-    const eloByQuestionId = new Map(questionUpdates.map((update) => [update.questionId, update.newElo]));
+    const eloByQuestionId = new Map(effectiveQuestionUpdates.map((update) => [update.questionId, update.newElo]));
 
     const sourceQuestionUpdates = new Map();
     for (const question of questions) {
@@ -1491,7 +1516,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 isStarted: true,
                 assessmentDone: true,
                 assessmentGrade: grade,
-                assessmentEloDelta: pointsEarned,
+                assessmentEloDelta: userPointsEarned,
                 assessmentAnswer: summary.orderedAnswers,
                 currentDifficulty: summary.newDifficulty,
                 lastAiFeedback: summary.aiFeedback,
@@ -1500,16 +1525,12 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 timeFinished: new Date(),
             },
         }),
-        prisma.user.update({
-            where: { id: userId },
-            data: { points: { increment: pointsEarned } },
-        }),
         prisma.assessmentAttempt.update({
             where: { id: attempt.id },
             data: {
                 status: ATTEMPT_STATUS.SUBMITTED,
                 grade,
-                pointsEarned,
+                pointsEarned: userPointsEarned,
                 correctAnswers,
                 totalQuestions,
                 newDifficulty: summary.newDifficulty,
@@ -1530,7 +1551,9 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                     isCorrect: isEssay ? false : (evaluation?.isCorrect || false),
                     score: isEssay ? 0 : ((evaluation?.isCorrect || false) ? objectiveQuestionScore : 0),
                     answeredAt: new Date(),
-                    elo: Math.max(MIN_ELO, Number.isFinite(nextElo) ? nextElo : clampElo(question.elo)),
+                    elo: isStudent
+                        ? Math.max(MIN_ELO, Number.isFinite(nextElo) ? nextElo : clampElo(question.elo))
+                        : clampElo(question.elo),
                 },
             });
         }),
@@ -1542,12 +1565,21 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         ),
     ];
 
+    if (isStudent) {
+        transactionOperations.splice(1, 0,
+            prisma.user.update({
+                where: { id: userId },
+                data: { points: { increment: userPointsEarned } },
+            }),
+        );
+    }
+
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
     return {
         attemptId: attempt.id,
         grade,
-        pointsEarned,
+        pointsEarned: userPointsEarned,
         correctAnswers,
         totalQuestions,
         newDifficulty: summary.newDifficulty,
@@ -1576,6 +1608,12 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
     }
 
     return prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
+            where: { id: normalizedUserId },
+            select: { role: true },
+        });
+        const isStudent = isStudentRole(user?.role);
+
         let attempt = await tx.assessmentAttempt.findFirst({
             where: {
                 id: normalizedAttemptId,
@@ -1595,7 +1633,13 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         const activeQuestion = findActiveQuestion(questions);
 
         if (!activeQuestion) {
-            const result = await finalizeAttemptInTransaction(tx, attempt, normalizedUserId, normalizedChapterId);
+            const result = await finalizeAttemptInTransaction(
+                tx,
+                attempt,
+                normalizedUserId,
+                normalizedChapterId,
+                isStudent,
+            );
             return {
                 completed: true,
                 result,
@@ -1631,20 +1675,22 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         if (isObjective) {
             const correctAnswer = String(activeQuestion.answer || activeQuestion.correctedAnswer || '').trim().toLowerCase();
             isCorrect = submittedAnswer.toLowerCase() === correctAnswer;
-            const duel = calculateQuestionDuelElo({
-                userElo: nextUserEloPreview,
-                questionElo: activeQuestion.elo,
-                isCorrect,
-            });
-            userDeltaRaw = duel.userDeltaRaw;
-            questionDeltaRaw = duel.questionDeltaRaw;
-            nextUserEloPreview = duel.nextUserElo;
-            nextQuestionElo = duel.nextQuestionElo;
-            nextRawEloDelta += userDeltaRaw;
-            targetNextQuestionElo = Math.max(
-                MIN_ELO,
-                nextUserEloPreview + (isCorrect ? 50 : -50),
-            );
+            if (isStudent) {
+                const duel = calculateQuestionDuelElo({
+                    userElo: nextUserEloPreview,
+                    questionElo: activeQuestion.elo,
+                    isCorrect,
+                });
+                userDeltaRaw = duel.userDeltaRaw;
+                questionDeltaRaw = duel.questionDeltaRaw;
+                nextUserEloPreview = duel.nextUserElo;
+                nextQuestionElo = duel.nextQuestionElo;
+                nextRawEloDelta += userDeltaRaw;
+                targetNextQuestionElo = Math.max(
+                    MIN_ELO,
+                    nextUserEloPreview + (isCorrect ? 50 : -50),
+                );
+            }
             nextObjectiveAnswered += 1;
             if (isCorrect) {
                 nextObjectiveCorrect += 1;
@@ -1658,9 +1704,11 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
                 isCorrect: isObjective ? isCorrect : false,
                 score: isObjective ? (isCorrect ? objectiveScore : 0) : 0,
                 answeredAt: new Date(),
-                userEloDeltaRaw: isObjective ? (Number.isNaN(userDeltaRaw) ? 0 : userDeltaRaw) : null,
-                questionEloDeltaRaw: isObjective ? (Number.isNaN(questionDeltaRaw) ? 0 : questionDeltaRaw) : null,
-                elo: isObjective ? (Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo) : clampElo(activeQuestion.elo),
+                userEloDeltaRaw: isObjective && isStudent ? (Number.isNaN(userDeltaRaw) ? 0 : userDeltaRaw) : null,
+                questionEloDeltaRaw: isObjective && isStudent ? (Number.isNaN(questionDeltaRaw) ? 0 : questionDeltaRaw) : null,
+                elo: isObjective && isStudent
+                    ? (Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo)
+                    : clampElo(activeQuestion.elo),
             },
         });
 
@@ -1675,7 +1723,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             },
         });
 
-        if (isObjective && Number.isInteger(activeQuestion.sourceQuestionId)) {
+        if (isStudent && isObjective && Number.isInteger(activeQuestion.sourceQuestionId)) {
             await tx.question.update({
                 where: { id: activeQuestion.sourceQuestionId },
                 data: { elo: Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo },
@@ -1722,7 +1770,13 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             (updatedAttempt.objectiveAnswered || 0) >= (updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET);
 
         if ((objectiveCompleted && essayAnswered) || !activeAfterAnswer) {
-            const result = await finalizeAttemptInTransaction(tx, updatedAttempt, normalizedUserId, normalizedChapterId);
+            const result = await finalizeAttemptInTransaction(
+                tx,
+                updatedAttempt,
+                normalizedUserId,
+                normalizedChapterId,
+                isStudent,
+            );
             return {
                 completed: true,
                 result,

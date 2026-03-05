@@ -8,7 +8,8 @@
     "start": "node ./src/index.js",
     "test": "nodemon index.js",
     "postinstall": "prisma generate",
-    "fix:badge-urls": "node scripts/fix_badge_image_urls.js"
+    "fix:badge-urls": "node scripts/fix_badge_image_urls.js",
+    "sync:student-only-elo": "node scripts/sync_student_only_elo.js"
   },
   "author": "archico",
   "license": "ISC",
