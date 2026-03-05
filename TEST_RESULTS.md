@@ -6,6 +6,7 @@ This document outlines the raw results of the Jest unit tests for the ELO rating
 
 ```text
  PASS  tests/utils/clampElo.test.js
+ PASS  tests/utils/eloRouting.test.js
  PASS  tests/utils/calculateQuestionDuelElo.test.js
 
   clampElo() - Ensuring ELO stays within bounds
@@ -22,10 +23,30 @@ This document outlines the raw results of the Jest unit tests for the ELO rating
       √ should not allow user or question ELO to fall below MIN_ELO after calculations
       √ should correctly calculate expected values when ELO disparity is massive
 
-Test Suites: 2 passed, 2 total
-Tests:       10 passed, 10 total
+  ELO Routing & Classification Logic Tests
+    determineDifficulty() - Badge Title Mapping
+      √ should correctly map ELOs below 1000 to "Beginner"
+      √ should correctly map ELOs between 1000 and 1199 to "Basic Understanding"
+      √ should correctly map ELOs between 1200 and 1399 to "Developing Learner"
+      √ should correctly map ELOs between 1400 and 1599 to "Intermediate"
+      √ should correctly map ELOs between 1600 and 1799 to "Proficient"
+      √ should correctly map ELOs between 1800 and 1999 to "Advanced"
+      √ should correctly map ELOs 2000 and over to "Mastery"
+    resolveBandIndex() - Mapping ELO to Array Index
+      √ should map Elo to the exact corresponding internal index 0-6
+    getBandTraversalOrder() - Determining Adjacent Difficulty Search Paths
+      √ should correctly radiate outwards from the middle index (3 - Intermediate)
+      √ should correctly ascend when starting from the absolute bottom (0)
+      √ should correctly descend when starting from the absolute top (6)
+      √ should handle invalid starting bounds safely
+    sortByDistanceToTarget() - Mathematical Sorting by Elo Proximity
+      √ should rank questions closest to the target ELO first
+      √ should resolve ties by placing the fundamentally lower ELO first
+
+Test Suites: 3 passed, 3 total
+Tests:       24 passed, 24 total
 Snapshots:   0 total
-Time:        1.286 s
+Time:        1.341 s
 Ran all test suites.
 ```
 
@@ -76,3 +97,24 @@ This suite verifies the core reward and penalty algorithms that power the applic
 **Test Case:** `should correctly calculate expected values when ELO disparity is massive`
 * **What was tested:** A weak user (`1200 ELO`) correctly answered a brutally hard question (`1800 ELO`).
 * **What it tells us:** The expected probability equation (`1 / (1 + 10^((Q - U)/400))`) correctly assesses that the user had almost 0% chance of winning. Because they overcame the odds, the algorithm accurately awarded them a massive spike in points (nearly the full 30 max `K_USER` multiplier). It tells us the difficulty scaling is accurately calibrated.
+
+---
+
+### 3. `eloRouting()` Test Suite
+This suite verifies that the newly refactored 7-tier badge classifications (from Beginner to Mastery) successfully power the Levelearn adaptive matchmaking routing.
+
+**Test Case:** `determineDifficulty() - Badge Title Mapping`
+* **What was tested:** We asserted bounds across all 7 progression titles (e.g. `< 1000` = Beginner, `>= 2000` = Mastery).
+* **What it tells us:** The platform safely evaluates a student's number-crunching ELO into a public-facing ranking title. Students will accurately receive correct badges in real time as they win/lose math duels.
+
+**Test Case:** `resolveBandIndex()`
+* **What was tested:** We asserted that target Elo numbers translate accurately into the 0-6 Array Index format.
+* **What it tells us:** The backend engine successfully translates standard ELO constraints into searchable array quadrants, necessary for finding identically ranked questions in the DB.
+
+**Test Case:** `getBandTraversalOrder() - Determining Adjacent Difficulty Search Paths`
+* **What was tested:** We asserted search patterns that radiated outward (e.g., from index 3 it checks `3 -> 2 -> 4 -> 1 -> 5`).
+* **What it tells us:** If the Adaptive Question Pool runs out of `Intermediate` (index 3) questions, the system accurately and safely knows to search `Developing Learner` (index 2) AND `Proficient` (index 4) so that the user is continuously fed content closest to their exact skill level.
+
+**Test Case:** `sortByDistanceToTarget() - Mathematical Sorting by Elo Proximity`
+* **What was tested:** We supplied an array of questions randomly ordered, simulating pulling from a DB, and told the system our target ELO was `1000`.
+* **What it tells us:** The system mathematically sorts the questions so `1000` (Delta 0) is index 0, and `1050` (Delta 50) is index 1. This confirms that the student gets the most mathematically accurate question selected to challenge them.
