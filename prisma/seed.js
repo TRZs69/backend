@@ -31,7 +31,8 @@ async function ensureBadgesBucketAndUpload() {
   }
 
   const localDir = path.resolve(__dirname, '../../Mobile/lib/assets/badges');
-  const wantFiles = ['imk-1.png', 'imk-2.png', 'imk-3.png'];
+  const wantFiles = ['beginner.png', 'basic_understanding.png', 'developing_learner.png', 
+    'intermediate.png', 'proficient.png', 'advanced.png', 'master.png'];
   for (const f of wantFiles) {
     try {
       const full = path.join(localDir, f);
