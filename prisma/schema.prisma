@@ -32,6 +32,7 @@ model User {
   // Relasi
   enrolledCourses   UserCourse[]
   chapterProgress   UserChapter[]
+  assessmentAttempts AssessmentAttempt[]
   userBadges        UserBadge[]
   userTrades        UserTrade[]
 
@@ -96,6 +97,7 @@ model Chapter {
   course          Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
   materials       Material[]
   assessments     Assessment[]
+  assessmentAttempts AssessmentAttempt[]
   assignments     Assignment[]
   userProgress    UserChapter[]
   badges          Badge[]
@@ -129,6 +131,7 @@ model Assessment {
   // Relasi
   chapter       Chapter   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
   questions     Question[]
+  attempts      AssessmentAttempt[]
 
   @@index([chapterId])
   @@map("assessments")
@@ -147,9 +150,78 @@ model Question {
   updatedAt       DateTime   @updatedAt
 
   assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  attemptSnapshots AssessmentAttemptQuestion[] @relation("AttemptSourceQuestion")
 
   @@index([assessmentId])
   @@map("questions")
+}
+
+model AssessmentAttempt {
+  id            Int                     @id @default(autoincrement())
+  userId        Int
+  chapterId     Int
+  assessmentId  Int?
+  status        AssessmentAttemptStatus @default(IN_PROGRESS)
+  source        AssessmentAttemptSource @default(GENERATED)
+  instruction   String                  @db.Text
+  grade         Int?
+  pointsEarned  Int?
+  correctAnswers Int?
+  totalQuestions Int?
+  newDifficulty Difficulty?
+  aiFeedback    String?                 @db.Text
+  submittedAt   DateTime?
+  createdAt     DateTime                @default(now())
+  updatedAt     DateTime                @updatedAt
+
+  user          User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter       Chapter                 @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  assessment    Assessment?             @relation(fields: [assessmentId], references: [id], onDelete: SetNull)
+  questions     AssessmentAttemptQuestion[]
+
+  @@index([userId])
+  @@index([chapterId])
+  @@index([assessmentId])
+  @@index([status])
+  @@index([userId, chapterId, status])
+  @@map("assessment_attempts")
+}
+
+model AssessmentAttemptQuestion {
+  id              Int               @id @default(autoincrement())
+  attemptId       Int
+  sourceQuestionId Int?
+  question        String            @db.Text
+  type            String
+  options         Json?
+  answer          String?           @db.Text
+  correctedAnswer String?           @db.Text
+  elo             Int               @default(1200)
+  order           Int
+  submittedAnswer String?           @db.Text
+  isCorrect       Boolean?
+  score           Int?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  attempt         AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  sourceQuestion  Question?         @relation("AttemptSourceQuestion", fields: [sourceQuestionId], references: [id], onDelete: SetNull)
+
+  @@index([attemptId])
+  @@index([sourceQuestionId])
+  @@index([attemptId, order])
+  @@map("assessment_attempt_questions")
+}
+
+enum AssessmentAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  ABANDONED
+}
+
+enum AssessmentAttemptSource {
+  GENERATED
+  FALLBACK_BANK
 }
 
 model Assignment {

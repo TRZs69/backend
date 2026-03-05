@@ -154,7 +154,7 @@ exports.getAssessmentsByChapter = async (id, userId = null) => {
       });
 
       // 2. Ambil pool soal (misal ambil 15 terdekat) untuk dimasukkan ke kuis
-      const MAX_QUESTIONS_IN_ASSESSMENT = 10;
+      const MAX_QUESTIONS_IN_ASSESSMENT = 6;
       const closestQuestions = sortedQuestions.slice(0, MAX_QUESTIONS_IN_ASSESSMENT + 5);
 
       // 3. Acak (Shuffle) pool soal ini agar tidak selalu sama urutannya kalau mengulang
@@ -163,7 +163,7 @@ exports.getAssessmentsByChapter = async (id, userId = null) => {
         [closestQuestions[i], closestQuestions[j]] = [closestQuestions[j], closestQuestions[i]];
       }
 
-      // 4. Potong hanya 10 soal saja untuk diberikan kepada user
+      // 4. Potong hanya 6 soal saja untuk diberikan kepada user
       assessment.questions = closestQuestions.slice(0, MAX_QUESTIONS_IN_ASSESSMENT);
     }
 
