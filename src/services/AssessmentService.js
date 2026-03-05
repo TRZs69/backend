@@ -1,5 +1,6 @@
 const prisma = require('../prismaClient');
 const { GoogleAIClient } = require('./GoogleAIClient');
+const { clampElo, MIN_ELO, MAX_ELO, DEFAULT_ELO, calculateQuestionDuelElo } = require('../utils/elo');
 
 const EASY = 'EASY';
 const MEDIUM = 'MEDIUM';
@@ -15,10 +16,6 @@ const ATTEMPT_SOURCE = {
     GENERATED: 'GENERATED',
     FALLBACK_BANK: 'FALLBACK_BANK',
 };
-
-const DEFAULT_ELO = 1200;
-const MIN_ELO = 750;
-const MAX_ELO = 3000;
 
 const ATTEMPT_POOL_SIZE = 12;
 const ATTEMPT_OBJECTIVE_TARGET = 5;
@@ -181,14 +178,6 @@ const matchOptionCaseInsensitive = (options = [], answer = '') => {
     }
     const found = options.find((option) => option.toLowerCase() === normalizedAnswer);
     return found || null;
-};
-
-const clampElo = (value) => {
-    const parsed = parseInt(value, 10);
-    if (Number.isFinite(parsed) && parsed >= MIN_ELO && parsed <= MAX_ELO) {
-        return parsed;
-    }
-    return DEFAULT_ELO;
 };
 
 const isStudentRole = (role) => String(role || '').toUpperCase() === 'STUDENT';
@@ -783,35 +772,6 @@ const getGradeMultiplier = (grade) => {
         return 1.5;
     }
     return 2.0;
-};
-
-const calculateQuestionDuelElo = ({
-    userElo,
-    questionElo,
-    isCorrect,
-}) => {
-    const currentUserElo = Math.max(MIN_ELO, Number(userElo) || MIN_ELO);
-    const currentQuestionElo = clampElo(questionElo);
-
-    const K_USER = 30;
-    const K_QUESTION = 15;
-
-    const expectedUser = 1 / (1 + Math.pow(10, (currentQuestionElo - currentUserElo) / 400));
-    const actualUserScore = isCorrect ? 1 : 0;
-    const actualQuestionScore = isCorrect ? 0 : 1;
-
-    const userDeltaRaw = K_USER * (actualUserScore - expectedUser);
-    const questionDeltaRaw = K_QUESTION * (actualQuestionScore - (1 - expectedUser));
-
-    const nextUserElo = Math.max(MIN_ELO, Math.round(currentUserElo + userDeltaRaw));
-    const nextQuestionElo = Math.max(MIN_ELO, Math.round(currentQuestionElo + questionDeltaRaw));
-
-    return {
-        userDeltaRaw,
-        questionDeltaRaw,
-        nextUserElo,
-        nextQuestionElo,
-    };
 };
 
 const buildAnswerMap = (answers = []) => {

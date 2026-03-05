@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node --watch --env-file=.env ./src/index.js",
     "start": "node ./src/index.js",
-    "test": "nodemon index.js",
+    "test": "jest --verbose",
     "postinstall": "prisma generate",
     "fix:badge-urls": "node scripts/fix_badge_image_urls.js",
     "sync:student-only-elo": "node scripts/sync_student_only_elo.js"
@@ -38,6 +38,7 @@
   "devDependencies": {
     "@prisma/client": "^6.4.1",
     "@types/jsonwebtoken": "^9.0.8",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.9",
     "prisma": "^6.4.1"
   },
