@@ -41,6 +41,10 @@ const GENERATED_POOL_COMPOSITION = {
 
 const K_STUDENT = 30;
 const K_QUESTION = 15;
+const INTERACTIVE_TX_OPTIONS = {
+    maxWait: 10000,
+    timeout: 30000,
+};
 
 const getCorrectnessRatio = (correct, total) => {
     if (!total) {
@@ -1390,7 +1394,7 @@ const createOrResumeAttempt = async (
                 return null;
             }
             return ensureCurrentQuestionServedTx(tx, current);
-        });
+        }, INTERACTIVE_TX_OPTIONS);
         if (existingAttempt) {
             return { attempt: existingAttempt, resumed: true };
         }
@@ -1515,7 +1519,7 @@ const createOrResumeAttempt = async (
 
     const attemptWithServed = await prisma.$transaction(async (tx) => {
         return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     return { attempt: attemptWithServed, resumed: false };
 };
@@ -1888,7 +1892,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             nextQuestion: activeAfterAnswer ? toPublicQuestion(activeAfterAnswer, false) : null,
             progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
         };
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 };
 
 exports.prefetchAttempt = async (userId, chapterId) => {
@@ -1925,7 +1929,7 @@ exports.getCurrentAttempt = async (userId, chapterId) => {
             return null;
         }
         return ensureCurrentQuestionServedTx(tx, current);
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     return formatAttemptResponse(attempt, true);
 };
