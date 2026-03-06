@@ -1,4 +1,8 @@
 const materialService = require('../services/MaterialService');
+const supabase = require('../../supabase/supabase');
+const fs = require('fs');
+
+const MATERIAL_IMAGE_FOLDER = 'editor-images';
 
 // Controller untuk mendapatkan daftar material
 const getAllMaterials = async (req, res) => {
@@ -76,13 +80,11 @@ const uploadImage = async (req, res) => {
             return res.status(400).json({ message: "No image file provided" });
         }
 
-        const supabase = require('../../supabase/supabase');
-        const fs = require('fs');
-
         const file = req.file;
+        const storagePath = `${MATERIAL_IMAGE_FOLDER}/${file.filename}`;
         const bytes = fs.readFileSync(file.path);
 
-        const { error: upErr } = await supabase.storage.from('materials').upload(file.filename, bytes, {
+        const { error: upErr } = await supabase.storage.from('materials').upload(storagePath, bytes, {
             contentType: file.mimetype,
             upsert: true,
         });
@@ -98,13 +100,44 @@ const uploadImage = async (req, res) => {
             throw upErr;
         }
 
-        const { data: publicUrlData } = supabase.storage.from('materials').getPublicUrl(file.filename);
+        const { data: publicUrlData } = supabase.storage
+            .from('materials')
+            .getPublicUrl(storagePath);
 
-        // Froala editor requires the response to have a 'link' property
-        res.status(200).json({ link: publicUrlData.publicUrl });
+        // Froala editor requires the response to have a 'link' property.
+        res.status(200).json({
+            link: publicUrlData.publicUrl,
+            path: storagePath,
+        });
     } catch (error) {
         res.status(500).json({ message: 'Failed to upload image', detail: error.message });
         console.log(error.message);
+    }
+};
+
+const getMaterialImage = async (req, res) => {
+    try {
+        const encodedPath = req.params.path || req.params[0];
+        if (!encodedPath) {
+            return res.status(400).json({ message: 'Missing image path' });
+        }
+
+        const storagePath = decodeURIComponent(encodedPath);
+        const { data, error } = await supabase.storage.from('materials').download(storagePath);
+
+        if (error || !data) {
+            return res.status(404).json({ message: 'Image not found' });
+        }
+
+        const mimeType = data.type || 'application/octet-stream';
+        const arrayBuffer = await data.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.status(200).send(buffer);
+    } catch (error) {
+        res.status(500).json({ message: 'Failed to retrieve image', detail: error.message });
     }
 };
 
@@ -114,5 +147,6 @@ module.exports = {
     createMaterial,
     updateMaterial,
     deleteMaterial,
-    uploadImage
+    uploadImage,
+    getMaterialImage,
 };
