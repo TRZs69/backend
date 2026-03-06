@@ -526,6 +526,152 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
     return shuffleArray(finalPool).slice(0, ATTEMPT_POOL_SIZE);
 };
 
+const buildSimplePoolFromBank = (questions = [], userElo = MIN_ELO, chapterName = 'chapter') => {
+    if (!Array.isArray(questions) || questions.length === 0) {
+        throw new Error('Bank soal kosong');
+    }
+
+    const normalized = questions
+        .map((q) => normalizeStoredQuestion(q))
+        .filter((q) => q.question.length > 0);
+
+    if (normalized.length === 0) {
+        throw new Error('Bank soal tidak memiliki soal valid');
+    }
+
+    const withDistance = (list) =>
+        [...list]
+            .sort((a, b) => {
+                const diffA = Math.abs(clampElo(a.elo) - userElo);
+                const diffB = Math.abs(clampElo(b.elo) - userElo);
+                if (diffA !== diffB) {
+                    return diffA - diffB;
+                }
+                return clampElo(a.elo) - clampElo(b.elo);
+            })
+            .map((item) => ({
+                ...item,
+                options: [...(item.options || [])],
+            }));
+
+    const mc = withDistance(normalized.filter((q) => q.type === 'MC'));
+    const tf = withDistance(normalized.filter((q) => q.type === 'TF'));
+    const ey = withDistance(normalized.filter((q) => q.type === 'EY'));
+
+    const selected = [];
+    const selectedKeys = new Set();
+
+    const keyOf = (item) => {
+        if (Number.isInteger(item.sourceQuestionId)) {
+            return `source:${item.sourceQuestionId}`;
+        }
+        return `text:${item.type}:${item.question}`;
+    };
+
+    const takeFrom = (list, count) => {
+        for (const item of list) {
+            if (selected.length >= ATTEMPT_POOL_SIZE) {
+                break;
+            }
+            if (count <= 0) {
+                break;
+            }
+
+            const key = keyOf(item);
+            if (selectedKeys.has(key)) {
+                continue;
+            }
+
+            selected.push(item);
+            selectedKeys.add(key);
+            count -= 1;
+        }
+        return count;
+    };
+
+    let remainingMc = takeFrom(mc, GENERATED_POOL_COMPOSITION.MC);
+    let remainingTf = takeFrom(tf, GENERATED_POOL_COMPOSITION.TF);
+
+    // If MC/TF stock is uneven, fill objective quota from any objective type.
+    const objectiveQuota = ATTEMPT_POOL_SIZE - GENERATED_POOL_COMPOSITION.EY;
+    if (remainingMc > 0 || remainingTf > 0 || selected.length < objectiveQuota) {
+        const objectiveCombined = withDistance([...mc, ...tf]);
+        let remainingObjective = objectiveQuota - selected.length;
+        takeFrom(objectiveCombined, remainingObjective);
+        remainingObjective = objectiveQuota - selected.length;
+
+        // Last safety net: allow duplicates when bank objective stock is very small.
+        if (remainingObjective > 0 && objectiveCombined.length > 0) {
+            let cursor = 0;
+            while (remainingObjective > 0) {
+                const src = objectiveCombined[cursor % objectiveCombined.length];
+                selected.push({ ...src, options: [...(src.options || [])] });
+                remainingObjective -= 1;
+                cursor += 1;
+            }
+        }
+    }
+
+    const pickedEssay = ey[0]
+        ? { ...ey[0], options: [...(ey[0].options || [])] }
+        : {
+            sourceQuestionId: null,
+            question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri.`,
+            type: 'EY',
+            options: [],
+            answer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            correctedAnswer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            elo: clampElo(userElo),
+        };
+
+    const poolWithEssay = [...selected.slice(0, ATTEMPT_POOL_SIZE - 1), pickedEssay];
+    return shuffleArray(poolWithEssay).slice(0, ATTEMPT_POOL_SIZE);
+};
+
+const ensureAssessmentBankForChapter = async (chapterId, chapterName = 'Assessment') => {
+    const existing = await prisma.assessment.findFirst({
+        where: { chapterId },
+        include: { questions: true },
+        orderBy: { id: 'asc' },
+    });
+
+    if (existing) {
+        return existing;
+    }
+
+    return prisma.assessment.create({
+        data: {
+            chapterId,
+            instruction: buildAttemptInstruction(chapterName),
+        },
+        include: { questions: true },
+    });
+};
+
+const saveGeneratedQuestionsToBank = async (assessmentId, generatedQuestions = []) => {
+    if (!Number.isInteger(assessmentId) || !Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
+        return [];
+    }
+
+    const created = [];
+    for (const item of generatedQuestions) {
+        const row = await prisma.question.create({
+            data: {
+                assessmentId,
+                question: item.question || '',
+                type: normaliseAttemptQuestionType(item.type || 'MC') || 'MC',
+                options: item.options || [],
+                answer: item.answer || null,
+                correctedAnswer: item.correctedAnswer || null,
+                elo: clampElo(item.elo),
+            },
+        });
+        created.push(row);
+    }
+
+    return created;
+};
+
 const findActiveQuestion = (questions = []) => {
     const sorted = [...questions].sort(sortQuestionsByServedThenOrder);
     return sorted.find((q) => Number.isInteger(q.servedOrder) && !q.answeredAt) || null;
@@ -1264,49 +1410,71 @@ const createOrResumeAttempt = async (
         }
     }
 
-    const [chapter, assessment] = await Promise.all([
-        prisma.chapter.findUnique({
-            where: { id: normalizedChapterId },
-            include: {
-                materials: {
-                    take: 1,
-                    orderBy: { id: 'asc' },
-                },
+    const chapter = await prisma.chapter.findUnique({
+        where: { id: normalizedChapterId },
+        include: {
+            materials: {
+                take: 1,
+                orderBy: { id: 'asc' },
             },
-        }),
-        prisma.assessment.findFirst({
-            where: { chapterId: normalizedChapterId },
-            include: { questions: true },
-        }),
-    ]);
+        },
+    });
 
     if (!chapter) {
         throw new Error('Chapter tidak ditemukan');
     }
 
+    const assessment = await ensureAssessmentBankForChapter(normalizedChapterId, chapter.name);
+
     await ensureUserChapter(normalizedUserId, normalizedChapterId);
     const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
 
     const userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
-    let source = ATTEMPT_SOURCE.GENERATED;
-    let instruction = buildAttemptInstruction(chapter.name);
-    let questionPool = [];
+    let source = ATTEMPT_SOURCE.FALLBACK_BANK;
+    let instruction =
+        String(assessment.instruction || '').trim() || buildAttemptInstruction(chapter.name);
+    let bankQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
 
-    try {
-        const generated = await generateAttemptQuestionsWithLLM({
-            chapter,
-            material: chapter.materials?.[0] || null,
-            userElo,
-        });
-        instruction = generated.instruction;
-        questionPool = generated.questions;
-    } catch (error) {
-        console.error('LLM generation failed, fallback to bank:', error.message);
-        source = ATTEMPT_SOURCE.FALLBACK_BANK;
-        if (!assessment || !Array.isArray(assessment.questions) || assessment.questions.length === 0) {
-            throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
+    const minimumBankSize = ATTEMPT_POOL_SIZE;
+    if (bankQuestions.length < minimumBankSize) {
+        try {
+            const generated = await generateAttemptQuestionsWithLLM({
+                chapter,
+                material: chapter.materials?.[0] || null,
+                userElo,
+            });
+
+            const createdBankRows = await saveGeneratedQuestionsToBank(assessment.id, generated.questions);
+            bankQuestions = [...bankQuestions, ...createdBankRows];
+            source = ATTEMPT_SOURCE.GENERATED;
+
+            const generatedInstruction = String(generated.instruction || '').trim();
+            if (generatedInstruction) {
+                instruction = generatedInstruction;
+                if (!String(assessment.instruction || '').trim()) {
+                    await prisma.assessment.update({
+                        where: { id: assessment.id },
+                        data: { instruction: generatedInstruction },
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('LLM generation failed, fallback to bank:', error.message);
+            source = ATTEMPT_SOURCE.FALLBACK_BANK;
+            if (!bankQuestions.length) {
+                throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
+            }
         }
-        questionPool = buildFallbackPoolFromBank(assessment.questions, userElo, chapter.name);
+    }
+
+    let questionPool = [];
+    try {
+        questionPool = buildSimplePoolFromBank(bankQuestions, userElo, chapter.name);
+    } catch (error) {
+        if (!bankQuestions.length) {
+            throw error;
+        }
+        questionPool = buildFallbackPoolFromBank(bankQuestions, userElo, chapter.name);
     }
 
     if (!questionPool.length) {
