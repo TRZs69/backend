@@ -168,6 +168,36 @@ const normalizeTextOptions = (raw) => {
         .filter((item) => item.length > 0);
 };
 
+const isValidTrueFalseStem = (text) => {
+    const stem = String(text || '').trim();
+    if (!stem) {
+        return false;
+    }
+
+    const lower = stem.toLowerCase();
+    const interrogativeHints = ['siapa', 'kapan', 'di mana', 'dimana', 'berapa', 'mana', 'mengapa', 'kenapa'];
+    if (interrogativeHints.some((hint) => lower.includes(hint))) {
+        return false;
+    }
+
+    if (lower.endsWith('?') || lower.endsWith(':')) {
+        return false;
+    }
+
+    return true;
+};
+
+const isValidObjectiveQuestion = (question) => {
+    const type = normaliseAttemptQuestionType(question?.type);
+    if (type === 'MC') {
+        return true;
+    }
+    if (type === 'TF') {
+        return isValidTrueFalseStem(question?.question);
+    }
+    return false;
+};
+
 const matchOptionCaseInsensitive = (options = [], answer = '') => {
     const normalizedAnswer = String(answer || '').trim().toLowerCase();
     if (!normalizedAnswer) {
@@ -260,6 +290,9 @@ const normalizeGeneratedQuestion = (questionData, index) => {
         }
         correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0];
     } else if (type === 'TF') {
+        if (!isValidTrueFalseStem(questionText)) {
+            throw new Error(`Soal TF harus berupa pernyataan faktual pada index ${index + 1}`);
+        }
         options = ['True', 'False'];
         const normalized = correctedAnswer.toLowerCase();
         if (normalized === 'true') {
@@ -293,6 +326,17 @@ const normalizeStoredQuestion = (question) => {
     let correctedAnswer = String(question.correctedAnswer || question.answer || '').trim();
 
     if (type === 'TF') {
+        if (!isValidTrueFalseStem(question.question)) {
+            return {
+                sourceQuestionId: question.id ?? null,
+                question: String(question.question || '').trim(),
+                type: 'EY',
+                options: [],
+                answer: correctedAnswer || null,
+                correctedAnswer: correctedAnswer || null,
+                elo: clampElo(question.elo),
+            };
+        }
         options = ['True', 'False'];
         correctedAnswer = correctedAnswer.toLowerCase() === 'false' ? 'False' : 'True';
     } else if (type === 'MC') {
@@ -405,6 +449,7 @@ Tugas:
 - Komposisi WAJIB: 9 MC, 2 TF, 1 EY.
 - MC: options tepat 4 item, correctedAnswer wajib salah satu options.
 - TF: options wajib ["True","False"], correctedAnswer wajib True atau False.
+- TF wajib berupa kalimat pernyataan faktual (bukan pertanyaan, bukan "siapa/kapan/dimana/berapa", dan tidak diakhiri tanda ":" atau "?").
 - EY: wajib memiliki correctedAnswer sebagai referensi.
 - Setiap soal wajib punya elo bilangan bulat 750-3000.
 - Sesuaikan tingkat kesulitan dengan target Elo siswa.
@@ -477,7 +522,7 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
     }
 
     const normalized = questions.map((q) => normalizeStoredQuestion(q)).filter((q) => q.question.length > 0);
-    const objective = normalized.filter((q) => isObjectiveType(q.type));
+    const objective = normalized.filter((q) => isValidObjectiveQuestion(q));
     const essays = normalized.filter((q) => normaliseAttemptQuestionType(q.type) === 'EY');
 
     if (objective.length === 0) {
@@ -686,7 +731,7 @@ const getServedObjectiveTypeCounts = (questions = []) => {
     let tfServed = 0;
 
     for (const q of questions) {
-        if (!Number.isInteger(q.servedOrder) || !isObjectiveType(q.type)) {
+        if (!Number.isInteger(q.servedOrder) || !isValidObjectiveQuestion(q)) {
             continue;
         }
         const type = normaliseAttemptQuestionType(q.type);
@@ -737,7 +782,7 @@ const getPreferredObjectiveTypes = (questions = [], objectiveTarget = ATTEMPT_OB
 };
 
 const pickFirstObjectiveQuestion = (questions = []) => {
-    const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
+    const unansweredObjective = questions.filter((q) => isValidObjectiveQuestion(q) && !q.answeredAt);
     if (unansweredObjective.length === 0) {
         return null;
     }
@@ -759,7 +804,7 @@ const pickNextObjectiveQuestion = (
     targetElo = MIN_ELO,
     objectiveTarget = ATTEMPT_OBJECTIVE_TARGET,
 ) => {
-    const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
+    const unansweredObjective = questions.filter((q) => isValidObjectiveQuestion(q) && !q.answeredAt);
     if (unansweredObjective.length === 0) {
         return null;
     }
