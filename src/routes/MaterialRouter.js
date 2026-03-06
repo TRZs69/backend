@@ -9,6 +9,9 @@ const router = express.Router();
 // Route for get all materials
 router.get('/material', cacheMiddleware(300), materialController.getAllMaterials);
 
+// Route for serving material images from storage
+router.get('/material/image/*', materialController.getMaterialImage);
+
 // Route for get material by id
 router.get('/material/:id', cacheMiddleware(300), materialController.getMaterialById);
 
