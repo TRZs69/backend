@@ -46,6 +46,42 @@ const INTERACTIVE_TX_OPTIONS = {
     timeout: 30000,
 };
 
+const DIFFICULTY_ENUM = {
+    EASY: 'EASY',
+    MEDIUM: 'MEDIUM',
+    HARD: 'HARD',
+};
+
+const toPrismaDifficulty = (valueOrElo) => {
+    const asString = String(valueOrElo || '').trim().toUpperCase();
+    if (asString === DIFFICULTY_ENUM.EASY || asString === DIFFICULTY_ENUM.MEDIUM || asString === DIFFICULTY_ENUM.HARD) {
+        return asString;
+    }
+
+    if (asString === 'BEGINNER' || asString === 'BASIC UNDERSTANDING' || asString === 'DEVELOPING LEARNER') {
+        return DIFFICULTY_ENUM.EASY;
+    }
+    if (asString === 'INTERMEDIATE' || asString === 'PROFICIENT') {
+        return DIFFICULTY_ENUM.MEDIUM;
+    }
+    if (asString === 'ADVANCED' || asString === 'MASTERY') {
+        return DIFFICULTY_ENUM.HARD;
+    }
+
+    const numeric = Number(valueOrElo);
+    if (Number.isFinite(numeric)) {
+        if (numeric < 1400) {
+            return DIFFICULTY_ENUM.EASY;
+        }
+        if (numeric < 1800) {
+            return DIFFICULTY_ENUM.MEDIUM;
+        }
+        return DIFFICULTY_ENUM.HARD;
+    }
+
+    return DIFFICULTY_ENUM.EASY;
+};
+
 const getCorrectnessRatio = (correct, total) => {
     if (!total) {
         return 0;
@@ -1107,7 +1143,7 @@ const buildSubmissionSummary = ({
     totalQuestions,
 }) => {
     const isExcellent = grade >= 75;
-    const newDifficulty = determineDifficulty(userChapter.user?.points ?? MIN_ELO);
+    const newDifficulty = toPrismaDifficulty(determineDifficulty(userChapter.user?.points ?? MIN_ELO));
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
     const orderedAnswers = questions.map((q) => answerMap.get(q.id) || '');
 
@@ -1316,7 +1352,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     const pointsEarned = isStudent ? Math.max(0, eloDeltaSigned) : 0;
 
     const isExcellent = grade >= 75;
-    const newDifficulty = determineDifficulty(courseEloEnd);
+    const newDifficulty = toPrismaDifficulty(determineDifficulty(courseEloEnd));
     const aiFeedback = buildFeedback(grade, correctAnswers);
     const orderedAnswers = servedQuestions.map((q) => q.submittedAnswer || '');
 
