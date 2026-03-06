@@ -47,48 +47,46 @@ const INTERACTIVE_TX_OPTIONS = {
 };
 
 const DIFFICULTY_ENUM = {
-    EASY: 'EASY',
-    MEDIUM: 'MEDIUM',
-    HARD: 'HARD',
+    BEGINNER: 'BEGINNER',
+    BASIC_UNDERSTANDING: 'BASIC_UNDERSTANDING',
+    DEVELOPING_LEARNER: 'DEVELOPING_LEARNER',
+    INTERMEDIATE: 'INTERMEDIATE',
+    PROFICIENT: 'PROFICIENT',
+    ADVANCED: 'ADVANCED',
+    MASTERY: 'MASTERY',
 };
 
-const toPrismaDifficulty = (valueOrElo) => {
-    const raw = String(valueOrElo || '').trim();
+const BAND_NAME_TO_ENUM = {
+    'Beginner': 'BEGINNER',
+    'Basic Understanding': 'BASIC_UNDERSTANDING',
+    'Developing Learner': 'DEVELOPING_LEARNER',
+    'Intermediate': 'INTERMEDIATE',
+    'Proficient': 'PROFICIENT',
+    'Advanced': 'ADVANCED',
+    'Mastery': 'MASTERY',
+};
+
+const toPrismaDifficulty = (bandNameOrElo) => {
+    const raw = String(bandNameOrElo || '').trim();
     if (!raw) {
-        return DIFFICULTY_ENUM.EASY;
+        return DIFFICULTY_ENUM.BEGINNER;
     }
 
-    if (raw === DIFFICULTY_ENUM.EASY || raw === DIFFICULTY_ENUM.MEDIUM || raw === DIFFICULTY_ENUM.HARD) {
-        return raw;
+    if (DIFFICULTY_ENUM[raw]) {
+        return DIFFICULTY_ENUM[raw];
     }
 
-    switch (raw) {
-    case 'Beginner':
-    case 'Basic Understanding':
-    case 'Developing Learner':
-        return DIFFICULTY_ENUM.EASY;
-    case 'Intermediate':
-    case 'Proficient':
-        return DIFFICULTY_ENUM.MEDIUM;
-    case 'Advanced':
-    case 'Mastery':
-        return DIFFICULTY_ENUM.HARD;
-    default:
-        break;
+    if (BAND_NAME_TO_ENUM[raw]) {
+        return BAND_NAME_TO_ENUM[raw];
     }
 
-    const numeric = Number(valueOrElo);
+    const numeric = Number(raw);
     if (Number.isFinite(numeric)) {
-        if (numeric < 1400) {
-            return DIFFICULTY_ENUM.EASY;
-        }
-        if (numeric < 1800) {
-            return DIFFICULTY_ENUM.MEDIUM;
-        }
-        return DIFFICULTY_ENUM.HARD;
+        const bandName = determineDifficulty(numeric);
+        return BAND_NAME_TO_ENUM[bandName] || DIFFICULTY_ENUM.BEGINNER;
     }
 
-    return DIFFICULTY_ENUM.EASY;
+    return DIFFICULTY_ENUM.BEGINNER;
 };
 
 const getCorrectnessRatio = (correct, total) => {

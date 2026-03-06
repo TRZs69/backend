@@ -11,7 +11,7 @@ CREATE TABLE `assessment_attempts` (
     `pointsEarned` INTEGER NULL,
     `correctAnswers` INTEGER NULL,
     `totalQuestions` INTEGER NULL,
-    `newDifficulty` ENUM('EASY', 'MEDIUM', 'HARD') NULL,
+    `newDifficulty` ENUM('BEGINNER', 'BASIC_UNDERSTANDING', 'DEVELOPING_LEARNER', 'INTERMEDIATE', 'PROFICIENT', 'ADVANCED', 'MASTERY') NULL,
     `aiFeedback` TEXT NULL,
     `submittedAt` DATETIME(3) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),

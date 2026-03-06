@@ -7,7 +7,6 @@ const {
   LevelyLearningEvent,
   LevelyLearningEventType,
   LevelyTrendPoint,
-  QuizDifficulty,
 } = require('./models');
 
 class LevelyCompanionObservation {
@@ -131,10 +130,10 @@ class LevelyCompanionObserver {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const last = progress.lastActiveDate
       ? new Date(
-          progress.lastActiveDate.getFullYear(),
-          progress.lastActiveDate.getMonth(),
-          progress.lastActiveDate.getDate(),
-        )
+        progress.lastActiveDate.getFullYear(),
+        progress.lastActiveDate.getMonth(),
+        progress.lastActiveDate.getDate(),
+      )
       : null;
 
     if (!last) {
@@ -300,16 +299,16 @@ class LevelyCompanionFeedback {
   }
 
   difficultyLabel(difficulty) {
-    switch (difficulty) {
-      case QuizDifficulty.EASY:
-        return 'mudah';
-      case QuizDifficulty.MEDIUM:
-        return 'sedang';
-      case QuizDifficulty.HARD:
-        return 'sulit';
-      default:
-        return 'custom';
-    }
+    const labels = {
+      BEGINNER: 'pemula',
+      BASIC_UNDERSTANDING: 'pemahaman dasar',
+      DEVELOPING_LEARNER: 'berkembang',
+      INTERMEDIATE: 'menengah',
+      PROFICIENT: 'mahir',
+      ADVANCED: 'lanjutan',
+      MASTERY: 'penguasaan',
+    };
+    return labels[difficulty] || difficulty || 'custom';
   }
 
   nextStepSentence(nextStep) {

@@ -278,7 +278,7 @@ model UserChapter {
   timeFinished    DateTime  @default(now())
   assignmentScore     Int     @default(0)
   assignmentFeedback  String  @default("")
-  currentDifficulty Difficulty @default(EASY)
+  currentDifficulty Difficulty @default(BEGINNER)
   correctStreak     Int        @default(0)
   wrongStreak       Int        @default(0)
   lastAiFeedback    String?    @db.Text
@@ -366,7 +366,11 @@ model UserTrade {
 }
 
 enum Difficulty {
-  EASY
-  MEDIUM
-  HARD
+  BEGINNER
+  BASIC_UNDERSTANDING
+  DEVELOPING_LEARNER
+  INTERMEDIATE
+  PROFICIENT
+  ADVANCED
+  MASTERY
 }
