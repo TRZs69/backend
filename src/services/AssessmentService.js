@@ -52,24 +52,29 @@ const DIFFICULTY_ENUM = {
     HARD: 'HARD',
 };
 
-const ELO_TITLE_TO_PRISMA_DIFFICULTY = {
-    BEGINNER: DIFFICULTY_ENUM.EASY,
-    'BASIC UNDERSTANDING': DIFFICULTY_ENUM.EASY,
-    'DEVELOPING LEARNER': DIFFICULTY_ENUM.EASY,
-    INTERMEDIATE: DIFFICULTY_ENUM.MEDIUM,
-    PROFICIENT: DIFFICULTY_ENUM.MEDIUM,
-    ADVANCED: DIFFICULTY_ENUM.HARD,
-    MASTERY: DIFFICULTY_ENUM.HARD,
-};
-
 const toPrismaDifficulty = (valueOrElo) => {
-    const asString = String(valueOrElo || '').trim().toUpperCase();
-    if (asString === DIFFICULTY_ENUM.EASY || asString === DIFFICULTY_ENUM.MEDIUM || asString === DIFFICULTY_ENUM.HARD) {
-        return asString;
+    const raw = String(valueOrElo || '').trim();
+    if (!raw) {
+        return DIFFICULTY_ENUM.EASY;
     }
 
-    if (Object.prototype.hasOwnProperty.call(ELO_TITLE_TO_PRISMA_DIFFICULTY, asString)) {
-        return ELO_TITLE_TO_PRISMA_DIFFICULTY[asString];
+    if (raw === DIFFICULTY_ENUM.EASY || raw === DIFFICULTY_ENUM.MEDIUM || raw === DIFFICULTY_ENUM.HARD) {
+        return raw;
+    }
+
+    switch (raw) {
+    case 'Beginner':
+    case 'Basic Understanding':
+    case 'Developing Learner':
+        return DIFFICULTY_ENUM.EASY;
+    case 'Intermediate':
+    case 'Proficient':
+        return DIFFICULTY_ENUM.MEDIUM;
+    case 'Advanced':
+    case 'Mastery':
+        return DIFFICULTY_ENUM.HARD;
+    default:
+        break;
     }
 
     const numeric = Number(valueOrElo);
