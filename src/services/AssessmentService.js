@@ -1,9 +1,17 @@
 const prisma = require('../prismaClient');
 const { GoogleAIClient } = require('./GoogleAIClient');
-
-const EASY = 'EASY';
-const MEDIUM = 'MEDIUM';
-const HARD = 'HARD';
+const {
+    clampElo,
+    MIN_ELO,
+    MAX_ELO,
+    DEFAULT_ELO,
+    ELO_BANDS,
+    calculateQuestionDuelElo,
+    determineDifficulty,
+    resolveBandIndex,
+    getBandTraversalOrder,
+    sortByDistanceToTarget
+} = require('../utils/elo');
 
 const ATTEMPT_STATUS = {
     IN_PROGRESS: 'IN_PROGRESS',
@@ -15,10 +23,6 @@ const ATTEMPT_SOURCE = {
     GENERATED: 'GENERATED',
     FALLBACK_BANK: 'FALLBACK_BANK',
 };
-
-const DEFAULT_ELO = 1200;
-const MIN_ELO = 750;
-const MAX_ELO = 3000;
 
 const ATTEMPT_POOL_SIZE = 12;
 const ATTEMPT_OBJECTIVE_TARGET = 5;
@@ -33,30 +37,60 @@ const GENERATED_POOL_COMPOSITION = {
     TF: 2,
     EY: 0,
 };
-const ELO_BANDS = [
-    { name: 'EASY', min: 800, max: 900 },
-    { name: 'MEDIUM', min: 900, max: 1100 },
-    { name: 'HARD', min: 1100, max: 1300 },
-];
+
 
 const K_STUDENT = 30;
 const K_QUESTION = 15;
+const INTERACTIVE_TX_OPTIONS = {
+    maxWait: 10000,
+    timeout: 30000,
+};
+
+const DIFFICULTY_ENUM = {
+    EASY: 'EASY',
+    MEDIUM: 'MEDIUM',
+    HARD: 'HARD',
+};
+
+const ELO_TITLE_TO_PRISMA_DIFFICULTY = {
+    BEGINNER: DIFFICULTY_ENUM.EASY,
+    'BASIC UNDERSTANDING': DIFFICULTY_ENUM.EASY,
+    'DEVELOPING LEARNER': DIFFICULTY_ENUM.EASY,
+    INTERMEDIATE: DIFFICULTY_ENUM.MEDIUM,
+    PROFICIENT: DIFFICULTY_ENUM.MEDIUM,
+    ADVANCED: DIFFICULTY_ENUM.HARD,
+    MASTERY: DIFFICULTY_ENUM.HARD,
+};
+
+const toPrismaDifficulty = (valueOrElo) => {
+    const asString = String(valueOrElo || '').trim().toUpperCase();
+    if (asString === DIFFICULTY_ENUM.EASY || asString === DIFFICULTY_ENUM.MEDIUM || asString === DIFFICULTY_ENUM.HARD) {
+        return asString;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(ELO_TITLE_TO_PRISMA_DIFFICULTY, asString)) {
+        return ELO_TITLE_TO_PRISMA_DIFFICULTY[asString];
+    }
+
+    const numeric = Number(valueOrElo);
+    if (Number.isFinite(numeric)) {
+        if (numeric < 1400) {
+            return DIFFICULTY_ENUM.EASY;
+        }
+        if (numeric < 1800) {
+            return DIFFICULTY_ENUM.MEDIUM;
+        }
+        return DIFFICULTY_ENUM.HARD;
+    }
+
+    return DIFFICULTY_ENUM.EASY;
+};
 
 const getCorrectnessRatio = (correct, total) => {
     if (!total) {
         return 0;
     }
     return correct / total;
-};
-
-const determineDifficulty = (previousDifficulty = EASY, grade) => {
-    if (grade >= 85) {
-        return HARD;
-    }
-    if (grade >= 60) {
-        return MEDIUM;
-    }
-    return EASY;
 };
 
 const buildFeedback = (grade, correct) => {
@@ -174,6 +208,36 @@ const normalizeTextOptions = (raw) => {
         .filter((item) => item.length > 0);
 };
 
+const isValidTrueFalseStem = (text) => {
+    const stem = String(text || '').trim();
+    if (!stem) {
+        return false;
+    }
+
+    const lower = stem.toLowerCase();
+    const interrogativeHints = ['siapa', 'kapan', 'di mana', 'dimana', 'berapa', 'mana', 'mengapa', 'kenapa'];
+    if (interrogativeHints.some((hint) => lower.includes(hint))) {
+        return false;
+    }
+
+    if (lower.endsWith('?') || lower.endsWith(':')) {
+        return false;
+    }
+
+    return true;
+};
+
+const isValidObjectiveQuestion = (question) => {
+    const type = normaliseAttemptQuestionType(question?.type);
+    if (type === 'MC') {
+        return true;
+    }
+    if (type === 'TF') {
+        return isValidTrueFalseStem(question?.question);
+    }
+    return false;
+};
+
 const matchOptionCaseInsensitive = (options = [], answer = '') => {
     const normalizedAnswer = String(answer || '').trim().toLowerCase();
     if (!normalizedAnswer) {
@@ -183,13 +247,7 @@ const matchOptionCaseInsensitive = (options = [], answer = '') => {
     return found || null;
 };
 
-const clampElo = (value) => {
-    const parsed = parseInt(value, 10);
-    if (Number.isFinite(parsed) && parsed >= MIN_ELO && parsed <= MAX_ELO) {
-        return parsed;
-    }
-    return DEFAULT_ELO;
-};
+const isStudentRole = (role) => String(role || '').toUpperCase() === 'STUDENT';
 
 // Seeded PRNG (Mulberry32)
 const createSeededRandom = (seed) => {
@@ -292,6 +350,9 @@ const normalizeGeneratedQuestion = (questionData, index) => {
         }
         correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0];
     } else if (type === 'TF') {
+        if (!isValidTrueFalseStem(questionText)) {
+            throw new Error(`Soal TF harus berupa pernyataan faktual pada index ${index + 1}`);
+        }
         options = ['True', 'False'];
         const normalized = correctedAnswer.toLowerCase();
         if (normalized === 'true') {
@@ -325,6 +386,17 @@ const normalizeStoredQuestion = (question) => {
     let correctedAnswer = String(question.correctedAnswer || question.answer || '').trim();
 
     if (type === 'TF') {
+        if (!isValidTrueFalseStem(question.question)) {
+            return {
+                sourceQuestionId: question.id ?? null,
+                question: String(question.question || '').trim(),
+                type: 'EY',
+                options: [],
+                answer: correctedAnswer || null,
+                correctedAnswer: correctedAnswer || null,
+                elo: clampElo(question.elo),
+            };
+        }
         options = ['True', 'False'];
         correctedAnswer = correctedAnswer.toLowerCase() === 'false' ? 'False' : 'True';
     } else if (type === 'MC') {
@@ -446,8 +518,10 @@ Tugas:
 - Komposisi WAJIB: 9 soal Multiple Choice (MC) dan 2 soal True/False (TF).
 - MC: options tepat 4 item, correctedAnswer wajib salah satu options.
 - TF: options wajib ["True","False"], correctedAnswer wajib True atau False.
-- Setiap soal wajib punya nilai elo bilangan bulat dalam rentang 750-2000.
-- Distribusikan nilai ELO soal-soal tersebut SETARA, LEBIH MUDAH (-100 Elo), dan LEBIH SULIT (+100 Elo) di sekitar target Elo siswa saat ini (${userElo}). Variasi ini penting untuk mengantisipasi probabilitas jalan bercabang saat siswa menjawab benar atau salah secara beruntun.
+- TF wajib berupa kalimat pernyataan faktual (bukan pertanyaan, bukan "siapa/kapan/dimana/berapa", dan tidak diakhiri tanda ":" atau "?").
+- EY: wajib memiliki correctedAnswer sebagai referensi.
+- Setiap soal wajib punya elo bilangan bulat 750-3000.
+- Sesuaikan tingkat kesulitan dengan target Elo siswa.
 
 Konteks chapter:
 - Nama: ${chapterName}
@@ -524,7 +598,7 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
     }
 
     const normalized = questions.map((q) => normalizeStoredQuestion(q)).filter((q) => q.question.length > 0);
-    const objective = normalized.filter((q) => isObjectiveType(q.type));
+    const objective = normalized.filter((q) => isValidObjectiveQuestion(q));
     const essays = normalized.filter((q) => normaliseAttemptQuestionType(q.type) === 'EY');
 
     if (objective.length === 0) {
@@ -561,23 +635,171 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
         cursor += 1;
     }
 
-    const staticEssay = {
-        sourceQuestionId: null,
-        question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri sebagai rumusan pemahaman Anda.`,
-        type: 'EY',
-        options: [],
-        answer: 'Feedback esai dari peserta (tidak dinilai dalam sistem Elo).',
-        correctedAnswer: 'Feedback esai dari peserta (tidak dinilai dalam sistem Elo).',
-        elo: clampElo(userElo),
-    };
+    const pickedEssay = essays.length > 0
+        ? sortByDistance(essays)[0]
+        : {
+            sourceQuestionId: null,
+            question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri.`,
+            type: 'EY',
+            options: [],
+            answer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            correctedAnswer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            elo: clampElo(userElo),
+        };
 
     const finalPool = [
         ...selectedObjective.slice(0, ATTEMPT_POOL_SIZE - 1),
-        staticEssay,
+        { ...pickedEssay, options: [...(pickedEssay.options || [])] },
     ];
 
     // Gunakan seeded random agar hasil set pool akhir stabil pada reset ke berapa pun
     return shuffleArraySeeded(finalPool, seedNumber + 999).slice(0, ATTEMPT_POOL_SIZE);
+};
+
+const buildSimplePoolFromBank = (questions = [], userElo = MIN_ELO, chapterName = 'chapter') => {
+    if (!Array.isArray(questions) || questions.length === 0) {
+        throw new Error('Bank soal kosong');
+    }
+
+    const normalized = questions
+        .map((q) => normalizeStoredQuestion(q))
+        .filter((q) => q.question.length > 0);
+
+    if (normalized.length === 0) {
+        throw new Error('Bank soal tidak memiliki soal valid');
+    }
+
+    const withDistance = (list) =>
+        [...list]
+            .sort((a, b) => {
+                const diffA = Math.abs(clampElo(a.elo) - userElo);
+                const diffB = Math.abs(clampElo(b.elo) - userElo);
+                if (diffA !== diffB) {
+                    return diffA - diffB;
+                }
+                return clampElo(a.elo) - clampElo(b.elo);
+            })
+            .map((item) => ({
+                ...item,
+                options: [...(item.options || [])],
+            }));
+
+    const mc = withDistance(normalized.filter((q) => q.type === 'MC'));
+    const tf = withDistance(normalized.filter((q) => q.type === 'TF'));
+    const ey = withDistance(normalized.filter((q) => q.type === 'EY'));
+
+    const selected = [];
+    const selectedKeys = new Set();
+
+    const keyOf = (item) => {
+        if (Number.isInteger(item.sourceQuestionId)) {
+            return `source:${item.sourceQuestionId}`;
+        }
+        return `text:${item.type}:${item.question}`;
+    };
+
+    const takeFrom = (list, count) => {
+        for (const item of list) {
+            if (selected.length >= ATTEMPT_POOL_SIZE) {
+                break;
+            }
+            if (count <= 0) {
+                break;
+            }
+
+            const key = keyOf(item);
+            if (selectedKeys.has(key)) {
+                continue;
+            }
+
+            selected.push(item);
+            selectedKeys.add(key);
+            count -= 1;
+        }
+        return count;
+    };
+
+    let remainingMc = takeFrom(mc, GENERATED_POOL_COMPOSITION.MC);
+    let remainingTf = takeFrom(tf, GENERATED_POOL_COMPOSITION.TF);
+
+    // If MC/TF stock is uneven, fill objective quota from any objective type.
+    const objectiveQuota = ATTEMPT_POOL_SIZE - GENERATED_POOL_COMPOSITION.EY;
+    if (remainingMc > 0 || remainingTf > 0 || selected.length < objectiveQuota) {
+        const objectiveCombined = withDistance([...mc, ...tf]);
+        let remainingObjective = objectiveQuota - selected.length;
+        takeFrom(objectiveCombined, remainingObjective);
+        remainingObjective = objectiveQuota - selected.length;
+
+        // Last safety net: allow duplicates when bank objective stock is very small.
+        if (remainingObjective > 0 && objectiveCombined.length > 0) {
+            let cursor = 0;
+            while (remainingObjective > 0) {
+                const src = objectiveCombined[cursor % objectiveCombined.length];
+                selected.push({ ...src, options: [...(src.options || [])] });
+                remainingObjective -= 1;
+                cursor += 1;
+            }
+        }
+    }
+
+    const pickedEssay = ey[0]
+        ? { ...ey[0], options: [...(ey[0].options || [])] }
+        : {
+            sourceQuestionId: null,
+            question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri.`,
+            type: 'EY',
+            options: [],
+            answer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            correctedAnswer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
+            elo: clampElo(userElo),
+        };
+
+    const poolWithEssay = [...selected.slice(0, ATTEMPT_POOL_SIZE - 1), pickedEssay];
+    return shuffleArray(poolWithEssay).slice(0, ATTEMPT_POOL_SIZE);
+};
+
+const ensureAssessmentBankForChapter = async (chapterId, chapterName = 'Assessment') => {
+    const existing = await prisma.assessment.findFirst({
+        where: { chapterId },
+        include: { questions: true },
+        orderBy: { id: 'asc' },
+    });
+
+    if (existing) {
+        return existing;
+    }
+
+    return prisma.assessment.create({
+        data: {
+            chapterId,
+            instruction: buildAttemptInstruction(chapterName),
+        },
+        include: { questions: true },
+    });
+};
+
+const saveGeneratedQuestionsToBank = async (assessmentId, generatedQuestions = []) => {
+    if (!Number.isInteger(assessmentId) || !Array.isArray(generatedQuestions) || generatedQuestions.length === 0) {
+        return [];
+    }
+
+    const created = [];
+    for (const item of generatedQuestions) {
+        const row = await prisma.question.create({
+            data: {
+                assessmentId,
+                question: item.question || '',
+                type: normaliseAttemptQuestionType(item.type || 'MC') || 'MC',
+                options: item.options || [],
+                answer: item.answer || null,
+                correctedAnswer: item.correctedAnswer || null,
+                elo: clampElo(item.elo),
+            },
+        });
+        created.push(row);
+    }
+
+    return created;
 };
 
 const findActiveQuestion = (questions = []) => {
@@ -590,7 +812,7 @@ const getServedObjectiveTypeCounts = (questions = []) => {
     let tfServed = 0;
 
     for (const q of questions) {
-        if (!Number.isInteger(q.servedOrder) || !isObjectiveType(q.type)) {
+        if (!Number.isInteger(q.servedOrder) || !isValidObjectiveQuestion(q)) {
             continue;
         }
         const type = normaliseAttemptQuestionType(q.type);
@@ -640,38 +862,8 @@ const getPreferredObjectiveTypes = (questions = [], objectiveTarget = ATTEMPT_OB
     return preferred;
 };
 
-const resolveBandIndex = (targetElo) => {
-    if (targetElo < ELO_BANDS[1].min) {
-        return 0;
-    }
-    if (targetElo <= ELO_BANDS[1].max) {
-        return 1;
-    }
-    return 2;
-};
-
-const getBandTraversalOrder = (startIndex) => {
-    if (startIndex <= 0) {
-        return [0, 1, 2];
-    }
-    if (startIndex >= 2) {
-        return [2, 1, 0];
-    }
-    return [1, 0, 2];
-};
-
-const sortByDistanceToTarget = (list = [], targetElo = MIN_ELO) =>
-    [...list].sort((a, b) => {
-        const diffA = Math.abs(clampElo(a.elo) - targetElo);
-        const diffB = Math.abs(clampElo(b.elo) - targetElo);
-        if (diffA !== diffB) {
-            return diffA - diffB;
-        }
-        return clampElo(a.elo) - clampElo(b.elo);
-    });
-
 const pickFirstObjectiveQuestion = (questions = []) => {
-    const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
+    const unansweredObjective = questions.filter((q) => isValidObjectiveQuestion(q) && !q.answeredAt);
     if (unansweredObjective.length === 0) {
         return null;
     }
@@ -693,7 +885,7 @@ const pickNextObjectiveQuestion = (
     targetElo = MIN_ELO,
     objectiveTarget = ATTEMPT_OBJECTIVE_TARGET,
 ) => {
-    const unansweredObjective = questions.filter((q) => isObjectiveType(q.type) && !q.answeredAt);
+    const unansweredObjective = questions.filter((q) => isValidObjectiveQuestion(q) && !q.answeredAt);
     if (unansweredObjective.length === 0) {
         return null;
     }
@@ -819,35 +1011,6 @@ const getGradeMultiplier = (grade) => {
         return 1.5;
     }
     return 2.0;
-};
-
-const calculateQuestionDuelElo = ({
-    userElo,
-    questionElo,
-    isCorrect,
-}) => {
-    const currentUserElo = Math.max(MIN_ELO, Number(userElo) || MIN_ELO);
-    const currentQuestionElo = clampElo(questionElo);
-
-    const K_USER = 30;
-    const K_QUESTION = 15;
-
-    const expectedUser = 1 / (1 + Math.pow(10, (currentQuestionElo - currentUserElo) / 400));
-    const actualUserScore = isCorrect ? 1 : 0;
-    const actualQuestionScore = isCorrect ? 0 : 1;
-
-    const userDeltaRaw = K_USER * (actualUserScore - expectedUser);
-    const questionDeltaRaw = K_QUESTION * (actualQuestionScore - (1 - expectedUser));
-
-    const nextUserElo = Math.max(MIN_ELO, Math.round(currentUserElo + userDeltaRaw));
-    const nextQuestionElo = Math.max(MIN_ELO, Math.round(currentQuestionElo + questionDeltaRaw));
-
-    return {
-        userDeltaRaw,
-        questionDeltaRaw,
-        nextUserElo,
-        nextQuestionElo,
-    };
 };
 
 const buildAnswerMap = (answers = []) => {
@@ -1025,7 +1188,7 @@ const buildSubmissionSummary = ({
     totalQuestions,
 }) => {
     const isExcellent = grade >= 75;
-    const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
+    const newDifficulty = toPrismaDifficulty(determineDifficulty(userChapter.user?.points ?? MIN_ELO));
     const aiFeedback = buildFeedback(grade, correctAnswers, totalQuestions);
     const orderedAnswers = questions.map((q) => answerMap.get(q.id) || '');
 
@@ -1057,6 +1220,9 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         totalQuestions,
         userElo: userChapter.user?.points || MIN_ELO,
     });
+    const isStudent = isStudentRole(userChapter.user?.role);
+    const userPointsEarned = isStudent ? pointsEarned : 0;
+    const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
     const summary = buildSubmissionSummary({
         questions,
@@ -1067,14 +1233,14 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         totalQuestions,
     });
 
-    const [updatedChapter] = await prisma.$transaction([
+    const transactionOperations = [
         prisma.userChapter.update({
             where: { id: userChapter.id },
             data: {
                 isStarted: true,
                 assessmentDone: true,
                 assessmentGrade: grade,
-                assessmentEloDelta: pointsEarned,
+                assessmentEloDelta: userPointsEarned,
                 assessmentAnswer: summary.orderedAnswers,
                 currentDifficulty: summary.newDifficulty,
                 lastAiFeedback: summary.aiFeedback,
@@ -1083,21 +1249,28 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
                 timeFinished: new Date(),
             },
         }),
-        prisma.user.update({
-            where: { id: userId },
-            data: { points: { increment: pointsEarned } },
-        }),
-        ...questionUpdates.map((q) =>
+        ...effectiveQuestionUpdates.map((q) =>
             prisma.question.update({
                 where: { id: q.questionId },
                 data: { elo: Math.max(MIN_ELO, q.newElo) },
             }),
         ),
-    ]);
+    ];
+
+    if (isStudent) {
+        transactionOperations.splice(1, 0,
+            prisma.user.update({
+                where: { id: userId },
+                data: { points: { increment: userPointsEarned } },
+            }),
+        );
+    }
+
+    const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
     return {
         grade,
-        pointsEarned,
+        pointsEarned: userPointsEarned,
         correctAnswers,
         totalQuestions,
         newDifficulty: summary.newDifficulty,
@@ -1187,7 +1360,7 @@ const ensureCurrentQuestionServedTx = async (tx, attemptOrId) => {
     return attempt;
 };
 
-const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
+const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isStudentParam = null) => {
     const refreshedAttempt = await getAttemptByIdTx(tx, attempt.id);
     if (!refreshedAttempt) {
         throw new Error('Assessment attempt tidak ditemukan');
@@ -1210,15 +1383,21 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
         throw new Error('Chapter tidak ditemukan untuk finalisasi attempt');
     }
 
+    const user = isStudentParam === null
+        ? await tx.user.findUnique({ where: { id: userId }, select: { role: true } })
+        : null;
+    const isStudent = isStudentParam === null ? isStudentRole(user?.role) : isStudentParam;
+
     const userChapter = await ensureUserChapterTx(tx, userId, chapterId);
     const userCourse = await ensureUserCourseTx(tx, userId, chapter.courseId);
     const courseEloStart = refreshedAttempt.courseEloStart || userCourse.elo || MIN_ELO;
     const courseEloEnd = refreshedAttempt.currentUserElo || courseEloStart;
-    const eloDeltaSigned = Math.round(courseEloEnd - courseEloStart);
-    const pointsEarned = Math.max(0, eloDeltaSigned);
+    const effectiveCourseEloEnd = isStudent ? courseEloEnd : courseEloStart;
+    const eloDeltaSigned = isStudent ? Math.round(courseEloEnd - courseEloStart) : 0;
+    const pointsEarned = isStudent ? Math.max(0, eloDeltaSigned) : 0;
 
     const isExcellent = grade >= 75;
-    const newDifficulty = determineDifficulty(userChapter.currentDifficulty, grade);
+    const newDifficulty = toPrismaDifficulty(determineDifficulty(courseEloEnd));
     const aiFeedback = buildFeedback(grade, correctAnswers);
     const orderedAnswers = servedQuestions.map((q) => q.submittedAnswer || '');
 
@@ -1241,13 +1420,15 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
 
     await tx.userCourse.update({
         where: { id: userCourse.id },
-        data: { elo: courseEloEnd },
+        data: { elo: effectiveCourseEloEnd },
     });
 
-    await tx.user.update({
-        where: { id: userId },
-        data: { points: { increment: pointsEarned } },
-    });
+    if (isStudent && pointsEarned > 0) {
+        await tx.user.update({
+            where: { id: userId },
+            data: { points: { increment: pointsEarned } },
+        });
+    }
 
     await tx.assessmentAttempt.update({
         where: { id: refreshedAttempt.id },
@@ -1257,7 +1438,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
             pointsEarned,
             correctAnswers,
             totalQuestions: objectiveTarget,
-            courseEloEnd,
+            courseEloEnd: effectiveCourseEloEnd,
             newDifficulty,
             aiFeedback,
             submittedAt: new Date(),
@@ -1272,11 +1453,13 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
         sourceQuestionUpdates.set(question.sourceQuestionId, Math.max(MIN_ELO, clampElo(question.elo)));
     }
 
-    for (const [sourceQuestionId, nextElo] of sourceQuestionUpdates.entries()) {
-        await tx.question.update({
-            where: { id: sourceQuestionId },
-            data: { elo: nextElo },
-        });
+    if (isStudent) {
+        for (const [sourceQuestionId, nextElo] of sourceQuestionUpdates.entries()) {
+            await tx.question.update({
+                where: { id: sourceQuestionId },
+                data: { elo: nextElo },
+            });
+        }
     }
 
     const evaluations = servedQuestions.map((q, index) => ({
@@ -1294,7 +1477,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId) => {
         grade,
         pointsEarned,
         courseEloStart,
-        courseEloEnd,
+        courseEloEnd: effectiveCourseEloEnd,
         eloDeltaSigned,
         correctAnswers,
         totalQuestions: objectiveTarget,
@@ -1337,7 +1520,7 @@ const createOrResumeAttempt = async (
                 return null;
             }
             return ensureCurrentQuestionServedTx(tx, current);
-        });
+        }, INTERACTIVE_TX_OPTIONS);
         if (existingAttempt) {
             return { attempt: existingAttempt, resumed: true };
         }
@@ -1357,52 +1540,71 @@ const createOrResumeAttempt = async (
         }
     }
 
-    const [chapter, assessment] = await Promise.all([
-        prisma.chapter.findUnique({
-            where: { id: normalizedChapterId },
-            include: {
-                materials: {
-                    take: 1,
-                    orderBy: { id: 'asc' },
-                },
+    const chapter = await prisma.chapter.findUnique({
+        where: { id: normalizedChapterId },
+        include: {
+            materials: {
+                take: 1,
+                orderBy: { id: 'asc' },
             },
-        }),
-        prisma.assessment.findFirst({
-            where: { chapterId: normalizedChapterId },
-            include: { questions: true },
-        }),
-    ]);
+        },
+    });
 
     if (!chapter) {
         throw new Error('Chapter tidak ditemukan');
     }
 
+    const assessment = await ensureAssessmentBankForChapter(normalizedChapterId, chapter.name);
+
     await ensureUserChapter(normalizedUserId, normalizedChapterId);
     const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
 
     const userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
-    let source = ATTEMPT_SOURCE.GENERATED;
-    let instruction = buildAttemptInstruction(chapter.name);
-    let questionPool = [];
+    let source = ATTEMPT_SOURCE.FALLBACK_BANK;
+    let instruction =
+        String(assessment.instruction || '').trim() || buildAttemptInstruction(chapter.name);
+    let bankQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
 
-    try {
-        const generated = await generateAttemptQuestionsWithLLM({
-            chapter,
-            material: chapter.materials?.[0] || null,
-            userElo,
-        });
-        instruction = generated.instruction;
-        questionPool = generated.questions;
-    } catch (error) {
-        console.error('LLM generation failed, fallback to bank:', error.message);
-        source = ATTEMPT_SOURCE.FALLBACK_BANK;
-        if (!assessment || !Array.isArray(assessment.questions) || assessment.questions.length === 0) {
-            throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
+    const minimumBankSize = ATTEMPT_POOL_SIZE;
+    if (bankQuestions.length < minimumBankSize) {
+        try {
+            const generated = await generateAttemptQuestionsWithLLM({
+                chapter,
+                material: chapter.materials?.[0] || null,
+                userElo,
+            });
+
+            const createdBankRows = await saveGeneratedQuestionsToBank(assessment.id, generated.questions);
+            bankQuestions = [...bankQuestions, ...createdBankRows];
+            source = ATTEMPT_SOURCE.GENERATED;
+
+            const generatedInstruction = String(generated.instruction || '').trim();
+            if (generatedInstruction) {
+                instruction = generatedInstruction;
+                if (!String(assessment.instruction || '').trim()) {
+                    await prisma.assessment.update({
+                        where: { id: assessment.id },
+                        data: { instruction: generatedInstruction },
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('LLM generation failed, fallback to bank:', error.message);
+            source = ATTEMPT_SOURCE.FALLBACK_BANK;
+            if (!bankQuestions.length) {
+                throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
+            }
         }
-        questionPool = buildFallbackPoolFromBank(assessment.questions, userElo, chapter.name, {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-        });
+    }
+
+    let questionPool = [];
+    try {
+        questionPool = buildSimplePoolFromBank(bankQuestions, userElo, chapter.name);
+    } catch (error) {
+        if (!bankQuestions.length) {
+            throw error;
+        }
+        questionPool = buildFallbackPoolFromBank(bankQuestions, userElo, chapter.name);
     }
 
     if (!questionPool.length) {
@@ -1443,7 +1645,7 @@ const createOrResumeAttempt = async (
 
     const attemptWithServed = await prisma.$transaction(async (tx) => {
         return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     return { attempt: attemptWithServed, resumed: false };
 };
@@ -1500,6 +1702,9 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         totalQuestions,
         userElo: userChapter.user?.points || MIN_ELO,
     });
+    const isStudent = isStudentRole(userChapter.user?.role);
+    const userPointsEarned = isStudent ? pointsEarned : 0;
+    const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
     const summary = buildSubmissionSummary({
         questions,
@@ -1512,7 +1717,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
 
     const objectiveQuestionScore = Math.ceil(100 / Math.max(1, totalQuestions));
     const evaluationByQuestionId = new Map(evaluations.map((evaluation) => [evaluation.questionId, evaluation]));
-    const eloByQuestionId = new Map(questionUpdates.map((update) => [update.questionId, update.newElo]));
+    const eloByQuestionId = new Map(effectiveQuestionUpdates.map((update) => [update.questionId, update.newElo]));
 
     const sourceQuestionUpdates = new Map();
     for (const question of questions) {
@@ -1532,7 +1737,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 isStarted: true,
                 assessmentDone: true,
                 assessmentGrade: grade,
-                assessmentEloDelta: pointsEarned,
+                assessmentEloDelta: userPointsEarned,
                 assessmentAnswer: summary.orderedAnswers,
                 currentDifficulty: summary.newDifficulty,
                 lastAiFeedback: summary.aiFeedback,
@@ -1541,16 +1746,12 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 timeFinished: new Date(),
             },
         }),
-        prisma.user.update({
-            where: { id: userId },
-            data: { points: { increment: pointsEarned } },
-        }),
         prisma.assessmentAttempt.update({
             where: { id: attempt.id },
             data: {
                 status: ATTEMPT_STATUS.SUBMITTED,
                 grade,
-                pointsEarned,
+                pointsEarned: userPointsEarned,
                 correctAnswers,
                 totalQuestions,
                 newDifficulty: summary.newDifficulty,
@@ -1571,7 +1772,9 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                     isCorrect: isEssay ? false : (evaluation?.isCorrect || false),
                     score: isEssay ? 0 : ((evaluation?.isCorrect || false) ? objectiveQuestionScore : 0),
                     answeredAt: new Date(),
-                    elo: Math.max(MIN_ELO, Number.isFinite(nextElo) ? nextElo : clampElo(question.elo)),
+                    elo: isStudent
+                        ? Math.max(MIN_ELO, Number.isFinite(nextElo) ? nextElo : clampElo(question.elo))
+                        : clampElo(question.elo),
                 },
             });
         }),
@@ -1583,12 +1786,21 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         ),
     ];
 
+    if (isStudent) {
+        transactionOperations.splice(1, 0,
+            prisma.user.update({
+                where: { id: userId },
+                data: { points: { increment: userPointsEarned } },
+            }),
+        );
+    }
+
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
     return {
         attemptId: attempt.id,
         grade,
-        pointsEarned,
+        pointsEarned: userPointsEarned,
         correctAnswers,
         totalQuestions,
         newDifficulty: summary.newDifficulty,
@@ -1617,6 +1829,12 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
     }
 
     return prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
+            where: { id: normalizedUserId },
+            select: { role: true },
+        });
+        const isStudent = isStudentRole(user?.role);
+
         let attempt = await tx.assessmentAttempt.findFirst({
             where: {
                 id: normalizedAttemptId,
@@ -1636,7 +1854,13 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         const activeQuestion = findActiveQuestion(questions);
 
         if (!activeQuestion) {
-            const result = await finalizeAttemptInTransaction(tx, attempt, normalizedUserId, normalizedChapterId);
+            const result = await finalizeAttemptInTransaction(
+                tx,
+                attempt,
+                normalizedUserId,
+                normalizedChapterId,
+                isStudent,
+            );
             return {
                 completed: true,
                 result,
@@ -1672,20 +1896,22 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         if (isObjective) {
             const correctAnswer = String(activeQuestion.answer || activeQuestion.correctedAnswer || '').trim().toLowerCase();
             isCorrect = submittedAnswer.toLowerCase() === correctAnswer;
-            const duel = calculateQuestionDuelElo({
-                userElo: nextUserEloPreview,
-                questionElo: activeQuestion.elo,
-                isCorrect,
-            });
-            userDeltaRaw = duel.userDeltaRaw;
-            questionDeltaRaw = duel.questionDeltaRaw;
-            nextUserEloPreview = duel.nextUserElo;
-            nextQuestionElo = duel.nextQuestionElo;
-            nextRawEloDelta += userDeltaRaw;
-            targetNextQuestionElo = Math.max(
-                MIN_ELO,
-                nextUserEloPreview + (isCorrect ? 50 : -50),
-            );
+            if (isStudent) {
+                const duel = calculateQuestionDuelElo({
+                    userElo: nextUserEloPreview,
+                    questionElo: activeQuestion.elo,
+                    isCorrect,
+                });
+                userDeltaRaw = duel.userDeltaRaw;
+                questionDeltaRaw = duel.questionDeltaRaw;
+                nextUserEloPreview = duel.nextUserElo;
+                nextQuestionElo = duel.nextQuestionElo;
+                nextRawEloDelta += userDeltaRaw;
+                targetNextQuestionElo = Math.max(
+                    MIN_ELO,
+                    nextUserEloPreview + (isCorrect ? 50 : -50),
+                );
+            }
             nextObjectiveAnswered += 1;
             if (isCorrect) {
                 nextObjectiveCorrect += 1;
@@ -1699,9 +1925,11 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
                 isCorrect: isObjective ? isCorrect : false,
                 score: isObjective ? (isCorrect ? objectiveScore : 0) : 0,
                 answeredAt: new Date(),
-                userEloDeltaRaw: isObjective ? (Number.isNaN(userDeltaRaw) ? 0 : userDeltaRaw) : null,
-                questionEloDeltaRaw: isObjective ? (Number.isNaN(questionDeltaRaw) ? 0 : questionDeltaRaw) : null,
-                elo: isObjective ? (Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo) : clampElo(activeQuestion.elo),
+                userEloDeltaRaw: isObjective && isStudent ? (Number.isNaN(userDeltaRaw) ? 0 : userDeltaRaw) : null,
+                questionEloDeltaRaw: isObjective && isStudent ? (Number.isNaN(questionDeltaRaw) ? 0 : questionDeltaRaw) : null,
+                elo: isObjective && isStudent
+                    ? (Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo)
+                    : clampElo(activeQuestion.elo),
             },
         });
 
@@ -1716,7 +1944,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             },
         });
 
-        if (isObjective && Number.isInteger(activeQuestion.sourceQuestionId)) {
+        if (isStudent && isObjective && Number.isInteger(activeQuestion.sourceQuestionId)) {
             await tx.question.update({
                 where: { id: activeQuestion.sourceQuestionId },
                 data: { elo: Number.isNaN(nextQuestionElo) ? 1200 : nextQuestionElo },
@@ -1763,7 +1991,13 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             (updatedAttempt.objectiveAnswered || 0) >= (updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET);
 
         if ((objectiveCompleted && essayAnswered) || !activeAfterAnswer) {
-            const result = await finalizeAttemptInTransaction(tx, updatedAttempt, normalizedUserId, normalizedChapterId);
+            const result = await finalizeAttemptInTransaction(
+                tx,
+                updatedAttempt,
+                normalizedUserId,
+                normalizedChapterId,
+                isStudent,
+            );
             return {
                 completed: true,
                 result,
@@ -1784,7 +2018,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             nextQuestion: activeAfterAnswer ? toPublicQuestion(activeAfterAnswer, false) : null,
             progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
         };
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 };
 
 exports.prefetchAttempt = async (userId, chapterId) => {
@@ -1821,7 +2055,7 @@ exports.getCurrentAttempt = async (userId, chapterId) => {
             return null;
         }
         return ensureCurrentQuestionServedTx(tx, current);
-    });
+    }, INTERACTIVE_TX_OPTIONS);
 
     return formatAttemptResponse(attempt, true);
 };

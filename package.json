@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "node --watch --env-file=.env ./src/index.js",
     "start": "node ./src/index.js",
-    "test": "nodemon index.js",
-    "postinstall": "prisma generate",
-    "fix:badge-urls": "node scripts/fix_badge_image_urls.js"
+    "test": "jest --verbose",
+    "test:load": "npx -y artillery@latest run tests/load/eloLoadTest.yml",
+    "postinstall": "prisma generate && prisma migrate deploy",
+    "fix:badge-urls": "node scripts/fix_badge_image_urls.js",
+    "sync:student-only-elo": "node scripts/sync_student_only_elo.js"
   },
   "author": "archico",
   "license": "ISC",
@@ -37,6 +39,7 @@
   "devDependencies": {
     "@prisma/client": "^6.4.1",
     "@types/jsonwebtoken": "^9.0.8",
+    "jest": "^30.2.0",
     "nodemon": "^3.1.9",
     "prisma": "^6.4.1"
   },

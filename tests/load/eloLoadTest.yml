@@ -1,0 +1,113 @@
+# =============================================================================
+# Artillery Load Test – Levelearn ELO Rating System
+# =============================================================================
+#
+# This test simulates multiple concurrent users going through the full
+# assessment-attempt lifecycle that exercises the ELO rating engine:
+#
+#   1. GET  /api/user/:id               – fetch user profile (includes eloTitle)
+#   2. GET  /api/chapter                 – list chapters
+#   3. POST /api/assessment/attempt/start – create/resume an attempt
+#   4. POST /api/assessment/attempt/answer – answer questions in a loop
+#   5. GET  /api/assessment               – list all assessments
+#
+# Run:  npm run test:load
+#       or:  npx artillery run tests/load/eloLoadTest.yml
+# =============================================================================
+
+config:
+  target: "http://localhost:7000"
+  processor: "./processor.js"
+
+  phases:
+    # Phase 1 – Warm-up: gentle traffic to let connection pools & caches warm up
+    - name: "Warm-up"
+      duration: 15
+      arrivalRate: 2
+
+    # Phase 2 – Ramp-up: steadily increase load
+    - name: "Ramp-up"
+      duration: 30
+      arrivalRate: 5
+      rampTo: 20
+
+    # Phase 3 – Sustained load: hold peak traffic
+    - name: "Sustained load"
+      duration: 30
+      arrivalRate: 20
+
+    # Phase 4 – Spike: burst of traffic to find breaking points
+    - name: "Spike"
+      duration: 10
+      arrivalRate: 40
+
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+  # Ensure Artillery follows redirects and treats 4xx/5xx as errors in metrics
+  ensure:
+    thresholds:
+      - http.response_time.p99: 5000    # p99 latency must stay under 5 s
+      - http.response_time.p95: 3000    # p95 latency must stay under 3 s
+
+# =============================================================================
+# Scenarios
+# =============================================================================
+scenarios:
+  # --------------------------------------------------------------------------
+  # Scenario 1 – Full Assessment Attempt Flow (heaviest ELO path)
+  # --------------------------------------------------------------------------
+  - name: "Full Assessment Attempt Flow"
+    weight: 6
+    beforeScenario: "setUserContext"
+    flow:
+      # 1. Start an assessment attempt
+      - post:
+          url: "/api/assessment/attempt/start"
+          json:
+            userId: "{{ userId }}"
+            chapterId: "{{ chapterId }}"
+            forceNew: true
+          afterResponse: "captureAttemptStart"
+          capture:
+            - json: "$.attemptId"
+              as: "attemptId"
+
+      # 2. Answer questions in a loop (up to 15 iterations to cover the
+      #    typical objectiveTarget of 10 + 1 essay question with safety margin)
+      - loop:
+          - think: 0.5
+          - post:
+              url: "/api/assessment/attempt/answer"
+              json:
+                userId: "{{ userId }}"
+                chapterId: "{{ chapterId }}"
+                attemptId: "{{ attemptId }}"
+                questionId: "{{ questionId }}"
+                answer: "{{ answer }}"
+              afterResponse: "captureAnswerResponse"
+        count: 15
+        whileTrue: "shouldContinueAnswering"
+
+  # --------------------------------------------------------------------------
+  # Scenario 2 – Browse User Profile (reads eloTitle derived from ELO)
+  # --------------------------------------------------------------------------
+  - name: "Browse User Profile"
+    weight: 2
+    beforeScenario: "setUserContext"
+    flow:
+      - get:
+          url: "/api/user/{{ userId }}"
+
+  # --------------------------------------------------------------------------
+  # Scenario 3 – List Assessments & Chapters (read-heavy background traffic)
+  # --------------------------------------------------------------------------
+  - name: "List Assessments and Chapters"
+    weight: 2
+    flow:
+      - get:
+          url: "/api/assessment"
+      - think: 1
+      - get:
+          url: "/api/chapter"
