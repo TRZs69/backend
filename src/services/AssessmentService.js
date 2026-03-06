@@ -31,7 +31,7 @@ const DISPLAY_OBJECTIVE_COMPOSITION = {
 const GENERATED_POOL_COMPOSITION = {
     MC: 9,
     TF: 2,
-    EY: 1,
+    EY: 0,
 };
 const ELO_BANDS = [
     { name: 'EASY', min: 800, max: 900 },
@@ -191,7 +191,27 @@ const clampElo = (value) => {
     return DEFAULT_ELO;
 };
 
+// Seeded PRNG (Mulberry32)
+const createSeededRandom = (seed) => {
+    let s = seed + 1831565813;
+    return () => {
+        s = Math.imul(s ^ (s >>> 15), 1 | s);
+        s ^= s + Math.imul(s ^ (s >>> 7), 61 | s);
+        return ((s ^ (s >>> 14)) >>> 0) / 4294967296;
+    };
+};
+
 const shuffleArray = (arr = []) => [...arr].sort(() => Math.random() - 0.5);
+
+const shuffleArraySeeded = (arr = [], seed = 12345) => {
+    const random = createSeededRandom(seed);
+    const result = [...arr];
+    for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]]; // Swap
+    }
+    return result;
+};
 
 const parseJsonPayload = (text) => {
     if (typeof text !== 'string' || !text.trim()) {
@@ -330,13 +350,13 @@ const normalizeStoredQuestion = (question) => {
     };
 };
 
-const normaliseGeneratedPoolQuestions = (rawQuestions) => {
+const normaliseGeneratedPoolQuestions = (rawQuestions, chapterName = 'chapter', userElo = 1200) => {
     if (!Array.isArray(rawQuestions)) {
         throw new Error('Generated questions payload must be an array');
     }
 
-    if (rawQuestions.length < ATTEMPT_POOL_SIZE) {
-        throw new Error(`Generated questions must be at least ${ATTEMPT_POOL_SIZE}`);
+    if (rawQuestions.length < (ATTEMPT_POOL_SIZE - 1)) {
+        throw new Error(`Generated questions must be at least ${ATTEMPT_POOL_SIZE - 1}`);
     }
 
     const normalizedPool = rawQuestions.map((questionData, index) =>
@@ -345,16 +365,25 @@ const normaliseGeneratedPoolQuestions = (rawQuestions) => {
 
     const mc = shuffleArray(normalizedPool.filter((q) => q.type === 'MC'));
     const tf = shuffleArray(normalizedPool.filter((q) => q.type === 'TF'));
-    const ey = shuffleArray(normalizedPool.filter((q) => q.type === 'EY'));
 
-    if (mc.length < GENERATED_POOL_COMPOSITION.MC || tf.length < GENERATED_POOL_COMPOSITION.TF || ey.length < GENERATED_POOL_COMPOSITION.EY) {
-        throw new Error('Komposisi soal LLM tidak memenuhi 9 MC + 2 TF + 1 EY');
+    if (mc.length < GENERATED_POOL_COMPOSITION.MC || tf.length < GENERATED_POOL_COMPOSITION.TF) {
+        throw new Error('Komposisi soal objektif dari LLM tidak memenuhi 9 MC + 2 TF');
     }
+
+    const staticEssay = {
+        sourceQuestionId: null,
+        question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri sebagai rumusan pemahaman Anda.`,
+        type: 'EY',
+        options: [],
+        answer: 'Feedback esai dari peserta (tidak dinilai dalam sistem Elo).',
+        correctedAnswer: 'Feedback esai dari peserta (tidak dinilai dalam sistem Elo).',
+        elo: clampElo(userElo),
+    };
 
     const selected = [
         ...mc.slice(0, GENERATED_POOL_COMPOSITION.MC),
         ...tf.slice(0, GENERATED_POOL_COMPOSITION.TF),
-        ...ey.slice(0, GENERATED_POOL_COMPOSITION.EY),
+        staticEssay,
     ];
 
     return shuffleArray(selected).slice(0, ATTEMPT_POOL_SIZE);
@@ -413,13 +442,12 @@ const buildGenerationPrompt = ({ chapterName, chapterDescription, materialConten
 Anda adalah asisten pengajar aplikasi Levelearn.
 
 Tugas:
-- Buat EXACT 12 soal assessment berbahasa Indonesia untuk satu chapter.
-- Komposisi WAJIB: 9 MC, 2 TF, 1 EY.
+- Buat EXACT 11 soal objektif berbahasa Indonesia untuk materi chapter ini.
+- Komposisi WAJIB: 9 soal Multiple Choice (MC) dan 2 soal True/False (TF).
 - MC: options tepat 4 item, correctedAnswer wajib salah satu options.
 - TF: options wajib ["True","False"], correctedAnswer wajib True atau False.
-- EY: wajib memiliki correctedAnswer sebagai referensi.
-- Setiap soal wajib punya elo bilangan bulat 750-3000.
-- Sesuaikan tingkat kesulitan dengan target Elo siswa.
+- Setiap soal wajib punya nilai elo bilangan bulat dalam rentang 750-2000.
+- Distribusikan nilai ELO soal-soal tersebut SETARA, LEBIH MUDAH (-100 Elo), dan LEBIH SULIT (+100 Elo) di sekitar target Elo siswa saat ini (${userElo}). Variasi ini penting untuk mengantisipasi probabilitas jalan bercabang saat siswa menjawab benar atau salah secara beruntun.
 
 Konteks chapter:
 - Nama: ${chapterName}
@@ -434,7 +462,7 @@ Kembalikan JSON valid SAJA (tanpa markdown/code fence) dengan format:
   "questions": [
     {
       "question": "string",
-      "type": "MC|TF|EY",
+      "type": "MC|TF",
       "options": ["string"],
       "correctedAnswer": "string",
       "elo": 1200
@@ -471,7 +499,7 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
             const instruction =
                 String(payload?.instruction || '').trim() ||
                 buildAttemptInstruction(chapter?.name || 'Assessment');
-            const questions = normaliseGeneratedPoolQuestions(payload?.questions);
+            const questions = normaliseGeneratedPoolQuestions(payload?.questions, chapter?.name || 'chapter', userElo);
 
             return { instruction, questions };
         } catch (error) {
@@ -483,9 +511,16 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
     throw lastError || new Error('LLM generation failed');
 };
 
-const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterName = 'chapter') => {
+const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterName = 'chapter', seedParams = {}) => {
     if (!Array.isArray(questions) || questions.length === 0) {
         throw new Error('Fallback bank kosong');
+    }
+
+    // Buat seed deterministik berdasarkan userId, chapterId, dan userElo
+    const seedString = `${seedParams.userId || 0}_${seedParams.chapterId || 0}_${userElo}_${chapterName.length}`;
+    let seedNumber = 0;
+    for (let i = 0; i < seedString.length; i++) {
+        seedNumber = (seedNumber * 31 + seedString.charCodeAt(i)) | 0;
     }
 
     const normalized = questions.map((q) => normalizeStoredQuestion(q)).filter((q) => q.question.length > 0);
@@ -500,19 +535,23 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
         [...list].sort((a, b) => {
             const diffA = Math.abs(clampElo(a.elo) - userElo);
             const diffB = Math.abs(clampElo(b.elo) - userElo);
-            return diffA - diffB;
+            if (diffA !== diffB) return diffA - diffB;
+            return clampElo(a.elo) - clampElo(b.elo); // tie-breaker
         });
 
     const objectiveSorted = sortByDistance(objective);
+    // Potong 3x pool size sebagai kandidat
     const objectivePool = objectiveSorted.slice(0, Math.max(ATTEMPT_POOL_SIZE * 3, objectiveSorted.length));
-    const shuffledObjectivePool = shuffleArray(objectivePool);
+
+    // Ganti pengacakan pool lokal dengan seeded shuffle
+    const shuffledObjectivePool = shuffleArraySeeded(objectivePool, seedNumber);
 
     const selectedObjective = [];
     for (const item of shuffledObjectivePool) {
         if (selectedObjective.length >= ATTEMPT_POOL_SIZE - 1) {
             break;
         }
-        selectedObjective.push({ ...item, options: [...(item.options || [])] });
+        selectedObjective.push({ ...item, options: shuffleArraySeeded([...(item.options || [])], seedNumber + item.sourceQuestionId + 1) });
     }
 
     let cursor = 0;
@@ -522,24 +561,23 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
         cursor += 1;
     }
 
-    const pickedEssay = essays.length > 0
-        ? sortByDistance(essays)[0]
-        : {
-            sourceQuestionId: null,
-            question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri.`,
-            type: 'EY',
-            options: [],
-            answer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
-            correctedAnswer: 'Jawaban esai bersifat terbuka sesuai isi materi bab ini.',
-            elo: clampElo(userElo),
-        };
+    const staticEssay = {
+        sourceQuestionId: null,
+        question: `Jelaskan kembali konsep inti pada bab "${chapterName}" dengan bahasamu sendiri sebagai rumusan pemahaman Anda.`,
+        type: 'EY',
+        options: [],
+        answer: 'Feedback esai dari peserta (tidak dinilai dalam sistem Elo).',
+        correctedAnswer: 'Feedback esai dari peserta (tidak dinilai dalam sistem Elo).',
+        elo: clampElo(userElo),
+    };
 
     const finalPool = [
         ...selectedObjective.slice(0, ATTEMPT_POOL_SIZE - 1),
-        { ...pickedEssay, options: [...(pickedEssay.options || [])] },
+        staticEssay,
     ];
 
-    return shuffleArray(finalPool).slice(0, ATTEMPT_POOL_SIZE);
+    // Gunakan seeded random agar hasil set pool akhir stabil pada reset ke berapa pun
+    return shuffleArraySeeded(finalPool, seedNumber + 999).slice(0, ATTEMPT_POOL_SIZE);
 };
 
 const findActiveQuestion = (questions = []) => {
@@ -1361,7 +1399,10 @@ const createOrResumeAttempt = async (
         if (!assessment || !Array.isArray(assessment.questions) || assessment.questions.length === 0) {
             throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
         }
-        questionPool = buildFallbackPoolFromBank(assessment.questions, userElo, chapter.name);
+        questionPool = buildFallbackPoolFromBank(assessment.questions, userElo, chapter.name, {
+            userId: normalizedUserId,
+            chapterId: normalizedChapterId,
+        });
     }
 
     if (!questionPool.length) {
