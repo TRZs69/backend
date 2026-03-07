@@ -312,11 +312,19 @@ const parseJsonPayload = (text) => {
 
 const inferGeneratedType = (questionData) => {
     const declaredType = normaliseAttemptQuestionType(questionData?.type);
+    const options = normalizeTextOptions(questionData?.options ?? questionData?.option ?? []);
+
+    if (declaredType === 'MC' && options.length === 2) {
+        const normalized = options.map((item) => item.toLowerCase());
+        if (normalized.includes('true') && normalized.includes('false')) {
+            return 'TF';
+        }
+    }
+
     if (declaredType) {
         return declaredType;
     }
 
-    const options = normalizeTextOptions(questionData?.options ?? questionData?.option ?? []);
     if (options.length > 0) {
         const normalized = options.map((item) => item.toLowerCase());
         const hasTrueFalse = normalized.includes('true') && normalized.includes('false') && options.length <= 2;
@@ -347,9 +355,6 @@ const normalizeGeneratedQuestion = (questionData, index) => {
         }
         if (options.length > 4) {
             options = options.slice(0, 4);
-        }
-        while (options.length < 4) {
-            options.push(`Pilihan ${options.length + 1}`);
         }
         correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0];
     } else if (type === 'TF') {
@@ -403,13 +408,17 @@ const normalizeStoredQuestion = (question) => {
         options = ['True', 'False'];
         correctedAnswer = correctedAnswer.toLowerCase() === 'false' ? 'False' : 'True';
     } else if (type === 'MC') {
-        if (options.length > 4) {
-            options = options.slice(0, 4);
+        const normalizedOptions = options.map((item) => item.toLowerCase());
+        if (options.length === 2 && normalizedOptions.includes('true') && normalizedOptions.includes('false')) {
+            type = 'TF';
+            options = ['True', 'False'];
+            correctedAnswer = correctedAnswer.toLowerCase() === 'false' ? 'False' : 'True';
+        } else {
+            if (options.length > 4) {
+                options = options.slice(0, 4);
+            }
+            correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0] || correctedAnswer;
         }
-        while (options.length < 4 && options.length > 0) {
-            options.push(`Pilihan ${options.length + 1}`);
-        }
-        correctedAnswer = matchOptionCaseInsensitive(options, correctedAnswer) || options[0] || correctedAnswer;
     } else if (type === 'EY' && !correctedAnswer) {
         correctedAnswer = String(question.answer || '').trim();
     }
@@ -514,34 +523,42 @@ const buildGoogleAIClient = () => {
 
 const buildGenerationPrompt = ({ chapterName, chapterDescription, materialContent, userElo }) => {
     return `
-Anda adalah asisten pengajar aplikasi Levelearn.
+Anda adalah asisten pengajar profesional di aplikasi Levelearn.
 
 Tugas:
 - Buat EXACT 11 soal objektif berbahasa Indonesia untuk materi chapter ini.
 - Komposisi WAJIB: 9 soal Multiple Choice (MC) dan 2 soal True/False (TF).
-- MC: options tepat 4 item, correctedAnswer wajib salah satu options.
-- TF: options wajib ["True","False"], correctedAnswer wajib True atau False.
-- TF wajib berupa kalimat pernyataan faktual (bukan pertanyaan, bukan "siapa/kapan/dimana/berapa", dan tidak diakhiri tanda ":" atau "?").
-- EY: wajib memiliki correctedAnswer sebagai referensi.
-- Setiap soal wajib punya elo bilangan bulat 750-3000.
-- Sesuaikan tingkat kesulitan dengan target Elo siswa.
+- ATURAN KETAT Multiple Choice (MC):
+  1. WAJIB memiliki tepat 4 opsi jawaban (options) yang unik dan beralasan.
+  2. TIDAK BOLEH ada opsi seperti "Semua jawaban benar" atau "Tidak ada jawaban yang benar".
+  3. "correctedAnswer" WAJIB sama persis (huruf per huruf) dengan salah satu opsi di dalam array "options".
+  4. Properti "type" wajib bernilai "MC".
+- ATURAN KETAT True/False (TF):
+  1. Soal WAJIB berupa pernyataan faktual yang bisa dinilai kebenarannya (BUKAN kalimat tanya, TIDAK memakai kata "siapa/kapan/dimana/berapa", dan BUKAN diakhiri tanda "?").
+  2. Properti "options" WAJIB hanya berisi tepat 2 elemen berupa string literal: ["True", "False"].
+  3. "correctedAnswer" WAJIB bernilai "True" atau "False".
+  4. Properti "type" wajib bernilai "TF".
+- Setiap soal wajib memiliki properti "elo" berupa bilangan bulat antara 750 hingga 3000.
+- Sesuaikan tingkat kompleksitas/kesulitan soal dengan target Elo siswa saat ini.
 
 Konteks chapter:
 - Nama: ${chapterName}
 - Deskripsi: ${chapterDescription || '-'}
 - Target Elo siswa saat ini: ${userElo}
 - Ringkasan materi:
+"""
 ${materialContent || '-'}
+"""
 
-Kembalikan JSON valid SAJA (tanpa markdown/code fence) dengan format:
+Kembalikan respon HANYA dalam format JSON teks murni (tanpa markdown fence \`\`\`json). Format skema JSON yang diwajibkan:
 {
-  "instruction": "string",
+  "instruction": "Instruksi pengerjaan",
   "questions": [
     {
-      "question": "string",
-      "type": "MC|TF",
-      "options": ["string"],
-      "correctedAnswer": "string",
+      "question": "teks pernyataan atau pertanyaan",
+      "type": "format (MC atau TF)",
+      "options": ["opsi1", "opsi2", "opsi3", "opsi4"],
+      "correctedAnswer": "opsi jawaban yang benar",
       "elo": 1200
     }
   ]
