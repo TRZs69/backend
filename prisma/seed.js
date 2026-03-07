@@ -136,7 +136,7 @@ async function main() {
 
     const studentPassword = await bcrypt.hash('mahasiswa', 10);
 
-    await prisma.user.create({
+    const student = await prisma.user.create({
       data: {
         username: 'obenhard',
         password: studentPassword,
@@ -150,7 +150,7 @@ async function main() {
       },
     });
 
-    await prisma.user.create({
+    const emely = await prisma.user.create({
       data: {
         username: 'sefa',
         password: studentPassword,
@@ -164,7 +164,7 @@ async function main() {
       },
     });
 
-    await prisma.user.create({
+    const gerry = await prisma.user.create({
       data: {
         username: 'rudi',
         password: studentPassword,
@@ -178,7 +178,7 @@ async function main() {
       },
     });
 
-    await prisma.user.create({
+    const gerald = await prisma.user.create({
       data: {
         username: 'christo',
         password: studentPassword,
@@ -502,7 +502,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'daniel',
+        username: 'daniel1',
         password: studentPassword,
         name: 'Daniel Tulus Simamora',
         role: Role.STUDENT,
@@ -558,7 +558,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'josua',
+        username: 'josua1',
         password: studentPassword,
         name: 'Josua Asido Prima Silalahi',
         role: Role.STUDENT,
@@ -600,7 +600,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'christian',
+        username: 'christian1',
         password: studentPassword,
         name: 'Christian Johannes Hutahaean',
         role: Role.STUDENT,
@@ -698,7 +698,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'grace',
+        username: 'grace1',
         password: studentPassword,
         name: 'Grace Evelin Siallagan',
         role: Role.STUDENT,
@@ -740,7 +740,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'grace',
+        username: 'grace2',
         password: studentPassword,
         name: 'Grace Sania Silalahi',
         role: Role.STUDENT,
@@ -782,7 +782,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'rahel',
+        username: 'rahel1',
         password: studentPassword,
         name: 'Rahel Debora Hasibuan',
         role: Role.STUDENT,
@@ -838,7 +838,7 @@ async function main() {
 
     await prisma.user.create({
       data: {
-        username: 'sri',
+        username: 'sri1',
         password: studentPassword,
         name: 'Sri Diva Siagian',
         role: Role.STUDENT,
