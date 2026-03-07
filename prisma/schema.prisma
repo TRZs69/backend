@@ -21,6 +21,7 @@ model User {
   role              Role
   studentId         String?       // Data khusus student
   points            Int? @default(750)
+  elo               Int? @default(750)
   totalCourses      Int? @default(0)
   badges            Int? @default(0)
   instructorId      String?       // Data khusus instructor

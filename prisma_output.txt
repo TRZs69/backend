@@ -1,0 +1,7 @@
+Environment variables loaded from .env
+Prisma schema loaded from prisma\schema.prisma
+Datasource "db": MySQL database "graphci" at "levelearn-mysql-levelearn-mysql.d.aivencloud.com:19281"
+
+Error: P1001: Can't reach database server at `levelearn-mysql-levelearn-mysql.d.aivencloud.com:19281`
+
+Please make sure your database server is running at `levelearn-mysql-levelearn-mysql.d.aivencloud.com:19281`.

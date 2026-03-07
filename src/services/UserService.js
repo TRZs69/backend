@@ -5,10 +5,11 @@ const formatUser = (user) => {
   if (!user) return user;
   const isStudent = String(user.role || '').toUpperCase() === 'STUDENT';
   const effectivePoints = (user.points === null || user.points === undefined) ? 750 : user.points;
+  const effectiveElo = (user.elo === null || user.elo === undefined) ? 750 : user.elo;
   return {
     ...user,
     points: isStudent ? Math.max(0, effectivePoints - 750) : null,
-    eloTitle: isStudent ? determineDifficulty(effectivePoints) : null
+    eloTitle: isStudent ? determineDifficulty(effectiveElo) : null
   };
 };
 
