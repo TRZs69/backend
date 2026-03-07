@@ -4,10 +4,11 @@ const { determineDifficulty } = require('../utils/elo');
 const formatUser = (user) => {
   if (!user) return user;
   const isStudent = String(user.role || '').toUpperCase() === 'STUDENT';
+  const effectivePoints = (user.points === null || user.points === undefined) ? 750 : user.points;
   return {
     ...user,
-    points: isStudent ? user.points : null,
-    eloTitle: isStudent ? determineDifficulty(user.points) : null
+    points: isStudent ? Math.max(0, effectivePoints - 750) : null,
+    eloTitle: isStudent ? determineDifficulty(effectivePoints) : null
   };
 };
 
