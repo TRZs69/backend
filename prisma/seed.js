@@ -31,7 +31,7 @@ async function ensureBadgesBucketAndUpload() {
   }
 
   const localDir = path.resolve(__dirname, '../../Mobile/lib/assets/badges');
-  const wantFiles = ['beginner.png', 'basic_understanding.png', 'developing_learner.png', 
+  const wantFiles = ['beginner.png', 'basic_understanding.png', 'developing_learner.png',
     'intermediate.png', 'proficient.png', 'advanced.png', 'master.png'];
   for (const f of wantFiles) {
     try {
@@ -87,165 +87,779 @@ async function main() {
     await prisma.user.deleteMany();
 
     // Create Users
-    const hashedPassword = await bcrypt.hash('password', 10);
-    const userPassword = await bcrypt.hash('123', 10);
 
-    const administrator = await prisma.user.create({
+    const adminPassword = await bcrypt.hash('admin', 10);
+
+    const ralph = await prisma.user.create({
       data: {
-        username: 'archico',
-        password: hashedPassword,
-        name: 'Archico',
+        username: 'ralph',
+        password: adminPassword,
+        name: 'Ralphael',
         role: Role.ADMIN,
         image: '',
       },
     });
 
-    const instructor = await prisma.user.create({
+    const kevin = await prisma.user.create({
       data: {
-        username: 'rafael',
-        password: hashedPassword,
-        name: 'Rafael',
-        role: Role.INSTRUCTOR,
-        instructorId: '11S21028',
-        instructorCourses: 0,
+        username: 'kevin',
+        password: adminPassword,
+        name: 'Kevin',
+        role: Role.ADMIN,
         image: '',
       },
     });
 
-    const student = await prisma.user.create({
+    const grace = await prisma.user.create({
       data: {
-        username: 'benhard',
-        password: hashedPassword,
-        name: 'Benhard',
-        role: Role.STUDENT,
-        studentId: '11S21003',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
+        username: 'grace',
+        password: adminPassword,
+        name: 'Grace',
+        role: Role.ADMIN,
         image: '',
       },
     });
 
-    const emely = await prisma.user.create({
-      data: {
-        username: 'emely',
-        password: hashedPassword,
-        name: 'Emely',
-        role: Role.STUDENT,
-        studentId: '11S21052',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const boy = await prisma.user.create({
-      data: {
-        username: 'boy',
-        password: hashedPassword,
-        name: 'Boy',
-        role: Role.STUDENT,
-        studentId: '11S21025',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const enrico = await prisma.user.create({
-      data: {
-        username: 'enrico',
-        password: hashedPassword,
-        name: 'Enrico',
-        role: Role.STUDENT,
-        studentId: '11S21034',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const gerry = await prisma.user.create({
-      data: {
-        username: 'gerry',
-        password: hashedPassword,
-        name: 'Gerry',
-        role: Role.STUDENT,
-        studentId: '11S21055',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const tabitha = await prisma.user.create({
-      data: {
-        username: 'tabitha',
-        password: hashedPassword,
-        name: 'Tabitha',
-        role: Role.STUDENT,
-        studentId: '11S21042',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const tesalonika = await prisma.user.create({
-      data: {
-        username: 'tesalonika',
-        password: hashedPassword,
-        name: 'Tesalonika',
-        role: Role.STUDENT,
-        studentId: '11S21005',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const dedi = await prisma.user.create({
-      data: {
-        username: 'dedi',
-        password: hashedPassword,
-        name: 'Dedi',
-        role: Role.STUDENT,
-        studentId: '11S21014',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
-
-    const gerald = await prisma.user.create({
-      data: {
-        username: 'gerald',
-        password: hashedPassword,
-        name: 'Gerald',
-        role: Role.STUDENT,
-        studentId: '11S21015',
-        points: 0,
-        totalCourses: 0,
-        badges: 0,
-        image: '',
-      },
-    });
+    const instructorPassword = await bcrypt.hash('instructor', 10);
 
     const rds = await prisma.user.create({
       data: {
         username: 'ranty',
-        password: hashedPassword,
+        password: instructorPassword,
         name: 'Ranty',
         role: Role.INSTRUCTOR,
         instructorId: 'RDS',
         instructorCourses: 0,
+        image: '',
+      },
+    });
+
+    const studentPassword = await bcrypt.hash('mahasiswa', 10);
+
+    await prisma.user.create({
+      data: {
+        username: 'obenhard',
+        password: studentPassword,
+        name: 'Obenhard Alianto Pasaribu',
+        role: Role.STUDENT,
+        studentId: '11S23001',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'sefa',
+        password: studentPassword,
+        name: 'Sefa Natan Situmeang',
+        role: Role.STUDENT,
+        studentId: '11S23003',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'rudi',
+        password: studentPassword,
+        name: 'Rudi Alva Jonathan Ginting',
+        role: Role.STUDENT,
+        studentId: '11S23004',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'christo',
+        password: studentPassword,
+        name: 'Christo Sadatua Manatap Pasaribu',
+        role: Role.STUDENT,
+        studentId: '11S23005',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'sri',
+        password: studentPassword,
+        name: 'Sri Intan Ivana Pasaribu',
+        role: Role.STUDENT,
+        studentId: '11S23006',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'jelita',
+        password: studentPassword,
+        name: 'Jelita Sibarani',
+        role: Role.STUDENT,
+        studentId: '11S23007',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'yosep',
+        password: studentPassword,
+        name: 'Yosep Mangadu Simatupang',
+        role: Role.STUDENT,
+        studentId: '11S23008',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'elkana',
+        password: studentPassword,
+        name: 'Elkana Sitorus',
+        role: Role.STUDENT,
+        studentId: '11S23009',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'ridho',
+        password: studentPassword,
+        name: 'Ridho Pakpahan',
+        role: Role.STUDENT,
+        studentId: '11S23010',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'moses',
+        password: studentPassword,
+        name: 'Moses Romulus Simangunsong',
+        role: Role.STUDENT,
+        studentId: '11S23011',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'joey',
+        password: studentPassword,
+        name: 'Joey Cristo Thruli',
+        role: Role.STUDENT,
+        studentId: '11S23012',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'wesly',
+        password: studentPassword,
+        name: 'Wesly Fery Wanda Ambarita',
+        role: Role.STUDENT,
+        studentId: '11S23013',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'gayus',
+        password: studentPassword,
+        name: 'Gayus Jones Petra',
+        role: Role.STUDENT,
+        studentId: '11S23014',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'rahel',
+        password: studentPassword,
+        name: 'Rahel Pasaribu',
+        role: Role.STUDENT,
+        studentId: '11S23016',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'syvra',
+        password: studentPassword,
+        name: 'Syvra Tambun',
+        role: Role.STUDENT,
+        studentId: '11S23017',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'aisah',
+        password: studentPassword,
+        name: 'Aisah Sipahutar',
+        role: Role.STUDENT,
+        studentId: '11S23018',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'anny',
+        password: studentPassword,
+        name: 'Anny Klaudya Hutabarat',
+        role: Role.STUDENT,
+        studentId: '11S23019',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'd.',
+        password: studentPassword,
+        name: 'D. Yophanci P. Sihombing',
+        role: Role.STUDENT,
+        studentId: '11S23020',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'marshall',
+        password: studentPassword,
+        name: 'Marshall Manurung',
+        role: Role.STUDENT,
+        studentId: '11S23021',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'aron',
+        password: studentPassword,
+        name: 'Aron Ivander Jeconia Hutapea',
+        role: Role.STUDENT,
+        studentId: '11S23022',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'paul',
+        password: studentPassword,
+        name: 'Paul Bornok Manurung',
+        role: Role.STUDENT,
+        studentId: '11S23023',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'glen',
+        password: studentPassword,
+        name: 'Glen Rejeki Sitorus',
+        role: Role.STUDENT,
+        studentId: '11S23024',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'daniel',
+        password: studentPassword,
+        name: 'Daniel L. Tobing',
+        role: Role.STUDENT,
+        studentId: '11S23025',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'andre',
+        password: studentPassword,
+        name: 'Andre Christian Saragih',
+        role: Role.STUDENT,
+        studentId: '11S23026',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'ruth',
+        password: studentPassword,
+        name: 'Ruth Angelica Manurung',
+        role: Role.STUDENT,
+        studentId: '11S23027',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'josua',
+        password: studentPassword,
+        name: 'Josua Saragih',
+        role: Role.STUDENT,
+        studentId: '11S23028',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'daniel',
+        password: studentPassword,
+        name: 'Daniel Tulus Simamora',
+        role: Role.STUDENT,
+        studentId: '11S23029',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'gloria',
+        password: studentPassword,
+        name: 'Gloria Panjaitan',
+        role: Role.STUDENT,
+        studentId: '11S23030',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'christian',
+        password: studentPassword,
+        name: 'Christian Rafael',
+        role: Role.STUDENT,
+        studentId: '11S23031',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'jeffry',
+        password: studentPassword,
+        name: 'Jeffry Armando Tambunan',
+        role: Role.STUDENT,
+        studentId: '11S23032',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'josua',
+        password: studentPassword,
+        name: 'Josua Asido Prima Silalahi',
+        role: Role.STUDENT,
+        studentId: '11S23033',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'michael',
+        password: studentPassword,
+        name: 'Michael Nicolas Saragih',
+        role: Role.STUDENT,
+        studentId: '11S23034',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'jeremy',
+        password: studentPassword,
+        name: 'Jeremy Manullang',
+        role: Role.STUDENT,
+        studentId: '11S23035',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'christian',
+        password: studentPassword,
+        name: 'Christian Johannes Hutahaean',
+        role: Role.STUDENT,
+        studentId: '11S23036',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'alberton',
+        password: studentPassword,
+        name: 'Alberton Napitupulu',
+        role: Role.STUDENT,
+        studentId: '11S23037',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'samuel',
+        password: studentPassword,
+        name: 'Samuel Faldhieto Sibarani',
+        role: Role.STUDENT,
+        studentId: '11S23038',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'raynal',
+        password: studentPassword,
+        name: 'Raynal Haposan Napitupulu',
+        role: Role.STUDENT,
+        studentId: '11S23039',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'wahyu',
+        password: studentPassword,
+        name: 'Wahyu Rizky F Simanjorang',
+        role: Role.STUDENT,
+        studentId: '11S23040',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'firman',
+        password: studentPassword,
+        name: 'Firman Bintang Hutasoit',
+        role: Role.STUDENT,
+        studentId: '11S23041',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'tasya',
+        password: studentPassword,
+        name: 'Tasya Aprilda Marbun',
+        role: Role.STUDENT,
+        studentId: '11S23042',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'grace',
+        password: studentPassword,
+        name: 'Grace Evelin Siallagan',
+        role: Role.STUDENT,
+        studentId: '11S23043',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'maharani',
+        password: studentPassword,
+        name: 'Maharani Sitorus',
+        role: Role.STUDENT,
+        studentId: '11S23044',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'lofelyn',
+        password: studentPassword,
+        name: 'Lofelyn Enzely Ambarita',
+        role: Role.STUDENT,
+        studentId: '11S23045',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'grace',
+        password: studentPassword,
+        name: 'Grace Sania Silalahi',
+        role: Role.STUDENT,
+        studentId: '11S23046',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'helga',
+        password: studentPassword,
+        name: 'Helga Zefanya Sipayung',
+        role: Role.STUDENT,
+        studentId: '11S23047',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'iel',
+        password: studentPassword,
+        name: 'Iel Oceline Manik',
+        role: Role.STUDENT,
+        studentId: '11s23048',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'rahel',
+        password: studentPassword,
+        name: 'Rahel Debora Hasibuan',
+        role: Role.STUDENT,
+        studentId: '11S23049',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'zefanya',
+        password: studentPassword,
+        name: 'Zefanya Ecklezia Saragih',
+        role: Role.STUDENT,
+        studentId: '11S23050',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'yuri',
+        password: studentPassword,
+        name: 'Yuri Elsa Rona Uli Pakpahan',
+        role: Role.STUDENT,
+        studentId: '11S23051',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'bunga',
+        password: studentPassword,
+        name: 'Bunga Rhiza Sitorus',
+        role: Role.STUDENT,
+        studentId: '11S23052',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'sri',
+        password: studentPassword,
+        name: 'Sri Diva Siagian',
+        role: Role.STUDENT,
+        studentId: '11S23054',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
+        image: '',
+      },
+    });
+
+    await prisma.user.create({
+      data: {
+        username: 'porman',
+        password: studentPassword,
+        name: 'Porman Marsaulina Simanjuntak',
+        role: Role.STUDENT,
+        studentId: '11S24057',
+        points: 0,
+        totalCourses: 0,
+        badges: 0,
         image: '',
       },
     });
@@ -1039,58 +1653,58 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Platform media sosial TikTok saat ini sangat populer di kalangan pengguna. Dari perspektif HCI, faktor utama yang membuat aplikasi ini sukses adalah...",
-            options: [
-              "Penggunaan server yang canggih",
-              "Kode pemrograman yang kompleks",
-              "Pemahaman mendalam tentang perilaku dan preferensi pengguna",
-              "Penggunaan algoritma AI terbaru",
-              "Jumlah dana pengembangan yang besar"
-            ],
-            answer: "Pemahaman mendalam tentang perilaku dan preferensi pengguna",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi mobile banking memiliki tampilan yang sangat menarik dengan animasi dan grafik yang kompleks, namun beberapa pengguna lansia kesulitan melakukan transaksi dasar. Hal ini menunjukkan bahwa aplikasi tersebut telah memenuhi prinsip utama HCI.",
-            options: ["True", "False"],
-            answer: "False",
-            type: "MC"
-          },
-          {
-            question: "Seorang pengembang website e-commerce menggunakan warna merah untuk tombol Beli Sekarang dan warna abu-abu untuk tombol Tambah ke Keranjang. Keputusan ini termasuk dalam aspek komputer dari HCI.",
-            options: ["True", "False"],
-            answer: "False",
-            type: "MC"
-          },
-          {
-            question: "Sebuah smart TV terbaru menggunakan kontrol suara sebagai input utama. Hal ini merupakan implementasi dari bidang studi yang mempengaruhi HCI yaitu...",
-            options: ["Ergonomi", "Psikologi Kognitif", "Linguistik", "Semiotika", "Antropologi"],
-            answer: "Linguistik",
-            type: "MC"
-          },
-          {
-            question: "Di sebuah rumah sakit, sistem informasi yang baru dipasang mengalami penolakan dari para perawat karena merasa sistem terlalu rumit dibanding pencatatan manual. Dari perspektif HCI, hal ini menunjukkan kegagalan dalam...",
-            options: [
-              "Kapasitas server",
-              "Kecepatan internet",
-              "Human-centered design",
-              "Design thingking",
-              "Usability Testing"
-            ],
-            answer: "Human-centered design",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Interaksi Manusia Komputer',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Platform media sosial TikTok saat ini sangat populer di kalangan pengguna. Dari perspektif HCI, faktor utama yang membuat aplikasi ini sukses adalah...",
+              options: [
+                "Penggunaan server yang canggih",
+                "Kode pemrograman yang kompleks",
+                "Pemahaman mendalam tentang perilaku dan preferensi pengguna",
+                "Penggunaan algoritma AI terbaru",
+                "Jumlah dana pengembangan yang besar"
+              ],
+              answer: "Pemahaman mendalam tentang perilaku dan preferensi pengguna",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi mobile banking memiliki tampilan yang sangat menarik dengan animasi dan grafik yang kompleks, namun beberapa pengguna lansia kesulitan melakukan transaksi dasar. Hal ini menunjukkan bahwa aplikasi tersebut telah memenuhi prinsip utama HCI.",
+              options: ["True", "False"],
+              answer: "False",
+              type: "MC"
+            },
+            {
+              question: "Seorang pengembang website e-commerce menggunakan warna merah untuk tombol Beli Sekarang dan warna abu-abu untuk tombol Tambah ke Keranjang. Keputusan ini termasuk dalam aspek komputer dari HCI.",
+              options: ["True", "False"],
+              answer: "False",
+              type: "MC"
+            },
+            {
+              question: "Sebuah smart TV terbaru menggunakan kontrol suara sebagai input utama. Hal ini merupakan implementasi dari bidang studi yang mempengaruhi HCI yaitu...",
+              options: ["Ergonomi", "Psikologi Kognitif", "Linguistik", "Semiotika", "Antropologi"],
+              answer: "Linguistik",
+              type: "MC"
+            },
+            {
+              question: "Di sebuah rumah sakit, sistem informasi yang baru dipasang mengalami penolakan dari para perawat karena merasa sistem terlalu rumit dibanding pencatatan manual. Dari perspektif HCI, hal ini menunjukkan kegagalan dalam...",
+              options: [
+                "Kapasitas server",
+                "Kecepatan internet",
+                "Human-centered design",
+                "Design thingking",
+                "Usability Testing"
+              ],
+              answer: "Human-centered design",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Interaksi Manusia Komputer',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1100,112 +1714,112 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Sebuah game mobile memiliki tutorial interaktif yang memandu pemain baru step by step. Ini adalah contoh implementasi aspek computer dalam HCI.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Marketplace online menerapkan fitur Rekomendasi Produk berdasarkan riwayat pencarian pengguna. Hal ini merupakan implementasi dari fokus HCI dalam hal...",
-            options: [
-              "Keamanan sistem",
-              "Efisiensi database",
-              "User experience",
-              "Kecepatan loading",
-              "Kapasitas server"
-            ],
-            answer: "User experience",
-            type: "MC"
-          },
-          {
-            question: "Dalam pengembangan aplikasi kesehatan, tim developer menempatkan tombol Panggil Ambulans di pojok kanan atas dengan warna merah mencolok. Keputusan ini didasari oleh bidang studi yang mempengaruhi HCI yaitu...",
-            options: [
-              "Sosiologi",
-              "Psikologi Kognitif",
-              "Matematika",
-              "Komputer Graphics",
-              "Database"
-            ],
-            answer: "Psikologi Kognitif",
-            type: "MC"
-          },
-          {
-            question: "Situs berita online yang memuat banyak konten teks dan gambar namun loading-nya cepat adalah contoh implementasi tujuan HCI dalam hal efisiensi sistem.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Dalam pengembangan ATM terbaru, layar dibuat lebih rendah untuk mengakomodasi pengguna kursi roda. Ini adalah implementasi dari bidang studi yang mempengaruhi HCI yaitu...",
-            options: ["Ergonomi", "Psikologi", "Linguistik", "Matematika", "Grafik Komputer"],
-            answer: "Ergonomi",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi banking menerapkan fitur autentikasi biometrik (sidik jari/wajah) sebagai alternatif dari password. Dari perspektif Human Factors, hal ini menguntungkan karena...",
-            options: [
-              "Meningkatkan kecepatan server",
-              "Mengurangi beban kognitif pengguna",
-              "Menghemat ruang penyimpanan",
-              "Meningkatkan bandwidth",
-              "Mengurangi biaya operasional"
-            ],
-            answer: "Mengurangi beban kognitif pengguna",
-            type: "MC"
-          },
-          {
-            question: "Aplikasi pembelajaran online menampilkan pesan error 404 - Page Not Found ketika terjadi kesalahan. Hal ini tidak sesuai dengan prinsip desain Human-Centered karena...",
-            options: [
-              "Menggunakan bahasa teknis",
-              "Terlalu singkat",
-              "Bahasa Asing",
-              "Terlalu panjang",
-              "Menggunakan angka"
-            ],
-            answer: "Menggunakan bahasa teknis",
-            type: "MC"
-          },
-          {
-            question: "Sebuah website e-commerce menempatkan tombol Checkout di lokasi yang berbeda-beda setiap kali halaman dimuat ulang untuk memberikan variasi tampilan.",
-            options: ["True", "False"],
-            answer: "False",
-            type: "MC"
-          },
-          {
-            question: "Dalam merancang aplikasi untuk lansia, pengembang menggunakan...",
-            options: [
-              "Font kecil untuk menghemat ruang",
-              "Warna kontras tinggi dan font besar",
-              "Animasi yang cepat dan dinamis",
-              "Banyak menu tersembunyi",
-              "Suara latar yang keras"
-            ],
-            answer: "Warna kontras tinggi dan font besar",
-            type: "MC"
-          },
-          {
-            question: "Seorang desainer membuat form pendaftaran yang meminta pengguna mengisi 20 field dalam satu halaman. Dari perspektif Human Factors, ini bermasalah karena...",
-            options: [
-              "Terlalu banyak beban server",
-              "Masalah keamanan data",
-              "Overload kognitif pengguna",
-              "Kecepatan internet",
-              "Masalah database"
-            ],
-            answer: "Overload kognitif pengguna",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Human Factors and Ergonomic Principles in Design Interaction ',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Sebuah game mobile memiliki tutorial interaktif yang memandu pemain baru step by step. Ini adalah contoh implementasi aspek computer dalam HCI.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Marketplace online menerapkan fitur Rekomendasi Produk berdasarkan riwayat pencarian pengguna. Hal ini merupakan implementasi dari fokus HCI dalam hal...",
+              options: [
+                "Keamanan sistem",
+                "Efisiensi database",
+                "User experience",
+                "Kecepatan loading",
+                "Kapasitas server"
+              ],
+              answer: "User experience",
+              type: "MC"
+            },
+            {
+              question: "Dalam pengembangan aplikasi kesehatan, tim developer menempatkan tombol Panggil Ambulans di pojok kanan atas dengan warna merah mencolok. Keputusan ini didasari oleh bidang studi yang mempengaruhi HCI yaitu...",
+              options: [
+                "Sosiologi",
+                "Psikologi Kognitif",
+                "Matematika",
+                "Komputer Graphics",
+                "Database"
+              ],
+              answer: "Psikologi Kognitif",
+              type: "MC"
+            },
+            {
+              question: "Situs berita online yang memuat banyak konten teks dan gambar namun loading-nya cepat adalah contoh implementasi tujuan HCI dalam hal efisiensi sistem.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Dalam pengembangan ATM terbaru, layar dibuat lebih rendah untuk mengakomodasi pengguna kursi roda. Ini adalah implementasi dari bidang studi yang mempengaruhi HCI yaitu...",
+              options: ["Ergonomi", "Psikologi", "Linguistik", "Matematika", "Grafik Komputer"],
+              answer: "Ergonomi",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi banking menerapkan fitur autentikasi biometrik (sidik jari/wajah) sebagai alternatif dari password. Dari perspektif Human Factors, hal ini menguntungkan karena...",
+              options: [
+                "Meningkatkan kecepatan server",
+                "Mengurangi beban kognitif pengguna",
+                "Menghemat ruang penyimpanan",
+                "Meningkatkan bandwidth",
+                "Mengurangi biaya operasional"
+              ],
+              answer: "Mengurangi beban kognitif pengguna",
+              type: "MC"
+            },
+            {
+              question: "Aplikasi pembelajaran online menampilkan pesan error 404 - Page Not Found ketika terjadi kesalahan. Hal ini tidak sesuai dengan prinsip desain Human-Centered karena...",
+              options: [
+                "Menggunakan bahasa teknis",
+                "Terlalu singkat",
+                "Bahasa Asing",
+                "Terlalu panjang",
+                "Menggunakan angka"
+              ],
+              answer: "Menggunakan bahasa teknis",
+              type: "MC"
+            },
+            {
+              question: "Sebuah website e-commerce menempatkan tombol Checkout di lokasi yang berbeda-beda setiap kali halaman dimuat ulang untuk memberikan variasi tampilan.",
+              options: ["True", "False"],
+              answer: "False",
+              type: "MC"
+            },
+            {
+              question: "Dalam merancang aplikasi untuk lansia, pengembang menggunakan...",
+              options: [
+                "Font kecil untuk menghemat ruang",
+                "Warna kontras tinggi dan font besar",
+                "Animasi yang cepat dan dinamis",
+                "Banyak menu tersembunyi",
+                "Suara latar yang keras"
+              ],
+              answer: "Warna kontras tinggi dan font besar",
+              type: "MC"
+            },
+            {
+              question: "Seorang desainer membuat form pendaftaran yang meminta pengguna mengisi 20 field dalam satu halaman. Dari perspektif Human Factors, ini bermasalah karena...",
+              options: [
+                "Terlalu banyak beban server",
+                "Masalah keamanan data",
+                "Overload kognitif pengguna",
+                "Kecepatan internet",
+                "Masalah database"
+              ],
+              answer: "Overload kognitif pengguna",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi Kuliah Human Factors and Ergonomic Principles in Design Interaction ',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1215,112 +1829,112 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Dalam mendesain workspace virtual, pengembang harus mempertimbangkan...",
-            options: [
-              "Hanya aspek visual",
-              "Hanya aspek auditori",
-              "anya aspek kognitif",
-              "Multisensory ergonomics",
-              "Hanya aspek motor"
-            ],
-            answer: "Multisensory ergonomics",
-            type: "MC"
-          },
-          {
-            question: "Menggunakan warna merah untuk tombol Hapus dan hijau untuk tombol Simpan adalah contoh penerapan model mental yang baik.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Aplikasi produktivitas menampilkan notifikasi setiap 5 menit untuk mengingatkan deadline. Dari perspektif Human Factors, ini problematik karena...",
-            options: [
-              "Terlalu banyak interupsi",
-              "Masalah baterai",
-              "Masalah jaringan",
-              "Keamanan data",
-              "Masalah storage"
-            ],
-            answer: "Terlalu banyak interupsi",
-            type: "MC"
-          },
-          {
-            question: "Dalam mendesain aplikasi untuk anak-anak, pertimbangan Human Factors yang paling penting adalah...",
-            options: [
-              "Kecepatan sistem",
-              "Kapasitas storage",
-              "Perkembangan motorik",
-              "Efisiensi database",
-              "Keamanan server"
-            ],
-            answer: "Perkembangan motorik",
-            type: "MC"
-          },
-          {
-            question: "Aplikasi video conference menggunakan layout yang dapat disesuaikan pengguna. Ini merupakan implementasi dari...",
-            options: [
-              "Fleksibilitas dan efisiensi",
-              "Kecepatan sistem",
-              "Keamanan data",
-              "Manajemen server",
-              "Protokol jaringan"
-            ],
-            answer: "Fleksibilitas dan efisiensi",
-            type: "MC"
-          },
-          {
-            question: "Aplikasi mobile banking memiliki fitur keamanan yang sangat ketat dengan 5 langkah verifikasi setiap kali login. Hal ini menunjukkan tingkat usability yang tinggi karena mengutamakan keamanan pengguna.",
-            options: ["True", "False"],
-            answer: "False",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi pembelajaran online menampilkan pesan error seperti berikut: \"Error code: 0x80070057\". Dari perspektif usability, pesan ini bermasalah karena...",
-            options: [
-              "Terlalu pendek",
-              "Tidak informatif dan sulit dipahami",
-              "Menggunakan huruf kecil",
-              "Tidak berwarna merah",
-              "Tidak ada suara"
-            ],
-            answer: "Tidak informatif dan sulit dipahami",
-            type: "MC"
-          },
-          {
-            question: "Aplikasi pemesanan tiket bioskop memberikan waktu 5 menit untuk menyelesaikan transaksi. Hal ini merupakan implementasi..",
-            options: [
-              "Efficiency of use",
-              "Memorability",
-              "Learnability",
-              "Satisfaction",
-              "Security"
-            ],
-            answer: "Efficiency of use",
-            type: "MC"
-          },
-          {
-            question: "Sebuah form pendaftaran yang menampilkan pesan error setelah user selesai mengisi semua field adalah contoh implementasi usability yang baik.",
-            options: ["True", "False"],
-            answer: "False",
-            type: "MC"
-          },
-          {
-            question: "Website e-learning memberikan badge dan poin untuk setiap tugas yang diselesaikan. Ini meningkatkan usability melalui aspek...",
-            options: ["Efficiency", "Learnability", "Satisfaction", "Security", "Speed"],
-            answer: "Satisfaction",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Usability',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Dalam mendesain workspace virtual, pengembang harus mempertimbangkan...",
+              options: [
+                "Hanya aspek visual",
+                "Hanya aspek auditori",
+                "anya aspek kognitif",
+                "Multisensory ergonomics",
+                "Hanya aspek motor"
+              ],
+              answer: "Multisensory ergonomics",
+              type: "MC"
+            },
+            {
+              question: "Menggunakan warna merah untuk tombol Hapus dan hijau untuk tombol Simpan adalah contoh penerapan model mental yang baik.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Aplikasi produktivitas menampilkan notifikasi setiap 5 menit untuk mengingatkan deadline. Dari perspektif Human Factors, ini problematik karena...",
+              options: [
+                "Terlalu banyak interupsi",
+                "Masalah baterai",
+                "Masalah jaringan",
+                "Keamanan data",
+                "Masalah storage"
+              ],
+              answer: "Terlalu banyak interupsi",
+              type: "MC"
+            },
+            {
+              question: "Dalam mendesain aplikasi untuk anak-anak, pertimbangan Human Factors yang paling penting adalah...",
+              options: [
+                "Kecepatan sistem",
+                "Kapasitas storage",
+                "Perkembangan motorik",
+                "Efisiensi database",
+                "Keamanan server"
+              ],
+              answer: "Perkembangan motorik",
+              type: "MC"
+            },
+            {
+              question: "Aplikasi video conference menggunakan layout yang dapat disesuaikan pengguna. Ini merupakan implementasi dari...",
+              options: [
+                "Fleksibilitas dan efisiensi",
+                "Kecepatan sistem",
+                "Keamanan data",
+                "Manajemen server",
+                "Protokol jaringan"
+              ],
+              answer: "Fleksibilitas dan efisiensi",
+              type: "MC"
+            },
+            {
+              question: "Aplikasi mobile banking memiliki fitur keamanan yang sangat ketat dengan 5 langkah verifikasi setiap kali login. Hal ini menunjukkan tingkat usability yang tinggi karena mengutamakan keamanan pengguna.",
+              options: ["True", "False"],
+              answer: "False",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi pembelajaran online menampilkan pesan error seperti berikut: \"Error code: 0x80070057\". Dari perspektif usability, pesan ini bermasalah karena...",
+              options: [
+                "Terlalu pendek",
+                "Tidak informatif dan sulit dipahami",
+                "Menggunakan huruf kecil",
+                "Tidak berwarna merah",
+                "Tidak ada suara"
+              ],
+              answer: "Tidak informatif dan sulit dipahami",
+              type: "MC"
+            },
+            {
+              question: "Aplikasi pemesanan tiket bioskop memberikan waktu 5 menit untuk menyelesaikan transaksi. Hal ini merupakan implementasi..",
+              options: [
+                "Efficiency of use",
+                "Memorability",
+                "Learnability",
+                "Satisfaction",
+                "Security"
+              ],
+              answer: "Efficiency of use",
+              type: "MC"
+            },
+            {
+              question: "Sebuah form pendaftaran yang menampilkan pesan error setelah user selesai mengisi semua field adalah contoh implementasi usability yang baik.",
+              options: ["True", "False"],
+              answer: "False",
+              type: "MC"
+            },
+            {
+              question: "Website e-learning memberikan badge dan poin untuk setiap tugas yang diselesaikan. Ini meningkatkan usability melalui aspek...",
+              options: ["Efficiency", "Learnability", "Satisfaction", "Security", "Speed"],
+              answer: "Satisfaction",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi Usability',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1330,76 +1944,76 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Seorang pengguna sedang mengisi formulir pendaftaran dalam aplikasi layanan kesehatan. Namun, tidak ada indikator yang menunjukkan apakah sistem sedang memproses data atau tidak. Pengguna merasa bingung apakah formulir telah terkirim atau belum. Prinsip heuristik mana yang tidak diterapkan?",
-            options: [
-              "Visibility of System Status",
-              "User Control and Freedom",
-              "Consistency and Standards",
-              "Flexibility and Efficiency of Use",
-              "Aesthetic and Minimalist Design"
-            ],
-            answer: "Visibility of System Status",
-            type: "MC"
-          },
-          {
-            question: "Dalam sebuah aplikasi mobile, pengguna sering kali tidak sengaja keluar dari aplikasi ketika mencoba menekan tombol “KEMBALI” di halaman pengaturan. Sistem tidak memberikan konfirmasi sebelum keluar. Prinsip mana yang seharusnya diterapkan?",
-            options: [
-              "Error Prevention",
-              "Help and Documentation",
-              "User Control and Freedom",
-              "Recognition Rather than Recall",
-              "Match between System and the Real World"
-            ],
-            answer: "User Control and Freedom",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi e-commerce memiliki menu navigasi yang berbeda di setiap halaman. Hal ini membuat pengguna kesulitan berpindah antar halaman. Prinsip heuristik mana yang dilanggar?",
-            options: [
-              "Recognition Rather than Recall",
-              "Consistency and Standards",
-              "Visibility of System Status",
-              "Aesthetic and Minimalist Design",
-              "Error Prevention"
-            ],
-            answer: "Consistency and Standards",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi bank menggunakan istilah “AUTHENTIFICATION TOKEN” untuk menginformasikan kode OTP kepada pengguna. Banyak pengguna bingung dengan istilah tersebut. Prinsip mana yang seharusnya diterapkan?",
-            options: [
-              "Flexibility and Efficiency of Use",
-              "Help Users Recognize, Diagnose, and Recover from Errors",
-              "Error Prevention",
-              "Match between System and the Real World",
-              "Consistency and Standards"
-            ],
-            answer: "Match between System and the Real World",
-            type: "MC"
-          },
-          {
-            question: "Seorang pelanggan sedang membeli produk melalui aplikasi belanja online. Setelah memasukkan alamat, sistem tiba-tiba menghapus semua data yang telah diisi. Hal ini melanggar prinsip:",
-            options: [
-              "Error Prevention",
-              "Help and Documentation",
-              "Aesthetic and Minimalist Design",
-              "Visibility of System Status",
-              "Consistency and Standards"
-            ],
-            answer: "Error Prevention",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Heuristic Evaluation: Nielsens 10 principles ',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Seorang pengguna sedang mengisi formulir pendaftaran dalam aplikasi layanan kesehatan. Namun, tidak ada indikator yang menunjukkan apakah sistem sedang memproses data atau tidak. Pengguna merasa bingung apakah formulir telah terkirim atau belum. Prinsip heuristik mana yang tidak diterapkan?",
+              options: [
+                "Visibility of System Status",
+                "User Control and Freedom",
+                "Consistency and Standards",
+                "Flexibility and Efficiency of Use",
+                "Aesthetic and Minimalist Design"
+              ],
+              answer: "Visibility of System Status",
+              type: "MC"
+            },
+            {
+              question: "Dalam sebuah aplikasi mobile, pengguna sering kali tidak sengaja keluar dari aplikasi ketika mencoba menekan tombol “KEMBALI” di halaman pengaturan. Sistem tidak memberikan konfirmasi sebelum keluar. Prinsip mana yang seharusnya diterapkan?",
+              options: [
+                "Error Prevention",
+                "Help and Documentation",
+                "User Control and Freedom",
+                "Recognition Rather than Recall",
+                "Match between System and the Real World"
+              ],
+              answer: "User Control and Freedom",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi e-commerce memiliki menu navigasi yang berbeda di setiap halaman. Hal ini membuat pengguna kesulitan berpindah antar halaman. Prinsip heuristik mana yang dilanggar?",
+              options: [
+                "Recognition Rather than Recall",
+                "Consistency and Standards",
+                "Visibility of System Status",
+                "Aesthetic and Minimalist Design",
+                "Error Prevention"
+              ],
+              answer: "Consistency and Standards",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi bank menggunakan istilah “AUTHENTIFICATION TOKEN” untuk menginformasikan kode OTP kepada pengguna. Banyak pengguna bingung dengan istilah tersebut. Prinsip mana yang seharusnya diterapkan?",
+              options: [
+                "Flexibility and Efficiency of Use",
+                "Help Users Recognize, Diagnose, and Recover from Errors",
+                "Error Prevention",
+                "Match between System and the Real World",
+                "Consistency and Standards"
+              ],
+              answer: "Match between System and the Real World",
+              type: "MC"
+            },
+            {
+              question: "Seorang pelanggan sedang membeli produk melalui aplikasi belanja online. Setelah memasukkan alamat, sistem tiba-tiba menghapus semua data yang telah diisi. Hal ini melanggar prinsip:",
+              options: [
+                "Error Prevention",
+                "Help and Documentation",
+                "Aesthetic and Minimalist Design",
+                "Visibility of System Status",
+                "Consistency and Standards"
+              ],
+              answer: "Error Prevention",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi Heuristic Evaluation: Nielsens 10 principles ',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1409,76 +2023,76 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Seorang desainer grafis menggunakan aplikasi edit foto, tetapi aplikasi tersebut tidak memiliki tombol “UNDO” untuk membatalkan perubahan. Hal ini melanggar prinsip:",
-            options: [
-              "User Control and Freedom",
-              "Visibility of System Status",
-              "Aesthetic and Minimalist Design",
-              "Error Prevention",
-              "Recognition Rather than Recall"
-            ],
-            answer: "User Control and Freedom",
-            type: "MC"
-          },
-          {
-            question: "Saat login ke aplikasi perbankan, pengguna mendapatkan pesan error: “ERROR 405: ACCESS DENIED”, tanpa penjelasan lebih lanjut. Prinsip mana yang tidak diterapkan?",
-            options: [
-              "Error Prevention",
-              "Help Users Recognize, Diagnose, and Recover from Errors",
-              "Consistency and Standards",
-              "Visibility of System Status",
-              "Aesthetic and Minimalist Design"
-            ],
-            answer: "Help Users Recognize, Diagnose, and Recover from Errors",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi desain grafis memiliki banyak fitur tersembunyi yang hanya dapat diakses dengan shortcut keyboard yang tidak dijelaskan di antarmuka. Prinsip heuristik apa yang diabaikan?",
-            options: [
-              "Flexibility and Efficiency of Use",
-              "Visibility of System Status",
-              "Help and Documentation",
-              "Recognition Rather than Recall",
-              "Consistency and Standards"
-            ],
-            answer: "Flexibility and Efficiency of Use",
-            type: "MC"
-          },
-          {
-            question: "Seorang pengguna ingin mengatur ulang pengaturan aplikasi, tetapi tidak ada panduan atau dokumentasi yang menjelaskan bagaimana cara melakukannya. Prinsip mana yang dilanggar?",
-            options: [
-              "Help and Documentation",
-              "Consistency and Standards",
-              "Match between System and the Real World",
-              "Recognition Rather than Recall",
-              "Error Prevention"
-            ],
-            answer: "Help and Documentation",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi manajemen proyek memiliki terlalu banyak informasi yang ditampilkan dalam satu layar, membuat pengguna kesulitan fokus pada tugas utama. Prinsip mana yang harus diterapkan?",
-            options: [
-              "Aesthetic and Minimalist Design",
-              "Recognition Rather than Recall",
-              "Help Users Recognize, Diagnose, and Recover from Errors",
-              "Visibility of System Status",
-              "User Control and Freedom"
-            ],
-            answer: "Aesthetic and Minimalist Design",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Visual Elements, Information Hierarchy, Consistency, and Interface Readability ',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Seorang desainer grafis menggunakan aplikasi edit foto, tetapi aplikasi tersebut tidak memiliki tombol “UNDO” untuk membatalkan perubahan. Hal ini melanggar prinsip:",
+              options: [
+                "User Control and Freedom",
+                "Visibility of System Status",
+                "Aesthetic and Minimalist Design",
+                "Error Prevention",
+                "Recognition Rather than Recall"
+              ],
+              answer: "User Control and Freedom",
+              type: "MC"
+            },
+            {
+              question: "Saat login ke aplikasi perbankan, pengguna mendapatkan pesan error: “ERROR 405: ACCESS DENIED”, tanpa penjelasan lebih lanjut. Prinsip mana yang tidak diterapkan?",
+              options: [
+                "Error Prevention",
+                "Help Users Recognize, Diagnose, and Recover from Errors",
+                "Consistency and Standards",
+                "Visibility of System Status",
+                "Aesthetic and Minimalist Design"
+              ],
+              answer: "Help Users Recognize, Diagnose, and Recover from Errors",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi desain grafis memiliki banyak fitur tersembunyi yang hanya dapat diakses dengan shortcut keyboard yang tidak dijelaskan di antarmuka. Prinsip heuristik apa yang diabaikan?",
+              options: [
+                "Flexibility and Efficiency of Use",
+                "Visibility of System Status",
+                "Help and Documentation",
+                "Recognition Rather than Recall",
+                "Consistency and Standards"
+              ],
+              answer: "Flexibility and Efficiency of Use",
+              type: "MC"
+            },
+            {
+              question: "Seorang pengguna ingin mengatur ulang pengaturan aplikasi, tetapi tidak ada panduan atau dokumentasi yang menjelaskan bagaimana cara melakukannya. Prinsip mana yang dilanggar?",
+              options: [
+                "Help and Documentation",
+                "Consistency and Standards",
+                "Match between System and the Real World",
+                "Recognition Rather than Recall",
+                "Error Prevention"
+              ],
+              answer: "Help and Documentation",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi manajemen proyek memiliki terlalu banyak informasi yang ditampilkan dalam satu layar, membuat pengguna kesulitan fokus pada tugas utama. Prinsip mana yang harus diterapkan?",
+              options: [
+                "Aesthetic and Minimalist Design",
+                "Recognition Rather than Recall",
+                "Help Users Recognize, Diagnose, and Recover from Errors",
+                "Visibility of System Status",
+                "User Control and Freedom"
+              ],
+              answer: "Aesthetic and Minimalist Design",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi Visual Elements, Information Hierarchy, Consistency, and Interface Readability ',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1488,136 +2102,136 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Sebuah aplikasi layanan kesehatan menggunakan latar belakang biru tua dengan teks hitam untuk menampilkan informasi pasien. Beberapa pengguna mengeluh bahwa mereka sulit membaca teks tersebut. Prinsip desain mana yang diabaikan?",
-            options: [
-              "Visual Hierarchy",
-              "Typography Readability",
-              "Color Contrast",
-              "Recognition Rather than Recall",
-              "User Control and Freedom"
-            ],
-            answer: "Color Contrast",
-            type: "MC"
-          },
-          {
-            question: "Sebuah situs e-commerce memiliki tombol “CHECKOUT” yang di beberapa halaman ditampilkan sebagai “BAYAR SEKARANG”. Hal ini membuat pengguna bingung. Masalah ini terkait dengan prinsip:",
-            options: [
-              "Consistency and Standards",
-              "User Control and Freedom",
-              "Information Hierarchy",
-              "Aesthetic and Minimalist Design",
-              "Error Prevention"
-            ],
-            answer: "Consistency and Standards",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi berita menggunakan layout yang tidak sejajar, dengan paragraf yang memiliki panjang baris tidak konsisten dan tata letak yang tampak berantakan. Hal ini berkaitan dengan:",
-            options: [
-              "Information Grouping",
-              "Alignment and Grids",
-              "Whitespace Management",
-              "Recognition Rather than Recall",
-              "Error Prevention"
-            ],
-            answer: "Alignment and Grids",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi keuangan menggunakan font dengan ukuran sangat kecil untuk menampilkan laporan transaksi. Hal ini menyebabkan pengguna mengalami kesulitan membaca detail transaksi mereka. Prinsip desain manakah yang tidak diterapkan dengan baik?",
-            options: [
-              "Typography Readability",
-              "Color Contrast",
-              "Information Hierarchy",
-              "Error Prevention",
-              "Aesthetic and Minimalist Design"
-            ],
-            answer: "Typography Readability",
-            type: "MC"
-          },
-          {
-            question: "Sebuah situs pendidikan menampilkan judul artikel dengan ukuran lebih kecil dibandingkan isi artikel. Hal ini menyulitkan pengguna dalam menemukan informasi utama. Prinsip desain manakah yang tidak diterapkan dengan baik?",
-            options: [
-              "User Control and Freedom",
-              "Information Grouping",
-              "Visual Hierarchy",
-              "Recognition Rather than Recall",
-              "Consistency and Standards"
-            ],
-            answer: "Visual Hierarchy",
-            type: "MC"
-          },
-          {
-            question: "Dalam sebuah aplikasi mobile banking, tombol “TRANSFER” dan “HAPUS AKUN” memiliki warna yang sama. Hal ini meningkatkan risiko kesalahan pengguna. Prinsip desain manakah yang harus diterapkan?",
-            options: [
-              "Error Prevention",
-              "Consistency and Standards",
-              "Flexibility and Efficiency of Use",
-              "Help and Documentation",
-              "Aesthetic and Minimalist Design"
-            ],
-            answer: "Error Prevention",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi pesan instan menggunakan ikon berbentuk segitiga untuk fitur “BALAS PESAN”, yang tidak umum digunakan dalam aplikasi serupa. Hal ini dapat mengurangi:",
-            options: [
-              "Consistency and Standards",
-              "Recognition Rather than Recall",
-              "Error Prevention",
-              "Typography Readability",
-              "Information Grouping"
-            ],
-            answer: "Recognition Rather than Recall",
-            type: "MC"
-          },
-          {
-            question: "Dalam sebuah aplikasi manajemen proyek, semua elemen ditempatkan sangat berdekatan tanpa ruang kosong yang cukup. Hal ini membuat tampilan terlihat penuh dan sulit dipahami. Apa masalah utama dalam desain ini?",
-            options: [
-              "Typography Readability",
-              "Color Contrast",
-              "Whitespace Management",
-              "Information Grouping",
-              "User Control and Freedom"
-            ],
-            answer: "Whitespace Management",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi berbagi resep makanan menggunakan berbagai jenis font untuk setiap bagian aplikasi, membuat tampilan terlihat tidak profesional dan sulit dibaca. Prinsip mana yang harus diterapkan?",
-            options: [
-              "Consistency and Standards",
-              "User Control and Freedom",
-              "Aesthetic and Minimalist Design",
-              "Typography Readability",
-              "Information Grouping"
-            ],
-            answer: "Consistency and Standards",
-            type: "MC"
-          },
-          {
-            question: "Dalam sebuah situs berita, paragraf utama dan sidebar diletakkan dalam ukuran yang sama, sehingga pengguna sulit membedakan informasi utama dan sekunder. Prinsip desain mana yang tidak diterapkan?",
-            options: [
-              "Information Grouping",
-              "Visual Hierarchy",
-              "Consistency and Standards",
-              "Recognition Rather than Recall",
-              "Aesthetic and Minimalist Design"
-            ],
-            answer: "Visual Hierarchy",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi User Centered Design',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Sebuah aplikasi layanan kesehatan menggunakan latar belakang biru tua dengan teks hitam untuk menampilkan informasi pasien. Beberapa pengguna mengeluh bahwa mereka sulit membaca teks tersebut. Prinsip desain mana yang diabaikan?",
+              options: [
+                "Visual Hierarchy",
+                "Typography Readability",
+                "Color Contrast",
+                "Recognition Rather than Recall",
+                "User Control and Freedom"
+              ],
+              answer: "Color Contrast",
+              type: "MC"
+            },
+            {
+              question: "Sebuah situs e-commerce memiliki tombol “CHECKOUT” yang di beberapa halaman ditampilkan sebagai “BAYAR SEKARANG”. Hal ini membuat pengguna bingung. Masalah ini terkait dengan prinsip:",
+              options: [
+                "Consistency and Standards",
+                "User Control and Freedom",
+                "Information Hierarchy",
+                "Aesthetic and Minimalist Design",
+                "Error Prevention"
+              ],
+              answer: "Consistency and Standards",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi berita menggunakan layout yang tidak sejajar, dengan paragraf yang memiliki panjang baris tidak konsisten dan tata letak yang tampak berantakan. Hal ini berkaitan dengan:",
+              options: [
+                "Information Grouping",
+                "Alignment and Grids",
+                "Whitespace Management",
+                "Recognition Rather than Recall",
+                "Error Prevention"
+              ],
+              answer: "Alignment and Grids",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi keuangan menggunakan font dengan ukuran sangat kecil untuk menampilkan laporan transaksi. Hal ini menyebabkan pengguna mengalami kesulitan membaca detail transaksi mereka. Prinsip desain manakah yang tidak diterapkan dengan baik?",
+              options: [
+                "Typography Readability",
+                "Color Contrast",
+                "Information Hierarchy",
+                "Error Prevention",
+                "Aesthetic and Minimalist Design"
+              ],
+              answer: "Typography Readability",
+              type: "MC"
+            },
+            {
+              question: "Sebuah situs pendidikan menampilkan judul artikel dengan ukuran lebih kecil dibandingkan isi artikel. Hal ini menyulitkan pengguna dalam menemukan informasi utama. Prinsip desain manakah yang tidak diterapkan dengan baik?",
+              options: [
+                "User Control and Freedom",
+                "Information Grouping",
+                "Visual Hierarchy",
+                "Recognition Rather than Recall",
+                "Consistency and Standards"
+              ],
+              answer: "Visual Hierarchy",
+              type: "MC"
+            },
+            {
+              question: "Dalam sebuah aplikasi mobile banking, tombol “TRANSFER” dan “HAPUS AKUN” memiliki warna yang sama. Hal ini meningkatkan risiko kesalahan pengguna. Prinsip desain manakah yang harus diterapkan?",
+              options: [
+                "Error Prevention",
+                "Consistency and Standards",
+                "Flexibility and Efficiency of Use",
+                "Help and Documentation",
+                "Aesthetic and Minimalist Design"
+              ],
+              answer: "Error Prevention",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi pesan instan menggunakan ikon berbentuk segitiga untuk fitur “BALAS PESAN”, yang tidak umum digunakan dalam aplikasi serupa. Hal ini dapat mengurangi:",
+              options: [
+                "Consistency and Standards",
+                "Recognition Rather than Recall",
+                "Error Prevention",
+                "Typography Readability",
+                "Information Grouping"
+              ],
+              answer: "Recognition Rather than Recall",
+              type: "MC"
+            },
+            {
+              question: "Dalam sebuah aplikasi manajemen proyek, semua elemen ditempatkan sangat berdekatan tanpa ruang kosong yang cukup. Hal ini membuat tampilan terlihat penuh dan sulit dipahami. Apa masalah utama dalam desain ini?",
+              options: [
+                "Typography Readability",
+                "Color Contrast",
+                "Whitespace Management",
+                "Information Grouping",
+                "User Control and Freedom"
+              ],
+              answer: "Whitespace Management",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi berbagi resep makanan menggunakan berbagai jenis font untuk setiap bagian aplikasi, membuat tampilan terlihat tidak profesional dan sulit dibaca. Prinsip mana yang harus diterapkan?",
+              options: [
+                "Consistency and Standards",
+                "User Control and Freedom",
+                "Aesthetic and Minimalist Design",
+                "Typography Readability",
+                "Information Grouping"
+              ],
+              answer: "Consistency and Standards",
+              type: "MC"
+            },
+            {
+              question: "Dalam sebuah situs berita, paragraf utama dan sidebar diletakkan dalam ukuran yang sama, sehingga pengguna sulit membedakan informasi utama dan sekunder. Prinsip desain mana yang tidak diterapkan?",
+              options: [
+                "Information Grouping",
+                "Visual Hierarchy",
+                "Consistency and Standards",
+                "Recognition Rather than Recall",
+                "Aesthetic and Minimalist Design"
+              ],
+              answer: "Visual Hierarchy",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi User Centered Design',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1627,76 +2241,76 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: "Seorang pengguna aplikasi peta digital merasa bingung karena tombol navigasi sering berubah posisi setiap kali memperbesar tampilan peta. Hal ini melanggar prinsip Consistency and Standards.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi perbankan online memberikan pesan error yang hanya bertuliskan “Gagal!” tanpa menjelaskan alasan atau solusi. Ini melanggar prinsip Help Users Recognize, Diagnose, and Recover from Errors.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Dalam sebuah aplikasi, tombol “Simpan” dan “Hapus” memiliki warna yang sama dan terletak berdampingan, sehingga pengguna sering salah klik. Ini merupakan contoh pelanggaran prinsip Error Prevention.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Saat pengguna mengisi formulir online, sistem secara otomatis menyimpan progres mereka sehingga mereka tidak kehilangan data jika koneksi terputus. Ini sesuai dengan prinsip Flexibility and Efficiency of Use.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Sebuah situs web e-learning mengharuskan pengguna mengingat kode mata kuliah untuk mencari kursus. Ini melanggar prinsip Recognition Rather than Recall.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi transportasi online menggunakan ikon berbentuk bintang untuk menunjukkan lokasi pengguna saat ini. Pengguna merasa bingung karena biasanya ikon lokasi digambarkan dengan bentuk pin atau titik. Hal ini melanggar prinsip Familiarity dalam Iconography.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Dalam aplikasi e-commerce, semua elemen ditempatkan sangat berdekatan tanpa ruang kosong yang cukup. Hal ini membuat pengguna kesulitan membedakan bagian produk, harga, dan tombol beli. Ini menunjukkan penggunaan Whitespace yang buruk.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Seorang desainer menggunakan warna kuning terang untuk teks utama pada latar belakang putih dalam aplikasi e-learning. Hal ini meningkatkan keterbacaan dan memudahkan pengguna membaca konten.",
-            options: ["True", "False"],
-            answer: "False",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi media sosial menggunakan tombol \"Suka\" dengan ikon hati di beberapa bagian aplikasi, tetapi menggunakan ikon jempol di bagian lainnya untuk fungsi yang sama. Ini melanggar prinsip Consistency and Standards.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: "Sebuah aplikasi berita menggunakan font serif untuk teks utama dan font sans-serif untuk judul. Ini merupakan praktik yang baik dalam tipografi.",
-            options: ["True", "False"],
-            answer: "True",
-            type: "MC"
-          },
-          {
-            question: 'Jelaskan semua yang sudah anda pahami tentang materi Implementation of User-centered Design',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: "Seorang pengguna aplikasi peta digital merasa bingung karena tombol navigasi sering berubah posisi setiap kali memperbesar tampilan peta. Hal ini melanggar prinsip Consistency and Standards.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi perbankan online memberikan pesan error yang hanya bertuliskan “Gagal!” tanpa menjelaskan alasan atau solusi. Ini melanggar prinsip Help Users Recognize, Diagnose, and Recover from Errors.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Dalam sebuah aplikasi, tombol “Simpan” dan “Hapus” memiliki warna yang sama dan terletak berdampingan, sehingga pengguna sering salah klik. Ini merupakan contoh pelanggaran prinsip Error Prevention.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Saat pengguna mengisi formulir online, sistem secara otomatis menyimpan progres mereka sehingga mereka tidak kehilangan data jika koneksi terputus. Ini sesuai dengan prinsip Flexibility and Efficiency of Use.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Sebuah situs web e-learning mengharuskan pengguna mengingat kode mata kuliah untuk mencari kursus. Ini melanggar prinsip Recognition Rather than Recall.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi transportasi online menggunakan ikon berbentuk bintang untuk menunjukkan lokasi pengguna saat ini. Pengguna merasa bingung karena biasanya ikon lokasi digambarkan dengan bentuk pin atau titik. Hal ini melanggar prinsip Familiarity dalam Iconography.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Dalam aplikasi e-commerce, semua elemen ditempatkan sangat berdekatan tanpa ruang kosong yang cukup. Hal ini membuat pengguna kesulitan membedakan bagian produk, harga, dan tombol beli. Ini menunjukkan penggunaan Whitespace yang buruk.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Seorang desainer menggunakan warna kuning terang untuk teks utama pada latar belakang putih dalam aplikasi e-learning. Hal ini meningkatkan keterbacaan dan memudahkan pengguna membaca konten.",
+              options: ["True", "False"],
+              answer: "False",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi media sosial menggunakan tombol \"Suka\" dengan ikon hati di beberapa bagian aplikasi, tetapi menggunakan ikon jempol di bagian lainnya untuk fungsi yang sama. Ini melanggar prinsip Consistency and Standards.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: "Sebuah aplikasi berita menggunakan font serif untuk teks utama dan font sans-serif untuk judul. Ini merupakan praktik yang baik dalam tipografi.",
+              options: ["True", "False"],
+              answer: "True",
+              type: "MC"
+            },
+            {
+              question: 'Jelaskan semua yang sudah anda pahami tentang materi Implementation of User-centered Design',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
@@ -1706,87 +2320,87 @@ async function main() {
         instruction: 'Pilihlah jawaban yang menurut anda paling benar. Silahkan screenshot hasil dari kuis setelah selesai',
         questions: {
           create: [
-          {
-            question: 'Apa yang dimaksud dengan Interaksi Manusia-Komputer (IMK)?',
-            options: [
-              'Proses komunikasi antara dua komputer',
-              'Proses interaksi antara manusia dan perangkat keras komputer',
-              'Proses interaksi antara manusia dan perangkat lunak komputer',
-              'Proses komunikasi antara manusia dan komputer melalui antarmuka'
-            ],
-            answer: 'Proses komunikasi antara manusia dan komputer melalui antarmuka',
-            type: 'MC'
-          },
-          {
-            question: 'Apa yang menjadi tujuan utama dalam desain User Interface (UI)?',
-            options: [
-              'Membuat perangkat keras komputer lebih efisien',
-              'Mempermudah pengguna dalam berinteraksi dengan sistem',
-              'Proses interaksi antara manusia dan perangkat lunak komputer',
-              'Proses komunikasi antara manusia dan komputer melalui antarmuka'
-            ],
-            answer: 'Mempermudah pengguna dalam berinteraksi dengan sistem',
-            type: 'MC'
-          },
-          {
-            question: 'User Experience (UX) merujuk pada:',
-            options: [
-              'Bagaimana pengguna merasakan pengalaman mereka selama menggunakan aplikasi',
-              'Desain tampilan antarmuka pengguna',
-              'Penggunaan teknologi dalam pengembangan aplikasi',
-              'Pemrograman perangkat lunak untuk pengguna'
-            ],
-            answer: 'Bagaimana pengguna merasakan pengalaman mereka selama menggunakan aplikasi',
-            type: 'MC'
-          },
-          {
-            question: 'Apa yang dimaksud dengan usability dalam konteks desain UI/UX?',
-            options: [
-              'Pengukuran seberapa mudah dan efisien antarmuka digunakan',
-              'Kualitas grafis yang ditampilkan pada antarmuka',
-              'Jumlah fitur yang ada pada aplikasi',
-              'Kecepatan loading aplikasi'
-            ],
-            answer: 'Pengukuran seberapa mudah dan efisien antarmuka digunakan',
-            type: 'MC'
-          },
-          {
-            question: 'Wireframe adalah:',
-            options: [
-              'Proses pengkodean aplikasi',
-              'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi',
-              'Proses pengujian aplikasi',
-              'Desain grafis yang menonjolkan warna dan font'
-            ],
-            answer: 'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi',
-            type: 'MC'
-          },
-          {
-            question: 'Jelaskan Apa itu Penelitian',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-          {
-            question: 'Preferensi Pengguna seperti apa yang kalian maksud?',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-          {
-            question: 'Elearning seperti apa yang akan dibangun disini?',
-            options: [
-              ''
-            ],
-            answer: '',
-            type: 'EY'
-          },
-        ]
-      }
+            {
+              question: 'Apa yang dimaksud dengan Interaksi Manusia-Komputer (IMK)?',
+              options: [
+                'Proses komunikasi antara dua komputer',
+                'Proses interaksi antara manusia dan perangkat keras komputer',
+                'Proses interaksi antara manusia dan perangkat lunak komputer',
+                'Proses komunikasi antara manusia dan komputer melalui antarmuka'
+              ],
+              answer: 'Proses komunikasi antara manusia dan komputer melalui antarmuka',
+              type: 'MC'
+            },
+            {
+              question: 'Apa yang menjadi tujuan utama dalam desain User Interface (UI)?',
+              options: [
+                'Membuat perangkat keras komputer lebih efisien',
+                'Mempermudah pengguna dalam berinteraksi dengan sistem',
+                'Proses interaksi antara manusia dan perangkat lunak komputer',
+                'Proses komunikasi antara manusia dan komputer melalui antarmuka'
+              ],
+              answer: 'Mempermudah pengguna dalam berinteraksi dengan sistem',
+              type: 'MC'
+            },
+            {
+              question: 'User Experience (UX) merujuk pada:',
+              options: [
+                'Bagaimana pengguna merasakan pengalaman mereka selama menggunakan aplikasi',
+                'Desain tampilan antarmuka pengguna',
+                'Penggunaan teknologi dalam pengembangan aplikasi',
+                'Pemrograman perangkat lunak untuk pengguna'
+              ],
+              answer: 'Bagaimana pengguna merasakan pengalaman mereka selama menggunakan aplikasi',
+              type: 'MC'
+            },
+            {
+              question: 'Apa yang dimaksud dengan usability dalam konteks desain UI/UX?',
+              options: [
+                'Pengukuran seberapa mudah dan efisien antarmuka digunakan',
+                'Kualitas grafis yang ditampilkan pada antarmuka',
+                'Jumlah fitur yang ada pada aplikasi',
+                'Kecepatan loading aplikasi'
+              ],
+              answer: 'Pengukuran seberapa mudah dan efisien antarmuka digunakan',
+              type: 'MC'
+            },
+            {
+              question: 'Wireframe adalah:',
+              options: [
+                'Proses pengkodean aplikasi',
+                'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi',
+                'Proses pengujian aplikasi',
+                'Desain grafis yang menonjolkan warna dan font'
+              ],
+              answer: 'Desain awal yang menunjukkan struktur dan elemen utama dari aplikasi',
+              type: 'MC'
+            },
+            {
+              question: 'Jelaskan Apa itu Penelitian',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+            {
+              question: 'Preferensi Pengguna seperti apa yang kalian maksud?',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+            {
+              question: 'Elearning seperti apa yang akan dibangun disini?',
+              options: [
+                ''
+              ],
+              answer: '',
+              type: 'EY'
+            },
+          ]
+        }
       }
     });
 
