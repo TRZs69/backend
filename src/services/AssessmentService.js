@@ -218,8 +218,18 @@ const isValidTrueFalseStem = (text) => {
     }
 
     const lower = stem.toLowerCase();
-    const interrogativeHints = ['siapa', 'kapan', 'di mana', 'dimana', 'berapa', 'mana', 'mengapa', 'kenapa'];
-    if (interrogativeHints.some((hint) => lower.includes(hint))) {
+    // Validate with word boundaries to avoid false positives on substrings (e.g. "bagaimana", "keamanan").
+    const interrogativePatterns = [
+        /\bsiapa\b/,
+        /\bkapan\b/,
+        /\bdi\s*mana\b/,
+        /\bdimana\b/,
+        /\bberapa\b/,
+        /\bmana\b/,
+        /\bmengapa\b/,
+        /\bkenapa\b/,
+    ];
+    if (interrogativePatterns.some((pattern) => pattern.test(lower))) {
         return false;
     }
 
@@ -389,7 +399,7 @@ const normalizeGeneratedQuestion = (questionData, index) => {
 };
 
 const normalizeStoredQuestion = (question) => {
-    const type = normaliseAttemptQuestionType(question.type);
+    let type = normaliseAttemptQuestionType(question.type);
     let options = normalizeTextOptions(question.options || []);
     let correctedAnswer = String(question.correctedAnswer || question.answer || '').trim();
 
