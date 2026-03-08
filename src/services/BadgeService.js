@@ -101,9 +101,24 @@ exports.updateBadge = async(id, updateData) => {
 
 exports.deleteBadge = async(id) => {
     try {
-        await prisma.badge.delete({
+        const existingBadge = await prisma.badge.findUnique({
             where: { id },
+            select: { id: true },
         });
+
+        if (!existingBadge) {
+            throw new Error(`Badge with id ${id} not found`);
+        }
+
+        await prisma.$transaction([
+            prisma.userBadge.deleteMany({
+                where: { badgeId: id },
+            }),
+            prisma.badge.delete({
+                where: { id },
+            }),
+        ]);
+
         return `Successfully deleted badge with id: ${id}`;
     } catch (error) {
         throw new Error('Error deleting badge: ' + error.message); 
