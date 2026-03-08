@@ -2529,11 +2529,13 @@ async function main() {
       },
     });
 
+    const badgePublicBaseUrl = `${assetsUrl}/storage/v1/object/public/badges`;
+
     const badge1 = await prisma.badge.create({
       data: {
-        name: 'Beginner Designer',
+        name: 'Beginner',
         type: BadgeType.BEGINNER,
-        image: `${assetsUrl}/storage/v1/object/public/badges/imk-1.png`,
+        image: `${badgePublicBaseUrl}/beginner.png`,
         courseId: course1.id,
         chapterId: chapter3.id,
       },
@@ -2541,9 +2543,9 @@ async function main() {
 
     const badge2 = await prisma.badge.create({
       data: {
-        name: 'Intermediate Designer',
+        name: 'Intermediate',
         type: BadgeType.INTERMEDIATE,
-        image: `${assetsUrl}/storage/v1/object/public/badges/imk-2.png`,
+        image: `${badgePublicBaseUrl}/intermediate.png`,
         courseId: course1.id,
         chapterId: chapter6.id,
       },
@@ -2551,9 +2553,9 @@ async function main() {
 
     const badge3 = await prisma.badge.create({
       data: {
-        name: 'Advance Designer',
+        name: 'Advanced',
         type: BadgeType.ADVANCE,
-        image: `${assetsUrl}/storage/v1/object/public/badges/imk-3.png`,
+        image: `${badgePublicBaseUrl}/advanced.png`,
         courseId: course1.id,
         chapterId: chapter8.id,
       },
@@ -2561,9 +2563,9 @@ async function main() {
 
     const badge4 = await prisma.badge.create({
       data: {
-        name: 'Beginner Login',
+        name: 'Beginner',
         type: BadgeType.BEGINNER,
-        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/login-1.png',
+        image: `${badgePublicBaseUrl}/beginner.png`,
         courseId: course2.id,
         chapterId: chapter1.id,
       },
@@ -2571,9 +2573,9 @@ async function main() {
 
     const badge5 = await prisma.badge.create({
       data: {
-        name: 'Intermediate Login',
+        name: 'Intermediate',
         type: BadgeType.INTERMEDIATE,
-        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/login-2.png',
+        image: `${badgePublicBaseUrl}/intermediate.png`,
         courseId: course2.id,
         chapterId: chapter2.id,
       },
@@ -2581,9 +2583,9 @@ async function main() {
 
     const badge6 = await prisma.badge.create({
       data: {
-        name: 'Advance Login',
+        name: 'Advanced',
         type: BadgeType.ADVANCE,
-        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/login-3.png',
+        image: `${badgePublicBaseUrl}/advanced.png`,
         courseId: course2.id,
         chapterId: chapter3.id,
       },
@@ -2591,9 +2593,9 @@ async function main() {
 
     const badge7 = await prisma.badge.create({
       data: {
-        name: 'Beginner TBFA',
+        name: 'Beginner',
         type: BadgeType.BEGINNER,
-        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/tbfa-1.png',
+        image: `${badgePublicBaseUrl}/beginner.png`,
         courseId: course3.id,
         chapterId: chapter1.id,
       },
@@ -2601,9 +2603,9 @@ async function main() {
 
     const badge8 = await prisma.badge.create({
       data: {
-        name: 'Intermediate TBFA',
+        name: 'Intermediate',
         type: BadgeType.INTERMEDIATE,
-        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/tbfa-2.png',
+        image: `${badgePublicBaseUrl}/intermediate.png`,
         courseId: course3.id,
         chapterId: chapter2.id,
       },
@@ -2611,9 +2613,9 @@ async function main() {
 
     const badge9 = await prisma.badge.create({
       data: {
-        name: 'Advance TBFA',
+        name: 'Advanced',
         type: BadgeType.ADVANCE,
-        image: 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/tbfa-3.png',
+        image: `${badgePublicBaseUrl}/advanced.png`,
         courseId: course3.id,
         chapterId: chapter3.id,
       },

@@ -1291,7 +1291,10 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         transactionOperations.splice(1, 0,
             prisma.user.update({
                 where: { id: userId },
-                data: { points: { increment: userPointsEarned } },
+                data: {
+                    points: { increment: userPointsEarned },
+                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + userPointsEarned),
+                },
             }),
         );
     }
@@ -1456,7 +1459,17 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     if (isStudent && pointsEarned > 0) {
         await tx.user.update({
             where: { id: userId },
-            data: { points: { increment: pointsEarned } },
+            data: {
+                points: { increment: pointsEarned },
+                elo: clampElo(effectiveCourseEloEnd),
+            },
+        });
+    } else if (isStudent) {
+        await tx.user.update({
+            where: { id: userId },
+            data: {
+                elo: clampElo(effectiveCourseEloEnd),
+            },
         });
     }
 
@@ -1820,7 +1833,10 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         transactionOperations.splice(1, 0,
             prisma.user.update({
                 where: { id: userId },
-                data: { points: { increment: userPointsEarned } },
+                data: {
+                    points: { increment: userPointsEarned },
+                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + userPointsEarned),
+                },
             }),
         );
     }

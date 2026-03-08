@@ -1,5 +1,54 @@
 const prisma = require('../prismaClient');
 
+const BADGE_BASE_URL = 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/';
+const ELO_BADGE_BANDS = [
+    { name: 'Beginner', fileName: 'beginner.png', type: 'BEGINNER' },
+    { name: 'Basic Understanding', fileName: 'basic_understanding.png', type: 'BEGINNER' },
+    { name: 'Developing Learner', fileName: 'developing_learner.png', type: 'INTERMEDIATE' },
+    { name: 'Intermediate', fileName: 'intermediate.png', type: 'INTERMEDIATE' },
+    { name: 'Proficient', fileName: 'proficient.png', type: 'ADVANCE' },
+    { name: 'Advanced', fileName: 'advanced.png', type: 'ADVANCE' },
+    { name: 'Mastery', fileName: 'master.png', type: 'ADVANCE' },
+];
+
+const BADGE_NAME_ALIASES = {
+    beginnerdesigner: 'Beginner',
+    intermediatedesigner: 'Intermediate',
+    advancedesigner: 'Advanced',
+    advanceddesigner: 'Advanced',
+};
+
+const normalizeNameKey = (value = '') =>
+    String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+
+const getNormalizedBandByName = (name = '') => {
+    const directNeedle = String(name || '').trim().toLowerCase();
+    const aliasResolved = BADGE_NAME_ALIASES[normalizeNameKey(name)] || null;
+    const needle = aliasResolved ? aliasResolved.toLowerCase() : directNeedle;
+    return ELO_BADGE_BANDS.find((band) => band.name.toLowerCase() === needle) || null;
+};
+
+const normalizeBadgePayload = (badge) => {
+    if (!badge) {
+        return badge;
+    }
+
+    const band = getNormalizedBandByName(badge.name);
+    if (!band) {
+        return badge;
+    }
+
+    return {
+        ...badge,
+        name: band.name,
+        type: band.type,
+        image: `${BADGE_BASE_URL}${band.fileName}`,
+    };
+};
+
 exports.getAllBadges = async () => {
     try {
         const badges = await prisma.badge.findMany({
@@ -8,7 +57,7 @@ exports.getAllBadges = async () => {
                 chapter: true,
             }
         }); 
-        return badges;
+        return badges.map((badge) => normalizeBadgePayload(badge));
     } catch (error) {
         throw new Error(error.message);
     }
@@ -21,7 +70,7 @@ exports.getBadgeById = async (id) => {
                 id
             },
         });
-        return badge;
+        return normalizeBadgePayload(badge);
     } catch (error) {
         throw new Error(`Error retrieving badge with id ${id}`);
     }
@@ -71,7 +120,7 @@ exports.getBadgesByCourse = async(courseId) => {
                 courseId: parseInt(courseId)
             }
         });
-        return badge;
+        return badge.map((item) => normalizeBadgePayload(item));
     } catch (error) {
         throw new Error(error.message);
     }
