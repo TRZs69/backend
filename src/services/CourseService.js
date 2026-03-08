@@ -48,6 +48,15 @@ exports.updateCourse = async (id, updateData) => {
 
 exports.deleteCourse = async (id) => {
     try {
+        const existingCourse = await prisma.course.findUnique({
+            where: { id },
+            select: { id: true },
+        });
+
+        if (!existingCourse) {
+            throw new Error(`Course with id ${id} not found`);
+        }
+
         await prisma.course.delete({
             where: { id },
         });

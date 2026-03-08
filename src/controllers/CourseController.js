@@ -61,11 +61,19 @@ const updateCourse = async (req, res) => {
 const deleteCourse = async (req, res) => {
     const id = parseInt(req.params.id);
 
+    if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ message: 'Invalid course id' });
+    }
+
     try {
         const deleteCourse = await courseService.deleteCourse(id);
         res.status(200).json(deleteCourse);
     } catch (error) {
-        res.status(500).json({ message: 'Failed to create course' });
+        if (error.message.includes('not found')) {
+            return res.status(404).json({ message: error.message });
+        }
+
+        res.status(500).json({ message: 'Failed to delete course', detail: error.message });
         console.log(error.message);
     }
 };

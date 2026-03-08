@@ -116,6 +116,15 @@ exports.updateUser = async (id, updateData) => {
 
 exports.deleteUser = async (id) => {
   try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!existingUser) {
+      throw new Error(`User with id ${id} not found`);
+    }
+
     await prisma.user.delete({
       where: { id },
     });

@@ -104,6 +104,10 @@ const updateUser = async (req, res) => {
   }
 
     const id = parseInt(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
     
     const updateData = req.body;
 
@@ -141,6 +145,10 @@ const updateUser = async (req, res) => {
         user: updateUser,
       });
   } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ message: error.message });
+    }
+
     res.status(500).json({ message: error.message });
     console.log(error.message);
   }
@@ -151,11 +159,19 @@ const updateUser = async (req, res) => {
 const deleteUser = async (req, res) => {
   const id = parseInt(req.params.id);
 
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ message: 'Invalid user id' });
+  }
+
   try {
     const deleteUser = await userService.deleteUser(id);
     res.status(200).json(deleteUser);
   } catch (error) {
-    res.status(500).json({ message: "Failed to delete user" });
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ message: error.message });
+    }
+
+    res.status(500).json({ message: "Failed to delete user", detail: error.message });
     console.log(error.message);
   }
 };

@@ -47,9 +47,24 @@ exports.updateTrade = async(id, updateData) => {
 
 exports.deleteTrade = async(id) => {
     try {
-        await prisma.trade.delete({
+        const existingTrade = await prisma.trade.findUnique({
             where: { id },
+            select: { id: true },
         });
+
+        if (!existingTrade) {
+            throw new Error(`Trade with id ${id} not found`);
+        }
+
+        await prisma.$transaction([
+            prisma.userTrade.deleteMany({
+                where: { tradeId: id },
+            }),
+            prisma.trade.delete({
+                where: { id },
+            }),
+        ]);
+
         return `Successfully deleted trade with id: ${id}`;
     } catch (error) {
         throw new Error('Error deleting trade: ' + error.message); 
