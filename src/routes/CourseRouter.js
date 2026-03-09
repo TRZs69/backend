@@ -8,10 +8,10 @@ const router = express.Router();
 // BASIC ROUTES
 
 // Route for get all courses
-router.get('/course', cacheMiddleware(300), courseController.getAllCourses);
+router.get('/course', courseController.getAllCourses);
 
 // Route for get course by id
-router.get('/course/:id', cacheMiddleware(300), courseController.getCourseById);
+router.get('/course/:id', courseController.getCourseById);
 
 // Router for create course
 router.post('/course', courseController.createCourse);

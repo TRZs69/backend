@@ -41,11 +41,15 @@ const normalizeBadgePayload = (badge) => {
         return badge;
     }
 
+    const hasCustomImage =
+        typeof badge.image === 'string' &&
+        badge.image.length > 0 &&
+        !badge.image.startsWith(BADGE_BASE_URL);
+
     return {
         ...badge,
-        name: band.name,
-        type: band.type,
-        image: `${BADGE_BASE_URL}${band.fileName}`,
+        // Preserve admin-updated values; only apply default band image when needed.
+        image: hasCustomImage ? badge.image : `${BADGE_BASE_URL}${band.fileName}`,
     };
 };
 

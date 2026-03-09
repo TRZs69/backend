@@ -17,6 +17,12 @@ const userCourseLegacySelect = {
   enrolledAt: true,
 };
 
+const createHttpError = (message, statusCode) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
 exports.getAllUserCourses = async () => {
   try {
     const userCourses = await prisma.userCourse.findMany();
@@ -40,20 +46,44 @@ exports.getUserCourseById = async (id) => {
 };
 
 exports.createUserCourse = async (newData) => {
+  const userId = Number(newData?.userId);
+  const courseId = Number(newData?.courseId);
+
+  if (!Number.isInteger(userId) || userId <= 0 || !Number.isInteger(courseId) || courseId <= 0) {
+    throw createHttpError('userId and courseId must be positive integers', 400);
+  }
+
   try {
     const newUserCourse = await prisma.userCourse.create({
-      data: newData,
+      data: {
+        ...newData,
+        userId,
+        courseId,
+      },
     });
     return newUserCourse;
   } catch (error) {
     if (isMissingColumnError(error, '`elo`')) {
       const { elo, ...legacyData } = newData || {};
       const newUserCourse = await prisma.userCourse.create({
-        data: legacyData,
+        data: {
+          ...legacyData,
+          userId,
+          courseId,
+        },
         select: userCourseLegacySelect,
       });
       return newUserCourse;
     }
+
+    if (error?.code === 'P2002') {
+      throw createHttpError('Student is already enrolled in this course', 409);
+    }
+
+    if (error?.code === 'P2003') {
+      throw createHttpError('Invalid userId or courseId', 400);
+    }
+
     throw new Error(error.message);
   }
 };

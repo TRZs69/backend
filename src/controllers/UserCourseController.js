@@ -33,7 +33,7 @@ const createUserCourse = async (req, res) => {
         const userCourse = await userCourseService.createUserCourse(newData);
         res.status(201).json({message: `Successfully create new userCourse ${newData.name}`, userCourse: userCourse});
     } catch (error) {
-        res.status(500).json({ message: "Failed to create new userCourse", data: error.message });
+        res.status(error.statusCode || 500).json({ message: "Failed to create new userCourse", data: error.message });
         console.log(error.message);
         
     }
