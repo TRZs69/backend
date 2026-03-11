@@ -20,7 +20,7 @@ model User {
   name              String
   role              Role
   studentId         String?       // Data khusus student
-  points            Int? @default(750)
+  points            Int? @default(0)
   elo               Int? @default(750)
   totalCourses      Int? @default(0)
   badges            Int? @default(0)

@@ -4,11 +4,11 @@ const { determineDifficulty } = require('../utils/elo');
 const formatUser = (user) => {
   if (!user) return user;
   const isStudent = String(user.role || '').toUpperCase() === 'STUDENT';
-  const effectivePoints = (user.points === null || user.points === undefined) ? 750 : user.points;
+  const effectivePoints = (user.points === null || user.points === undefined) ? 0 : user.points;
   const effectiveElo = (user.elo === null || user.elo === undefined) ? 750 : user.elo;
   return {
     ...user,
-    points: isStudent ? Math.max(0, effectivePoints - 750) : null,
+    points: isStudent ? Math.max(0, effectivePoints) : null,
     eloTitle: isStudent ? determineDifficulty(effectiveElo) : null
   };
 };
@@ -59,7 +59,7 @@ exports.createUser = async (
     const normalizedRole = String(role || '').toUpperCase();
     const isStudent = normalizedRole === 'STUDENT';
     const finalPoints = isStudent
-      ? (points === null || points === undefined || points === '' ? 750 : points)
+      ? (points === null || points === undefined || points === '' ? 0 : points)
       : null;
 
     const newUser = await prisma.user.create({
@@ -101,7 +101,7 @@ exports.updateUser = async (id, updateData) => {
     if (effectiveRole !== 'STUDENT') {
       updateData.points = null;
     } else if (updateData.points === null || updateData.points === undefined || updateData.points === '') {
-      updateData.points = 750;
+      updateData.points = 0;
     }
 
     const user = await prisma.user.update({

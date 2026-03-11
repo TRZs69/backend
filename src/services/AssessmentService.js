@@ -1251,7 +1251,8 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         userElo: userChapter.user?.points || MIN_ELO,
     });
     const isStudent = isStudentRole(userChapter.user?.role);
-    const userPointsEarned = isStudent ? pointsEarned : 0;
+    const eloDeltaSigned = isStudent ? pointsEarned : 0;
+    const userPointsEarned = isStudent ? Math.max(0, pointsEarned) : 0;
     const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
     const summary = buildSubmissionSummary({
@@ -1270,7 +1271,8 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
                 isStarted: true,
                 assessmentDone: true,
                 assessmentGrade: grade,
-                assessmentEloDelta: userPointsEarned,
+                assessmentEloDelta: eloDeltaSigned,
+                assessmentPointsEarned: { increment: userPointsEarned },
                 assessmentAnswer: summary.orderedAnswers,
                 currentDifficulty: summary.newDifficulty,
                 lastAiFeedback: summary.aiFeedback,
@@ -1293,7 +1295,7 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
                 where: { id: userId },
                 data: {
                     points: { increment: userPointsEarned },
-                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + userPointsEarned),
+                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + eloDeltaSigned),
                 },
             }),
         );
@@ -1304,6 +1306,7 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
     return {
         grade,
         pointsEarned: userPointsEarned,
+        eloDelta: eloDeltaSigned,
         correctAnswers,
         totalQuestions,
         newDifficulty: summary.newDifficulty,
@@ -1429,6 +1432,29 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     const eloDeltaSigned = isStudent ? Math.round(courseEloEnd - courseEloStart) : 0;
     const pointsEarned = isStudent ? Math.max(0, eloDeltaSigned) : 0;
 
+    // Calculate Gamification Points using "High Score" method
+    let globalPointsToAward = 0;
+    let localPointsToRecord = 0;
+
+    if (isStudent) {
+        if (userChapter.assessmentDone) {
+            // Re-attempt: Only award points if the new positive delta is higher than the previously earned points
+            const previousEarned = userChapter.assessmentPointsEarned || 0;
+            const newEarned = Math.max(0, pointsEarned);
+
+            if (newEarned > previousEarned) {
+                globalPointsToAward = newEarned - previousEarned;
+                localPointsToRecord = newEarned; // New high score
+            } else {
+                localPointsToRecord = previousEarned; // Keep the existing high score
+            }
+        } else {
+            // First time: Award all positive points
+            globalPointsToAward = Math.max(0, pointsEarned);
+            localPointsToRecord = globalPointsToAward;
+        }
+    }
+
     const isExcellent = grade >= 75;
     const newDifficulty = toPrismaDifficulty(determineDifficulty(courseEloEnd));
     const aiFeedback = buildFeedback(grade, correctAnswers);
@@ -1441,7 +1467,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
             assessmentDone: true,
             assessmentGrade: grade,
             assessmentEloDelta: eloDeltaSigned,
-            assessmentPointsEarned: pointsEarned,
+            assessmentPointsEarned: localPointsToRecord,
             assessmentAnswer: orderedAnswers,
             currentDifficulty: newDifficulty,
             lastAiFeedback: aiFeedback,
@@ -1456,19 +1482,12 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
         data: { elo: effectiveCourseEloEnd },
     });
 
-    if (isStudent && pointsEarned > 0) {
+    if (isStudent) {
         await tx.user.update({
             where: { id: userId },
             data: {
-                points: { increment: pointsEarned },
-                elo: clampElo(effectiveCourseEloEnd),
-            },
-        });
-    } else if (isStudent) {
-        await tx.user.update({
-            where: { id: userId },
-            data: {
-                elo: clampElo(effectiveCourseEloEnd),
+                ...(globalPointsToAward > 0 ? { points: { increment: globalPointsToAward } } : {}),
+                elo: clampElo((refreshedAttempt.courseEloStart || MIN_ELO) + eloDeltaSigned),
             },
         });
     }
@@ -1478,7 +1497,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
         data: {
             status: ATTEMPT_STATUS.SUBMITTED,
             grade,
-            pointsEarned,
+            pointsEarned: localPointsToRecord,
             correctAnswers,
             totalQuestions: objectiveTarget,
             courseEloEnd: effectiveCourseEloEnd,
@@ -1518,10 +1537,10 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     return {
         attemptId: refreshedAttempt.id,
         grade,
-        pointsEarned,
+        pointsEarned: localPointsToRecord,
         courseEloStart,
         courseEloEnd: effectiveCourseEloEnd,
-        eloDeltaSigned,
+        eloDelta: eloDeltaSigned,
         correctAnswers,
         totalQuestions: objectiveTarget,
         newDifficulty,
@@ -1602,7 +1621,21 @@ const createOrResumeAttempt = async (
     await ensureUserChapter(normalizedUserId, normalizedChapterId);
     const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
 
-    const userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
+    // If re-attempting, use the Elo from the VERY FIRST attempt of this chapter.
+    let userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
+    const firstAttempt = await prisma.assessmentAttempt.findFirst({
+        where: {
+            userId: normalizedUserId,
+            chapterId: normalizedChapterId,
+            status: ATTEMPT_STATUS.SUBMITTED,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { courseEloStart: true }
+    });
+    if (firstAttempt && typeof firstAttempt.courseEloStart === 'number') {
+        userElo = Math.max(MIN_ELO, firstAttempt.courseEloStart);
+    }
+
     let source = ATTEMPT_SOURCE.FALLBACK_BANK;
     let instruction =
         String(assessment.instruction || '').trim() || buildAttemptInstruction(chapter.name);
@@ -1746,7 +1779,31 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         userElo: userChapter.user?.points || MIN_ELO,
     });
     const isStudent = isStudentRole(userChapter.user?.role);
-    const userPointsEarned = isStudent ? pointsEarned : 0;
+    const eloDeltaSigned = isStudent ? pointsEarned : 0;
+
+    // Calculate Gamification Points using "High Score" method
+    let globalPointsToAward = 0;
+    let localPointsToRecord = 0;
+
+    if (isStudent) {
+        if (userChapter.assessmentDone) {
+            // Re-attempt: Only award points if the new positive delta is higher than the previously earned points
+            const previousEarned = userChapter.assessmentPointsEarned || 0;
+            const newEarned = Math.max(0, pointsEarned);
+
+            if (newEarned > previousEarned) {
+                globalPointsToAward = newEarned - previousEarned;
+                localPointsToRecord = newEarned; // For the local chapter, we just set it to the new high score
+            } else {
+                localPointsToRecord = previousEarned; // Keep the existing high score
+            }
+        } else {
+            // First time: Award all positive points
+            globalPointsToAward = Math.max(0, pointsEarned);
+            localPointsToRecord = globalPointsToAward;
+        }
+    }
+
     const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
     const summary = buildSubmissionSummary({
@@ -1780,7 +1837,8 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 isStarted: true,
                 assessmentDone: true,
                 assessmentGrade: grade,
-                assessmentEloDelta: userPointsEarned,
+                assessmentEloDelta: eloDeltaSigned,
+                assessmentPointsEarned: localPointsToRecord,
                 assessmentAnswer: summary.orderedAnswers,
                 currentDifficulty: summary.newDifficulty,
                 lastAiFeedback: summary.aiFeedback,
@@ -1794,7 +1852,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
             data: {
                 status: ATTEMPT_STATUS.SUBMITTED,
                 grade,
-                pointsEarned: userPointsEarned,
+                pointsEarned: localPointsToRecord,
                 correctAnswers,
                 totalQuestions,
                 newDifficulty: summary.newDifficulty,
@@ -1834,8 +1892,9 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
             prisma.user.update({
                 where: { id: userId },
                 data: {
-                    points: { increment: userPointsEarned },
-                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + userPointsEarned),
+                    ...(globalPointsToAward > 0 ? { points: { increment: globalPointsToAward } } : {}),
+                    // Global Elo: Recalculate correctly using Start Elo + New Delta
+                    elo: clampElo((attempt.courseEloStart || MIN_ELO) + eloDeltaSigned),
                 },
             }),
         );
@@ -1846,7 +1905,8 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
     return {
         attemptId: attempt.id,
         grade,
-        pointsEarned: userPointsEarned,
+        pointsEarned: localPointsToRecord, // Show the final high score of points for this chapter
+        eloDelta: eloDeltaSigned,
         correctAnswers,
         totalQuestions,
         newDifficulty: summary.newDifficulty,
