@@ -136,7 +136,7 @@ async function main() {
 
     const studentPassword = await bcrypt.hash('mahasiswa', 10);
 
-    const student = await prisma.user.create({
+    const obenhard = await prisma.user.create({
       data: {
         username: 'obenhard',
         password: studentPassword,
@@ -150,7 +150,7 @@ async function main() {
       },
     });
 
-    const emely = await prisma.user.create({
+    const sefa = await prisma.user.create({
       data: {
         username: 'sefa',
         password: studentPassword,
@@ -164,7 +164,7 @@ async function main() {
       },
     });
 
-    const gerry = await prisma.user.create({
+    const rudi = await prisma.user.create({
       data: {
         username: 'rudi',
         password: studentPassword,
@@ -178,7 +178,7 @@ async function main() {
       },
     });
 
-    const gerald = await prisma.user.create({
+    const christo = await prisma.user.create({
       data: {
         username: 'christo',
         password: studentPassword,
@@ -2473,7 +2473,7 @@ async function main() {
     // Create UserCourse relationship
     await prisma.userCourse.create({
       data: {
-        userId: student.id,
+        userId: obenhard.id,
         courseId: course1.id,
         progress: 0,
         currentChapter: 1,
@@ -2483,7 +2483,7 @@ async function main() {
 
     await prisma.userCourse.create({
       data: {
-        userId: emely.id,
+        userId: sefa.id,
         courseId: course1.id,
         progress: 0,
         currentChapter: 1,
@@ -2492,7 +2492,7 @@ async function main() {
     });
     await prisma.userCourse.create({
       data: {
-        userId: gerry.id,
+        userId: rudi.id,
         courseId: course1.id,
         progress: 0,
         currentChapter: 1,
@@ -2502,7 +2502,7 @@ async function main() {
 
     await prisma.userCourse.create({
       data: {
-        userId: gerald.id,
+        userId: christo.id,
         courseId: course1.id,
         progress: 0,
         currentChapter: 1,
@@ -2517,7 +2517,7 @@ async function main() {
     // Create UserChapter relationship
     await prisma.userChapter.create({
       data: {
-        userId: student.id,
+        userId: obenhard.id,
         chapterId: chapter1.id,
         isCompleted: false,
         materialDone: false,
