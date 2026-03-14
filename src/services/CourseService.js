@@ -1,5 +1,37 @@
 const prisma = require('../prismaClient');
 
+const chapterListSelect = {
+    id: true,
+    name: true,
+    description: true,
+    level: true,
+    courseId: true,
+    isCheckpoint: true,
+    createdAt: true,
+    updatedAt: true,
+};
+
+const userChapterSelect = {
+    id: true,
+    userId: true,
+    chapterId: true,
+    isStarted: true,
+    isCompleted: true,
+    materialDone: true,
+    assessmentDone: true,
+    assignmentDone: true,
+    assessmentAnswer: true,
+    assessmentGrade: true,
+    assessmentEloDelta: true,
+    submission: true,
+    timeStarted: true,
+    timeFinished: true,
+    assignmentScore: true,
+    assignmentFeedback: true,
+    createdAt: true,
+    updatedAt: true,
+};
+
 exports.getAllCourses = async () => {
     try {
         const courses = await prisma.course.findMany();
@@ -73,10 +105,47 @@ exports.getChapterByCourse = async (id) => {
         const chapters = await prisma.chapter.findMany({
             where: {
                 courseId: parseInt(id)
-            }
+            },
+            orderBy: {
+                level: 'asc'
+            },
+            select: chapterListSelect,
         });
 
         return chapters;
+    } catch (error) {
+        throw new Error(error.message);
+    }
+}
+
+exports.getChapterByCourseForUser = async (courseId, userId) => {
+    try {
+        const chapters = await prisma.chapter.findMany({
+            where: {
+                courseId: parseInt(courseId)
+            },
+            orderBy: {
+                level: 'asc'
+            },
+            select: {
+                ...chapterListSelect,
+                userProgress: {
+                    where: {
+                        userId: parseInt(userId)
+                    },
+                    orderBy: {
+                        id: 'desc'
+                    },
+                    take: 1,
+                    select: userChapterSelect,
+                }
+            }
+        });
+
+        return chapters.map((chapter) => ({
+            ...chapter,
+            status: chapter.userProgress[0] || null,
+        }));
     } catch (error) {
         throw new Error(error.message);
     }

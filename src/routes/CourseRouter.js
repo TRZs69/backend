@@ -27,6 +27,7 @@ router.delete('/course/:id', courseController.deleteCourse);
 // SPECIAL ROUTES
 
 // Router for get chapters from course
+router.get('/course/:id/chapters/user/:userId', courseController.getChapterByCourseForUser);
 router.get('/course/:id/chapters', cacheMiddleware(300), courseController.getChapterByCourse);
 
 // Router for get users from course

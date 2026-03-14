@@ -92,6 +92,19 @@ const getChapterByCourse = async (req, res) => {
     }
 }
 
+const getChapterByCourseForUser = async (req, res) => {
+    const courseId = parseInt(req.params.id);
+    const userId = parseInt(req.params.userId);
+
+    try {
+        const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
+        res.status(200).json(chapters);
+    } catch (error) {
+        res.status(500).json({ message: `Failed to get chapters in course id: ${courseId} for user id: ${userId}`, details: error.message});
+        console.log(error.message);
+    }
+}
+
 const getUsersByCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);
 
@@ -124,6 +137,7 @@ module.exports = {
     updateCourse,
     deleteCourse,
     getChapterByCourse,
+    getChapterByCourseForUser,
     getUsersByCourse,
     getBadgesByCourse
 };
