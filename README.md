@@ -89,6 +89,18 @@ This backend application serves as the core logic for a gamified learning platfo
     nodemon run dev
     ```
 
+## Production migrations
+
+Do not run Prisma migrations as part of the Vercel build step. This repository keeps Vercel builds limited to Prisma client generation so deployments are not blocked by existing database migration state.
+
+Apply production schema changes separately with direct database access:
+
+```bash
+npm run db:migrate:deploy
+```
+
+If Prisma reports `P3009` because a previous migration failed, follow the recovery steps in `docs/prisma-production-recovery.md` before retrying the deploy.
+
 ## API Documentation
 
 Base URL:

@@ -9,7 +9,10 @@
     "test": "jest --verbose",
     "test:load": "npx -y artillery@latest run tests/load/eloLoadTest.yml",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma generate && prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:migrate:deploy": "prisma migrate deploy",
+    "db:migrate:status": "prisma migrate status",
+    "vercel-build": "npm run db:generate",
     "fix:badge-urls": "node scripts/fix_badge_image_urls.js",
     "sync:student-only-elo": "node scripts/sync_student_only_elo.js"
   },
