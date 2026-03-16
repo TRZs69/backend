@@ -16,6 +16,55 @@ const clampElo = (value) => {
     }
     return DEFAULT_ELO;
 };
+/**
+ * Determines the K-factor for a user based on their current ELO.
+ * 
+ * @param {number|string} targetElo 
+ * @returns {number} The dynamic K-factor for user
+ */
+const determineUserKFactor = (targetElo) => {
+    const elo = clampElo(targetElo);
+    
+    // Pemula (750-1000)
+    if (elo < 1000) return 40;
+    // Basic (1000-1200)
+    if (elo < 1200) return 30;
+    // Developing (1200-1400)
+    if (elo < 1400) return 20;
+    // Intermediate (1400-1600)
+    if (elo < 1600) return 15;
+    // Proficient (1600-1800)
+    if (elo < 1800) return 12;
+    // Advanced (1800-2000)
+    if (elo < 2000) return 10;
+    // Mastery (2000+)
+    return 8;
+};
+
+/**
+ * Determines the K-factor for a question based on its current ELO.
+ * 
+ * @param {number|string} targetElo 
+ * @returns {number} The dynamic K-factor for question
+ */
+const determineQuestionKFactor = (targetElo) => {
+    const elo = clampElo(targetElo);
+    
+    // Pemula (750-1000)
+    if (elo < 1000) return 30;
+    // Basic (1000-1200)
+    if (elo < 1200) return 24;
+    // Developing (1200-1400)
+    if (elo < 1400) return 20;
+    // Intermediate (1400-1600)
+    if (elo < 1600) return 15;
+    // Proficient (1600-1800)
+    if (elo < 1800) return 12;
+    // Advanced (1800-2000)
+    if (elo < 2000) return 10;
+    // Mastery (2000+)
+    return 8;
+};
 
 /**
  * Calculates the new ELO ratings for both the user and the question
@@ -35,8 +84,8 @@ const calculateQuestionDuelElo = ({
     const currentUserElo = Math.max(MIN_ELO, Number(userElo) || MIN_ELO);
     const currentQuestionElo = clampElo(questionElo);
 
-    const K_USER = 30;
-    const K_QUESTION = 15;
+    const K_USER = determineUserKFactor(currentUserElo);
+    const K_QUESTION = determineQuestionKFactor(currentQuestionElo);
 
     const expectedUser = 1 / (1 + Math.pow(10, (currentQuestionElo - currentUserElo) / 400));
     const actualUserScore = isCorrect ? 1 : 0;
