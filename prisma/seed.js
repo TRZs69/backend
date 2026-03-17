@@ -873,22 +873,6 @@ async function main() {
       },
     });
 
-    const course2 = await prisma.course.create({
-      data: {
-        code: 'UI/UX',
-        name: 'UI/UX',
-        description: 'Learn the fundamentals of UI/UX Design',
-      },
-    });
-
-    const course3 = await prisma.course.create({
-      data: {
-        code: 'RPL',
-        name: 'Rekayasa Perangkat Lunak',
-        description: 'Learn basic of software engineering',
-      },
-    });
-
     // Create Chapters for Course IMK
     const chapter1 = await prisma.chapter.create({
       data: {
@@ -2558,66 +2542,6 @@ async function main() {
         image: `${badgePublicBaseUrl}/advanced.png`,
         courseId: course1.id,
         chapterId: chapter8.id,
-      },
-    });
-
-    const badge4 = await prisma.badge.create({
-      data: {
-        name: 'Beginner',
-        type: BadgeType.BEGINNER,
-        image: `${badgePublicBaseUrl}/beginner.png`,
-        courseId: course2.id,
-        chapterId: chapter1.id,
-      },
-    });
-
-    const badge5 = await prisma.badge.create({
-      data: {
-        name: 'Intermediate',
-        type: BadgeType.INTERMEDIATE,
-        image: `${badgePublicBaseUrl}/intermediate.png`,
-        courseId: course2.id,
-        chapterId: chapter2.id,
-      },
-    });
-
-    const badge6 = await prisma.badge.create({
-      data: {
-        name: 'Advanced',
-        type: BadgeType.ADVANCE,
-        image: `${badgePublicBaseUrl}/advanced.png`,
-        courseId: course2.id,
-        chapterId: chapter3.id,
-      },
-    });
-
-    const badge7 = await prisma.badge.create({
-      data: {
-        name: 'Beginner',
-        type: BadgeType.BEGINNER,
-        image: `${badgePublicBaseUrl}/beginner.png`,
-        courseId: course3.id,
-        chapterId: chapter1.id,
-      },
-    });
-
-    const badge8 = await prisma.badge.create({
-      data: {
-        name: 'Intermediate',
-        type: BadgeType.INTERMEDIATE,
-        image: `${badgePublicBaseUrl}/intermediate.png`,
-        courseId: course3.id,
-        chapterId: chapter2.id,
-      },
-    });
-
-    const badge9 = await prisma.badge.create({
-      data: {
-        name: 'Advanced',
-        type: BadgeType.ADVANCE,
-        image: `${badgePublicBaseUrl}/advanced.png`,
-        courseId: course3.id,
-        chapterId: chapter3.id,
       },
     });
 
