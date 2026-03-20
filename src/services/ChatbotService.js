@@ -7,7 +7,7 @@ const path = require('path');
 const axios = require('axios');
 
 const SYSTEM_PROMPT =
-	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement, rich detail, and at least two short paragraphs unless the user explicitly asks for brevity.';
+	'You are Levely, a friendly study buddy who explains concepts in Indonesian with warm encouragement. Give rich detail and at least two short paragraphs unless the user explicitly asks for brevity. Use user profile/progress context only when relevant to the current question. Do not start every answer by repeating the user name, points, badges, or generic praise unless explicitly requested or clearly relevant.';
 const FALLBACK_REPLY = `Saat ini Levely lagi kewalahan. Mohon coba lagi nanti ya. ${EMOJI.warm_smile}`;
 
 const parseBooleanEnv = (value, defaultValue) => {
@@ -45,6 +45,12 @@ const DETAILED_KEYWORDS = (process.env.LEVELY_CHAT_DETAILED_KEYWORDS ||
 	.split('|')
 	.map((entry) => entry.trim().toLowerCase())
 	.filter(Boolean);
+const FOLLOW_UP_KEYWORDS = (process.env.LEVELY_CHAT_FOLLOW_UP_KEYWORDS ||
+	'lanjut|lanjutin|jelaskan lagi|detail|lebih detail|rinci|contoh|bagian ini|materi ini')
+	.split('|')
+	.map((entry) => entry.trim().toLowerCase())
+	.filter(Boolean);
+const FOLLOW_UP_OVERLAP_THRESHOLD = Number(process.env.LEVELY_CHAT_FOLLOW_UP_OVERLAP_THRESHOLD || 0.5);
 
 const truncateText = (text, limit) => {
 	if (typeof text !== 'string') {
@@ -78,12 +84,82 @@ const shouldIncludeImageContext = (prompt) => {
 
 const isFinitePositive = (value) => Number.isFinite(value) && value > 0;
 
+const normalizeIntentText = (text) => {
+	return String(text || '')
+		.toLowerCase()
+		.replace(/0/g, 'o')
+		.replace(/1/g, 'i')
+		.replace(/3/g, 'e')
+		.replace(/4/g, 'a')
+		.replace(/5/g, 's')
+		.replace(/7/g, 't')
+		.replace(/[^a-z\s]/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+};
+
+const toWordSet = (text) => {
+	const normalized = normalizeIntentText(text);
+	if (!normalized) {
+		return new Set();
+	}
+	return new Set(
+		normalized
+			.split(' ')
+			.filter((token) => token && token.length >= 3),
+	);
+};
+
+const overlapScore = (leftText, rightText) => {
+	const left = toWordSet(leftText);
+	const right = toWordSet(rightText);
+	if (!left.size || !right.size) {
+		return 0;
+	}
+
+	let intersection = 0;
+	for (const token of left) {
+		if (right.has(token)) {
+			intersection += 1;
+		}
+	}
+
+	return intersection / Math.max(left.size, right.size);
+};
+
 const isDetailedPrompt = (prompt) => {
-	const normalized = String(prompt || '').toLowerCase();
+	const normalized = normalizeIntentText(prompt);
 	if (!normalized) {
 		return false;
 	}
-	return DETAILED_KEYWORDS.some((keyword) => normalized.includes(keyword));
+	return DETAILED_KEYWORDS
+		.map((keyword) => normalizeIntentText(keyword))
+		.some((keyword) => keyword && normalized.includes(keyword));
+};
+
+const shouldForceContinuation = ({ prompt, conversation }) => {
+	if (!Array.isArray(conversation) || !conversation.length) {
+		return false;
+	}
+
+	const lastAssistant = [...conversation].reverse().find((item) => item.role === 'assistant');
+	if (!lastAssistant || !lastAssistant.content) {
+		return false;
+	}
+
+	const normalizedPrompt = normalizeIntentText(prompt);
+	if (!normalizedPrompt) {
+		return false;
+	}
+
+	const hasFollowUpKeyword = FOLLOW_UP_KEYWORDS
+		.map((keyword) => normalizeIntentText(keyword))
+		.some((keyword) => keyword && normalizedPrompt.includes(keyword));
+
+	const lastUser = [...conversation].reverse().find((item) => item.role === 'user');
+	const similarity = lastUser ? overlapScore(lastUser.content, normalizedPrompt) : 0;
+
+	return hasFollowUpKeyword || similarity >= FOLLOW_UP_OVERLAP_THRESHOLD;
 };
 
 const pickGenerationSettings = (prompt) => {
@@ -279,7 +355,7 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 					.join('\n');
 				const badgesCount = user.userBadges.length;
 
-				const userContext = `Info Pengguna Saat Ini:\n- Nama: ${user.name}\n- Poin: ${user.points}\n- Lencana: ${badgesCount}\n- Progres Belajar:\n${coursesText}\n\n`;
+				const userContext = `Info Pengguna Saat Ini (gunakan hanya jika relevan dengan pertanyaan):\n- Nama: ${user.name}\n- Poin: ${user.points}\n- Lencana: ${badgesCount}\n- Progres Belajar:\n${coursesText}\n\n`;
 				contextualPrompt = userContext + contextualPrompt;
 			}
 		} catch (error) {
@@ -413,6 +489,10 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 
 	const baseHistory = useProvidedHistory ? history : persistedConversation;
 	const conversation = normalizeHistory(baseHistory);
+	if (shouldForceContinuation({ prompt, conversation })) {
+		contextualPrompt = `Instruksi format jawaban: ini adalah lanjutan topik. Jangan ulang salam, nama pengguna, poin, lencana, atau pembuka motivasi yang sama. Langsung lanjutkan inti materi dengan sudut pandang baru, contoh baru, atau elaborasi baru.\n\n${contextualPrompt}`;
+	}
+
 	const messages = [...conversation, { role: 'user', content: contextualPrompt, media: mediaContext.length > 0 ? mediaContext : undefined }];
 
 	return { persistedSessionId, messages };
