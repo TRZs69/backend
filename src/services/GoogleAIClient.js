@@ -1,5 +1,29 @@
 const axios = require('axios');
 const { GoogleAuth } = require('google-auth-library');
+const http = require('http');
+const https = require('https');
+
+const keepAliveHttpAgent = new http.Agent({ keepAlive: true });
+const keepAliveHttpsAgent = new https.Agent({ keepAlive: true });
+
+const buildGenerationConfig = () => {
+	const temperature = Number(process.env.LEVELY_GEMINI_TEMPERATURE || 0.3);
+	const maxOutputTokens = Number(process.env.LEVELY_GEMINI_MAX_OUTPUT_TOKENS || 384);
+	const topP = Number(process.env.LEVELY_GEMINI_TOP_P || 0.9);
+
+	const config = {};
+	if (Number.isFinite(temperature)) {
+		config.temperature = temperature;
+	}
+	if (Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
+		config.maxOutputTokens = maxOutputTokens;
+	}
+	if (Number.isFinite(topP) && topP > 0 && topP <= 1) {
+		config.topP = topP;
+	}
+
+	return config;
+};
 
 class GoogleAIClient {
 	constructor({
@@ -12,6 +36,8 @@ class GoogleAIClient {
 		this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 		this.isVertex = this.baseUrl.includes('aiplatform.googleapis.com');
 		this.supportsSystemInstruction = !String(this.model).toLowerCase().includes('gemma');
+		this.requestTimeoutMs = Number(process.env.LEVELY_GEMINI_TIMEOUT_MS || 30000);
+		this.generationConfig = buildGenerationConfig();
 
 		if (this.isVertex) {
 			this.authClient = new GoogleAuth({
@@ -20,19 +46,30 @@ class GoogleAIClient {
 		}
 	}
 
-	async complete({ messages = [], system = null }) {
+	async complete({ messages = [], system = null, generationConfig = null }) {
 		this._assertMessages(messages);
 		this._assertCredentials();
 
-		const payload = this._buildRequestPayload({ messages, system });
+		const payload = this._buildRequestPayload({ messages, system, generationConfig });
 		const url = this._buildUrl();
 		const headers = await this._buildHeaders();
-		const response = await axios.post(url, payload, { headers });
+		const response = await axios.post(url, payload, {
+			headers,
+			timeout: this.requestTimeoutMs,
+			httpAgent: keepAliveHttpAgent,
+			httpsAgent: keepAliveHttpsAgent,
+		});
 
 		return this._extractTextFromCandidates(response?.data)?.trim() || '';
 	}
 
-	async streamComplete({ messages = [], system = null, onChunk, abortSignal } = {}) {
+	async streamComplete({
+		messages = [],
+		system = null,
+		onChunk,
+		abortSignal,
+		generationConfig = null,
+	} = {}) {
 		this._assertMessages(messages);
 		this._assertCredentials();
 
@@ -40,13 +77,16 @@ class GoogleAIClient {
 			throw new Error('Stream aborted');
 		}
 
-		const payload = this._buildRequestPayload({ messages, system });
+		const payload = this._buildRequestPayload({ messages, system, generationConfig });
 		const url = this._buildUrl({ stream: true });
 		const headers = await this._buildHeaders();
 		const response = await axios.post(url, payload, {
 			headers,
 			responseType: 'stream',
 			signal: abortSignal,
+			timeout: this.requestTimeoutMs,
+			httpAgent: keepAliveHttpAgent,
+			httpsAgent: keepAliveHttpsAgent,
 		});
 
 		const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
@@ -240,7 +280,7 @@ class GoogleAIClient {
 		});
 	}
 
-	_buildRequestPayload({ messages, system }) {
+	_buildRequestPayload({ messages, system, generationConfig }) {
 		const contents = messages.map((message) => {
 			const parts = [];
 
@@ -267,7 +307,10 @@ class GoogleAIClient {
 
 		const payload = {
 			contents,
-			generationConfig: { temperature: 0.3 },
+			generationConfig: {
+				...this.generationConfig,
+				...(generationConfig && typeof generationConfig === 'object' ? generationConfig : {}),
+			},
 		};
 
 		if (system && this.supportsSystemInstruction) {
