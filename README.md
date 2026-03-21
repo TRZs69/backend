@@ -67,6 +67,21 @@ This backend application serves as the core logic for a gamified learning platfo
         ```
     - Make sure there's definition of `require('dotenv').config();` in the `index.js` file.
 
+        - Optional LLM settings for chat behavior:
+                ```
+                LEVELY_GEMINI_MODEL='gemma-3-12b-it'
+                LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=auto
+                LEVELY_CHAT_MAX_USER_PROMPT_CHARS=2200
+                ```
+            Valid values for `LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE`:
+            - `auto`: use native `systemInstruction` when model supports it, otherwise use wrapper mode.
+            - `native`: always send native `systemInstruction` payload.
+            - `wrapper`: always wrap system prompt as high-priority synthetic turns.
+            Additional chat safety behavior:
+            - Prompt-injection attempts (e.g., asking to ignore system rules or reveal internal prompts) are blocked before LLM calls.
+            - Direct requests for final graded answers are blocked before LLM calls.
+            - High-risk assessment-context streaming requests are buffered and safety-filtered before emission.
+
 4. **Generate Prisma Client:**
 
     ```bash
