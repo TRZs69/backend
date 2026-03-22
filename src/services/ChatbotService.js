@@ -64,6 +64,11 @@ const FOLLOW_UP_KEYWORDS = (process.env.LEVELY_CHAT_FOLLOW_UP_KEYWORDS ||
 	.split('|')
 	.map((entry) => entry.trim().toLowerCase())
 	.filter(Boolean);
+const SHORT_CONTINUATION_CUES = (process.env.LEVELY_CHAT_SHORT_CONTINUATION_CUES ||
+	'boleh|lanjut|lanjutkan|oke|ok|terus|gas')
+	.split('|')
+	.map((entry) => String(entry || '').trim().toLowerCase())
+	.filter(Boolean);
 const FOLLOW_UP_OVERLAP_THRESHOLD = Number(process.env.LEVELY_CHAT_FOLLOW_UP_OVERLAP_THRESHOLD || 0.5);
 
 const truncateText = (text, limit) => {
@@ -124,6 +129,62 @@ const stripTrailingEmptyOrderedListItems = (text) => {
 	return lines.slice(0, end + 1).join('\n');
 };
 
+const hasUnpairedDoubleAsterisk = (line) => {
+	const matches = String(line || '').match(/\*\*/g);
+	return Boolean(matches) && matches.length % 2 === 1;
+};
+
+const isLikelyTruncatedTrailingListLine = (line) => {
+	const trimmed = String(line || '').trim();
+	if (!trimmed) {
+		return false;
+	}
+
+	const listPrefixMatch = /^(\d+\s*[).:-]\s+|[-*]\s+)/.exec(trimmed);
+	if (!listPrefixMatch) {
+		return false;
+	}
+
+	const content = trimmed.slice(listPrefixMatch[0].length).trim();
+	if (!content) {
+		return true;
+	}
+
+	if (hasUnpairedDoubleAsterisk(content)) {
+		return true;
+	}
+
+	const words = content.split(/\s+/).filter(Boolean);
+	const looksLikeShortFragment = words.length === 1 && content.length <= 6 && !/[.!?:)]$/.test(content);
+	return looksLikeShortFragment;
+};
+
+const stripTrailingTruncatedListItems = (text) => {
+	if (typeof text !== 'string' || !text.trim()) {
+		return '';
+	}
+
+	const lines = text.split('\n');
+	let end = lines.length - 1;
+
+	while (end >= 0 && !String(lines[end]).trim()) {
+		end -= 1;
+	}
+
+	while (end >= 0 && isLikelyTruncatedTrailingListLine(lines[end])) {
+		end -= 1;
+		while (end >= 0 && !String(lines[end]).trim()) {
+			end -= 1;
+		}
+	}
+
+	if (end < 0) {
+		return '';
+	}
+
+	return lines.slice(0, end + 1).join('\n');
+};
+
 const postProcessReply = (reply) => {
 	if (typeof reply !== 'string') {
 		return '';
@@ -131,6 +192,7 @@ const postProcessReply = (reply) => {
 
 	let normalized = reply.replace(/\r/g, '').trim();
 	normalized = stripTrailingEmptyOrderedListItems(normalized);
+	normalized = stripTrailingTruncatedListItems(normalized);
 	normalized = normalized.replace(/\n{3,}/g, '\n\n').trim();
 	return normalized;
 };
@@ -246,6 +308,22 @@ const isDetailedPrompt = (prompt) => {
 		.some((keyword) => keyword && normalized.includes(keyword));
 };
 
+const isShortContinuationCue = (prompt) => {
+	const normalizedPrompt = normalizeIntentText(prompt);
+	if (!normalizedPrompt) {
+		return false;
+	}
+
+	const tokenCount = normalizedPrompt.split(' ').filter(Boolean).length;
+	if (tokenCount > 3) {
+		return false;
+	}
+
+	return SHORT_CONTINUATION_CUES
+		.map((cue) => normalizeIntentText(cue))
+		.some((cue) => cue && normalizedPrompt === cue);
+};
+
 const shouldForceContinuation = ({ prompt, conversation }) => {
 	if (!Array.isArray(conversation) || !conversation.length) {
 		return false;
@@ -267,8 +345,9 @@ const shouldForceContinuation = ({ prompt, conversation }) => {
 
 	const lastUser = [...conversation].reverse().find((item) => item.role === 'user');
 	const similarity = lastUser ? overlapScore(lastUser.content, normalizedPrompt) : 0;
+	const shortContinuationCue = isShortContinuationCue(prompt);
 
-	return hasFollowUpKeyword || similarity >= FOLLOW_UP_OVERLAP_THRESHOLD;
+	return hasFollowUpKeyword || shortContinuationCue || similarity >= FOLLOW_UP_OVERLAP_THRESHOLD;
 };
 
 const DIRECT_ANSWER_HINTS = [
@@ -480,12 +559,12 @@ const buildSystemPromptForRoute = ({ route, hasMaterialContext }) => {
 	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction}`;
 };
 
-const pickGenerationSettings = (prompt) => {
+const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {
 	if (!ENABLE_ADAPTIVE_RESPONSE_MODE) {
 		return { mode: 'default', generationConfig: null };
 	}
 
-	const detailed = isDetailedPrompt(prompt);
+	const detailed = forceDetailed || isDetailedPrompt(prompt);
 	const generationConfig = {};
 
 	if (detailed) {
@@ -499,7 +578,7 @@ const pickGenerationSettings = (prompt) => {
 			generationConfig.topP = DETAILED_TOP_P;
 		}
 		return {
-			mode: 'detailed',
+			mode: forceDetailed ? 'detailed_continuation' : 'detailed',
 			generationConfig: Object.keys(generationConfig).length ? generationConfig : null,
 		};
 	}
@@ -818,7 +897,8 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 
 	const baseHistory = useProvidedHistory ? history : persistedConversation;
 	const conversation = normalizeHistory(baseHistory);
-	if (shouldForceContinuation({ prompt, conversation })) {
+	const isContinuationRequest = shouldForceContinuation({ prompt, conversation });
+	if (isContinuationRequest) {
 		followUpInstruction = 'Ini adalah lanjutan topik. Jika pengguna menjawab singkat seperti "boleh", "lanjut", atau "oke", anggap itu sebagai sinyal untuk melanjutkan jawaban sebelumnya tanpa mengulang ringkasan dari awal. Jangan ulang salam, nama pengguna, poin, lencana, atau pembuka motivasi yang sama. Jika menggunakan daftar bernomor, pastikan setiap nomor punya isi; jangan pernah mengirim nomor kosong seperti "3.".';
 	}
 
@@ -839,6 +919,7 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 		messages,
 		hasMaterialContext: Boolean(materialReferenceContext),
 		hasAssessmentContext: Boolean(assessmentReferenceContext),
+		isContinuationRequest,
 	};
 };
 
@@ -915,7 +996,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 
 	const startedAt = Date.now();
 	const contextStartedAt = Date.now();
-	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext } = await buildChatContext({
+	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } = await buildChatContext({
 		history,
 		sessionId,
 		deviceId,
@@ -929,7 +1010,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 		hasMaterialContext,
 	});
 	const contextMs = Date.now() - contextStartedAt;
-	const responseSettings = pickGenerationSettings(prompt);
+	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
 
 	try {
 		const llmStartedAt = Date.now();
@@ -1034,6 +1115,7 @@ exports.streamMessage = async ({
 		messages,
 		hasMaterialContext,
 		hasAssessmentContext,
+		isContinuationRequest,
 	} = await buildChatContext({
 		history,
 		sessionId,
@@ -1048,7 +1130,7 @@ exports.streamMessage = async ({
 		hasMaterialContext,
 	});
 	const contextMs = Date.now() - contextStartedAt;
-	const responseSettings = pickGenerationSettings(prompt);
+	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
 	const highRiskAssessmentRequest = hasAssessmentContext;
 
 	try {

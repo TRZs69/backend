@@ -404,66 +404,74 @@ describe('ChatbotService prompt assembly', () => {
 		expect(result.reply).not.toMatch(/(^|\n)\s*3\s*[).:-]?\s*$/m);
 	});
 
-	it('still generates session title after streaming when live title generation is disabled', async () => {
+	it('removes trailing truncated markdown list item fragments', async () => {
 		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
-		process.env.LEVELY_CHAT_STREAM_TITLE_GENERATION = 'false';
 
-		const streamCompleteMock = jest.fn().mockImplementation(async ({ onChunk }) => {
-			onChunk('Ini jawaban');
-			return 'Ini jawaban';
-		});
-		const completeMock = jest.fn().mockResolvedValue('Judul Uji');
-		const ensureSessionMock = jest.fn().mockResolvedValue('session-1');
-		const appendMessagesMock = jest.fn().mockResolvedValue(undefined);
-		const renameSessionMock = jest.fn().mockResolvedValue({
-			id: 'session-1',
-			title: 'Judul Uji',
-		});
-		const fetchMessagesMock = jest.fn().mockImplementation(async ({ limit }) => {
-			if (limit === 20) {
-				return [];
-			}
-			return [
-				{ role: 'user', content: 'Jelaskan HCI' },
-				{ role: 'assistant', content: 'Ini jawaban' },
-			];
-		});
-
+		const completeMock = jest.fn().mockResolvedValue([
+			'Mari kita bahas lebih detail masing-masing elemen tersebut:',
+			'1. **Man',
+		].join('\n'));
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
 		jest.doMock('../../src/services/GoogleAIClient', () => ({
-			GoogleAIClient: jest.fn().mockImplementation(() => ({
-				streamComplete: streamCompleteMock,
-				complete: completeMock,
-			})),
+			GoogleAIClient: jest.fn().mockImplementation(() => ({ complete: completeMock })),
 		}));
 		jest.doMock('../../src/services/ChatHistoryRepository', () => ({
-			isEnabled: true,
-			ensureSession: ensureSessionMock,
-			fetchMessages: fetchMessagesMock,
-			appendMessages: appendMessagesMock,
-			renameSession: renameSessionMock,
+			isEnabled: false,
 		}));
 		jest.doMock('../../src/prismaClient', () => ({
 			user: { findUnique: jest.fn().mockResolvedValue(null) },
 			material: { findUnique: jest.fn().mockResolvedValue(null) },
 		}));
 
-		const emitted = [];
 		const chatbotService = require('../../src/services/ChatbotService');
-		const result = await chatbotService.streamMessage({
-			message: 'Jelaskan HCI',
-			history: [],
-			onToken: (chunk) => emitted.push(chunk),
+		const result = await chatbotService.sendMessage({
+			message: 'boleh',
+			history: [
+				{ role: 'user', content: 'Jelaskan elemen utama HCI.' },
+				{ role: 'assistant', content: 'Tiga elemen utama: manusia, komputer, interaksi.' },
+			],
 		});
 
-		expect(result.sessionId).toBe('session-1');
-		expect(streamCompleteMock).toHaveBeenCalledTimes(1);
-		expect(appendMessagesMock).toHaveBeenCalledTimes(1);
-		expect(fetchMessagesMock).toHaveBeenCalledWith({ sessionId: 'session-1', limit: 5 });
-		expect(renameSessionMock).toHaveBeenCalledWith({ sessionId: 'session-1', title: 'Judul Uji' });
+		expect(completeMock).toHaveBeenCalledTimes(1);
+		expect(result.reply).toContain('Mari kita bahas lebih detail');
+		expect(result.reply).not.toContain('1. **Man');
+	});
+
+	it('uses detailed continuation mode for short cue like boleh', async () => {
+		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
+		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
+
+		const completeMock = jest.fn().mockResolvedValue('Lanjut pembahasan HCI.');
+		jest.doMock('../../src/misc/emojies.js', () => ({
+			EMOJI: { warm_smile: ':)' },
+		}));
+		jest.doMock('../../src/services/GoogleAIClient', () => ({
+			GoogleAIClient: jest.fn().mockImplementation(() => ({ complete: completeMock })),
+		}));
+		jest.doMock('../../src/services/ChatHistoryRepository', () => ({
+			isEnabled: false,
+		}));
+		jest.doMock('../../src/prismaClient', () => ({
+			user: { findUnique: jest.fn().mockResolvedValue(null) },
+			material: { findUnique: jest.fn().mockResolvedValue(null) },
+		}));
+
+		const chatbotService = require('../../src/services/ChatbotService');
+		await chatbotService.sendMessage({
+			message: 'boleh',
+			history: [
+				{ role: 'user', content: 'Apa itu HCI?' },
+				{ role: 'assistant', content: 'HCI adalah bidang interaksi manusia dan komputer.' },
+			],
+		});
+
+		const callArg = completeMock.mock.calls[0][0];
+		expect(callArg.generationConfig.maxOutputTokens).toBe(900);
+		expect(callArg.messages[2].content).toContain('Ini adalah lanjutan topik');
 	});
 });
