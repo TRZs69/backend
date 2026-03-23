@@ -87,12 +87,17 @@ const calculateQuestionDuelElo = ({
     const K_USER = determineUserKFactor(currentUserElo);
     const K_QUESTION = determineQuestionKFactor(currentQuestionElo);
 
-    const expectedUser = 1 / (1 + Math.pow(10, (currentQuestionElo - currentUserElo) / 400));
+    // Sesuai rumus gambar: P_s,i = 1 / (1 + 10^(-(R_s - D_i) / 400))
+    const expectedUser = 1 / (1 + Math.pow(10, -(currentUserElo - currentQuestionElo) / 400));
+    
+    // S (Skor mahasiswa): Benar = 1, Salah = 0
     const actualUserScore = isCorrect ? 1 : 0;
-    const actualQuestionScore = isCorrect ? 0 : 1;
 
+    // Formula 3. Update Rating Mahasiswa: R_s^baru = R_s + K_s(S - P_s,i)
     const userDeltaRaw = K_USER * (actualUserScore - expectedUser);
-    const questionDeltaRaw = K_QUESTION * (actualQuestionScore - (1 - expectedUser));
+    
+    // Formula 3. Update Rating Soal: D_i^baru = D_i + K_i(P_s,i - S)
+    const questionDeltaRaw = K_QUESTION * (expectedUser - actualUserScore);
 
     const nextUserElo = Math.max(MIN_ELO, Math.round(currentUserElo + userDeltaRaw));
     const nextQuestionElo = Math.max(MIN_ELO, Math.round(currentQuestionElo + questionDeltaRaw));

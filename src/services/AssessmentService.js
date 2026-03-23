@@ -8,6 +8,8 @@ const {
     ELO_BANDS,
     calculateQuestionDuelElo,
     determineDifficulty,
+    determineUserKFactor,
+    determineQuestionKFactor,
     resolveBandIndex,
     getBandTraversalOrder,
     sortByDistanceToTarget
@@ -1100,11 +1102,10 @@ const calculateEloOutcome = ({
     }
 
     const isProvisional = normalizedUserElo <= MIN_ELO;
-    const K_USER = isProvisional ? 80 : 30;
-    const K_QUESTION = 15;
 
     let totalUserEloEarned = 0;
     const questionUpdates = [];
+    let totalPointsEarnedRaw = 0; // NEW: Track points separately
 
     for (const evaluation of evaluations) {
         const question = questions[evaluation.index];
@@ -1113,15 +1114,33 @@ const calculateEloOutcome = ({
         }
 
         const questionElo = clampElo(question.elo);
-        const expectedProbUser = 1 / (1 + Math.pow(10, (questionElo - normalizedUserElo) / 400));
+        const K_USER = determineUserKFactor(normalizedUserElo);
+        const K_QUESTION = determineQuestionKFactor(questionElo);
+        
+        // Sesuai rumus gambar: P_s,i = 1 / (1 + 10^(-(R_s - D_i) / 400))
+        const expectedProbUser = 1 / (1 + Math.pow(10, -(normalizedUserElo - questionElo) / 400));
+        // S (Skor mahasiswa): Benar = 1, Salah = 0
         const actualUserScore = evaluation.isCorrect ? 1 : 0;
-        const actualQuestionScore = evaluation.isCorrect ? 0 : 1;
 
+        // Formula 3. Update Rating Mahasiswa: R_s^baru = R_s + K_s(S - P_s,i)
         let userEloChange = K_USER * (actualUserScore - expectedProbUser);
-        const questionEloChange = K_QUESTION * (actualQuestionScore - (1 - expectedProbUser));
+        
+        // Formula 3. Update Rating Soal: D_i^baru = D_i + K_i(P_s,i - S)
+        const questionEloChange = K_QUESTION * (expectedProbUser - actualUserScore);
 
         if (isProvisional && evaluation.isCorrect) {
             userEloChange += (100 / totalQuestions) * 0.5;
+        }
+
+        // --- NEW POINT CALCULATION ---
+        if (evaluation.isCorrect) {
+            // Difficulty = 1 - E
+            const difficulty = 1 - expectedProbUser;
+            // Dynamic points = Base Poin x Difficulty
+            // Memnggunakan base poin statis 100 per soal sesuai instruksi.
+            const basePointPerQuestion = 100;
+            const dynamicPoints = basePointPerQuestion * difficulty;
+            totalPointsEarnedRaw += dynamicPoints;
         }
 
         totalUserEloEarned += userEloChange;
@@ -1136,8 +1155,14 @@ const calculateEloOutcome = ({
         totalEloChangeRaw = 0;
     }
 
+    // Terapkan grade multiplier juga ke points jika dibutuhkan (opsional, ikuti Elo sementara)
+    let finalPointsEarned = totalPointsEarnedRaw * getGradeMultiplier(grade);
+
     return {
-        pointsEarned: Math.round(totalEloChangeRaw),
+        // Return pointsEarned as the new dynamic point calculation
+        pointsEarned: Math.round(finalPointsEarned),
+        // Return eloDeltaRaw for separating the real Elo
+        eloDeltaRaw: totalEloChangeRaw,
         questionUpdates,
     };
 };
@@ -1243,15 +1268,15 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
     const totalQuestions = assessableQuestions > 0 ? assessableQuestions : 1;
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
 
-    const { pointsEarned, questionUpdates } = calculateEloOutcome({
+    const { pointsEarned, eloDeltaRaw, questionUpdates } = calculateEloOutcome({
         questions,
         evaluations,
         grade,
         totalQuestions,
-        userElo: userChapter.user?.points || MIN_ELO,
+        userElo: userChapter.user?.elo || MIN_ELO,
     });
     const isStudent = isStudentRole(userChapter.user?.role);
-    const eloDeltaSigned = isStudent ? pointsEarned : 0;
+    const eloDeltaSigned = isStudent ? Math.round(eloDeltaRaw) : 0;
     const userPointsEarned = isStudent ? Math.max(0, pointsEarned) : 0;
     const effectiveQuestionUpdates = isStudent ? questionUpdates : [];
 
@@ -1430,7 +1455,23 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     const courseEloEnd = refreshedAttempt.currentUserElo || courseEloStart;
     const effectiveCourseEloEnd = isStudent ? courseEloEnd : courseEloStart;
     const eloDeltaSigned = isStudent ? Math.round(courseEloEnd - courseEloStart) : 0;
-    const pointsEarned = isStudent ? Math.max(0, eloDeltaSigned) : 0;
+
+    const evaluationsForPoints = servedQuestions.map((q, index) => ({
+        index,
+        questionId: q.id,
+        isCorrect: q.isCorrect === true,
+        type: normaliseAttemptQuestionType(q.type)
+    }));
+
+    const { pointsEarned: dynamicPointsEarned } = calculateEloOutcome({
+        questions: servedQuestions,
+        evaluations: evaluationsForPoints,
+        grade,
+        totalQuestions: Math.max(1, objectiveTarget),
+        userElo: courseEloStart
+    });
+
+    const pointsEarned = isStudent ? dynamicPointsEarned : 0;
 
     // Calculate Gamification Points using "High Score" method
     let globalPointsToAward = 0;
@@ -1771,15 +1812,15 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         : (assessableQuestions > 0 ? assessableQuestions : 1);
     const grade = Math.round(getCorrectnessRatio(correctAnswers, totalQuestions) * 100);
 
-    const { pointsEarned, questionUpdates } = calculateEloOutcome({
+    const { pointsEarned, eloDeltaRaw, questionUpdates } = calculateEloOutcome({
         questions,
         evaluations,
         grade,
         totalQuestions,
-        userElo: userChapter.user?.points || MIN_ELO,
+        userElo: userChapter.user?.elo || MIN_ELO,
     });
     const isStudent = isStudentRole(userChapter.user?.role);
-    const eloDeltaSigned = isStudent ? pointsEarned : 0;
+    const eloDeltaSigned = isStudent ? Math.round(eloDeltaRaw) : 0;
 
     // Calculate Gamification Points using "High Score" method
     let globalPointsToAward = 0;
@@ -2110,6 +2151,12 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             };
         }
 
+        let dynamicPointsEarnedThisQuestion = 0;
+        if (isObjective && isStudent && isCorrect) {
+            const expectedProbUser = 1 / (1 + Math.pow(10, -(courseEloBefore - clampElo(activeQuestion.elo)) / 400));
+            dynamicPointsEarnedThisQuestion = Math.round(100 * (1 - expectedProbUser));
+        }
+
         return {
             attemptId: updatedAttempt.id,
             completed: false,
@@ -2119,7 +2166,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             courseEloBefore,
             courseEloAfter: updatedAttempt.currentUserElo || MIN_ELO,
             targetNextQuestionElo,
-            pointsAwardedPreview: Math.max(0, (updatedAttempt.currentUserElo || MIN_ELO) - courseEloStart),
+            pointsAwardedPreview: dynamicPointsEarnedThisQuestion,
             userEloPreview: updatedAttempt.currentUserElo || MIN_ELO,
             nextQuestion: activeAfterAnswer ? toPublicQuestion(activeAfterAnswer, false) : null,
             progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
