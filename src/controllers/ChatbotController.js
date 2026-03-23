@@ -20,7 +20,7 @@ const detachListener = (emitter, event, handler) => {
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { message, history, sessionId, deviceId, userId, materialId } = req.body || {};
+    const { message, history, sessionId, deviceId, userId, materialId, chapterId } = req.body || {};
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ message: 'Message is required' });
     }
@@ -32,6 +32,7 @@ exports.sendMessage = async (req, res) => {
       deviceId,
       userId,
       materialId,
+      chapterId,
     });
     return res.status(200).json(result);
   } catch (error) {
@@ -41,7 +42,7 @@ exports.sendMessage = async (req, res) => {
 };
 
 exports.streamMessage = async (req, res) => {
-  const { message, history, sessionId, deviceId, userId, materialId } = req.body || {};
+  const { message, history, sessionId, deviceId, userId, materialId, chapterId } = req.body || {};
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ message: 'Message is required' });
   }
@@ -87,6 +88,7 @@ exports.streamMessage = async (req, res) => {
       deviceId,
       userId,
       materialId,
+      chapterId,
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
@@ -105,7 +107,7 @@ exports.streamMessage = async (req, res) => {
 
 exports.createSession = async (req, res) => {
   try {
-    const { userId, deviceId, title, metadata } = req.body || {};
+    const { userId, deviceId, title, metadata, chapterId } = req.body || {};
     if (userId === undefined || userId === null) {
       return res.status(400).json({ message: 'UserId is required' });
     }
@@ -114,6 +116,7 @@ exports.createSession = async (req, res) => {
       deviceId,
       title,
       metadata,
+      chapterId,
     });
     return res.status(201).json(result);
   } catch (error) {
@@ -125,7 +128,7 @@ exports.createSession = async (req, res) => {
 exports.listSessionsByUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { limit, offset } = req.query;
+    const { limit, offset, chapterId } = req.query;
     if (userId === undefined) {
       return res.status(400).json({ message: 'UserId is required' });
     }
@@ -133,6 +136,7 @@ exports.listSessionsByUser = async (req, res) => {
     const parsedOffset = Number(offset) || 0;
     const sessions = await chatbotService.listChatSessions({
       userId: Number(userId),
+      chapterId,
       limit: parsedLimit,
       offset: parsedOffset,
     });
@@ -172,7 +176,9 @@ exports.getHistory = async (req, res) => {
 exports.getHistoryByUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const result = await chatbotService.getHistoryByUser({ userId });
+    const { chapterId, limit } = req.query;
+    const parsedLimit = Number(limit) || 100;
+    const result = await chatbotService.getHistoryByUser({ userId, chapterId, limit: parsedLimit });
     return res.status(200).json(result);
   } catch (error) {
     console.error('ChatbotController history by user error:', error.message);

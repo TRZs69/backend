@@ -71,6 +71,14 @@ const SHORT_CONTINUATION_CUES = (process.env.LEVELY_CHAT_SHORT_CONTINUATION_CUES
 	.filter(Boolean);
 const FOLLOW_UP_OVERLAP_THRESHOLD = Number(process.env.LEVELY_CHAT_FOLLOW_UP_OVERLAP_THRESHOLD || 0.5);
 
+const normalizeChapterId = (chapterId) => {
+	const parsed = Number(chapterId);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return null;
+	}
+	return Math.trunc(parsed);
+};
+
 const truncateText = (text, limit) => {
 	if (typeof text !== 'string') {
 		return '';
@@ -707,32 +715,11 @@ const scheduleWarmup = () => {
 
 scheduleWarmup();
 
-const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, materialId }) => {
+const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, materialId, chapterId }) => {
 	let persistedSessionId = sessionId;
 	let persistedConversation = [];
 	const useProvidedHistory = Array.isArray(history) && history.length > 0;
-
-	if (chatHistoryStore.isEnabled) {
-		try {
-			persistedSessionId = await chatHistoryStore.ensureSession({
-				sessionId,
-				userId,
-				deviceId,
-			});
-			if (!useProvidedHistory && persistedSessionId) {
-				const stored = await chatHistoryStore.fetchMessages({
-					sessionId: persistedSessionId,
-					limit: 20,
-				});
-				persistedConversation = stored.map((entry) => ({
-					role: entry.role,
-					content: entry.content,
-				}));
-			}
-		} catch (error) {
-			console.error('ChatbotService history error:', error.message);
-		}
-	}
+	let resolvedChapterId = normalizeChapterId(chapterId);
 
 	let userProfileContext = '';
 	let materialReferenceContext = '';
@@ -777,6 +764,9 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 				include: { chapter: true } // Include chapter for assessment context
 			});
 			if (material) {
+				if (material.chapter?.id && resolvedChapterId === null) {
+					resolvedChapterId = normalizeChapterId(material.chapter.id);
+				}
 				if (material.content) {
 					// preserve image tags by converting them to text descriptions
 					let cleanContent = material.content.replace(/<img[^>]+src="([^">]+)"[^>]*>/g, ' [Image: $1] ');
@@ -895,6 +885,29 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 		}
 	}
 
+	if (chatHistoryStore.isEnabled) {
+		try {
+			persistedSessionId = await chatHistoryStore.ensureSession({
+				sessionId,
+				userId,
+				deviceId,
+				chapterId: resolvedChapterId,
+			});
+			if (!useProvidedHistory && persistedSessionId) {
+				const stored = await chatHistoryStore.fetchMessages({
+					sessionId: persistedSessionId,
+					limit: 20,
+				});
+				persistedConversation = stored.map((entry) => ({
+					role: entry.role,
+					content: entry.content,
+				}));
+			}
+		} catch (error) {
+			console.error('ChatbotService history error:', error.message);
+		}
+	}
+
 	const baseHistory = useProvidedHistory ? history : persistedConversation;
 	const conversation = normalizeHistory(baseHistory);
 	const isContinuationRequest = shouldForceContinuation({ prompt, conversation });
@@ -946,7 +959,7 @@ const normalizeHistory = (history = []) => {
 		.slice(-Math.max(1, MAX_HISTORY_MESSAGES));
 };
 
-exports.createChatSession = async ({ userId, deviceId, title, metadata }) => {
+exports.createChatSession = async ({ userId, deviceId, title, metadata, chapterId }) => {
 	if (!chatHistoryStore.isEnabled) {
 		throw new Error('Chat history belum diaktifkan');
 	}
@@ -956,16 +969,17 @@ exports.createChatSession = async ({ userId, deviceId, title, metadata }) => {
 		deviceId,
 		title,
 		metadata,
+		chapterId: normalizeChapterId(chapterId),
 	});
 
 	return { session };
 };
 
-exports.listChatSessions = async ({ userId, limit = 20, offset = 0 }) => {
+exports.listChatSessions = async ({ userId, chapterId, limit = 20, offset = 0 }) => {
 	if (!chatHistoryStore.isEnabled) {
 		return [];
 	}
-	return chatHistoryStore.listSessions({ userId, limit, offset });
+	return chatHistoryStore.listSessions({ userId, chapterId: normalizeChapterId(chapterId), limit, offset });
 };
 
 exports.renameChatSession = async ({ sessionId, title }) => {
@@ -978,7 +992,7 @@ exports.renameChatSession = async ({ sessionId, title }) => {
 	return chatHistoryStore.renameSession({ sessionId, title });
 };
 
-exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId, materialId }) => {
+exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId, materialId, chapterId }) => {
 	const prompt = sanitizePromptText(message, { limit: MAX_USER_PROMPT_CHARS });
 	if (!prompt) {
 		throw new Error('Message is required');
@@ -1003,6 +1017,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 		userId,
 		prompt,
 		materialId,
+		chapterId,
 	});
 	const assistantRoute = resolveAssistantRoute({ prompt });
 	const effectiveSystemPrompt = buildSystemPromptForRoute({
@@ -1081,6 +1096,7 @@ exports.streamMessage = async ({
 	deviceId,
 	userId,
 	materialId,
+	chapterId,
 	onToken,
 	abortSignal,
 }) => {
@@ -1123,6 +1139,7 @@ exports.streamMessage = async ({
 		userId,
 		prompt,
 		materialId,
+		chapterId,
 	});
 	const assistantRoute = resolveAssistantRoute({ prompt });
 	const effectiveSystemPrompt = buildSystemPromptForRoute({
@@ -1359,8 +1376,9 @@ exports.getHistory = async ({ sessionId, limit = 100 }) => {
 	return { sessionId: trimmedSessionId, messages };
 };
 
-exports.getHistoryByUser = async ({ userId, limit = 100 }) => {
+exports.getHistoryByUser = async ({ userId, chapterId, limit = 100 }) => {
 	const normalizedUserId = userId ?? null;
+	const normalizedChapterId = normalizeChapterId(chapterId);
 	if (normalizedUserId === null || normalizedUserId === undefined) {
 		throw new Error('UserId is required');
 	}
@@ -1369,9 +1387,12 @@ exports.getHistoryByUser = async ({ userId, limit = 100 }) => {
 		return { sessionId: null, messages: [] };
 	}
 
-	const sessionId = await chatHistoryStore.findLatestSessionForUser({ userId: normalizedUserId });
+	const sessionId = await chatHistoryStore.findLatestSessionForUser({
+		userId: normalizedUserId,
+		chapterId: normalizedChapterId,
+	});
 	if (!sessionId) {
-		return { sessionId: null, messages: [] };
+		return { sessionId: null, chapterId: normalizedChapterId, messages: [] };
 	}
 
 	const messages = await chatHistoryStore.fetchMessages({
@@ -1379,7 +1400,7 @@ exports.getHistoryByUser = async ({ userId, limit = 100 }) => {
 		limit,
 	});
 
-	return { sessionId, messages };
+	return { sessionId, chapterId: normalizedChapterId, messages };
 };
 
 exports.deleteSession = async ({ sessionId }) => {

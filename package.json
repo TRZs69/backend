@@ -14,7 +14,9 @@
     "db:migrate:status": "prisma migrate status",
     "vercel-build": "npm run db:generate",
     "fix:badge-urls": "node scripts/fix_badge_image_urls.js",
-    "sync:student-only-elo": "node scripts/sync_student_only_elo.js"
+    "sync:student-only-elo": "node scripts/sync_student_only_elo.js",
+    "chat:backfill-chapter:dry": "node scripts/backfill_chat_session_chapter_ids.js",
+    "chat:backfill-chapter": "node scripts/backfill_chat_session_chapter_ids.js --apply"
   },
   "author": "archico",
   "license": "ISC",

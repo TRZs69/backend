@@ -45,19 +45,34 @@ const mapRowToSession = (row = {}) => ({
 
 const sanitizeRole = (role) => (role === 'assistant' ? 'assistant' : 'user');
 
-async function findLatestSessionForUser({ userId }) {
+const normalizeChapterId = (chapterId) => {
+  const parsed = Number(chapterId);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.trunc(parsed);
+};
+
+async function findLatestSessionForUser({ userId, chapterId }) {
   if (!isEnabled || userId === undefined || userId === null) {
     return null;
   }
 
+  const normalizedChapterId = normalizeChapterId(chapterId);
+
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from(TABLE_SESSIONS)
       .select('id')
       .eq('user_id', userId)
       .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    if (normalizedChapterId !== null) {
+      query = query.filter('metadata->>chapterId', 'eq', String(normalizedChapterId));
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
       // PGRST116 = multiple rows, treat as warning but continue.
@@ -74,21 +89,34 @@ async function findLatestSessionForUser({ userId }) {
   }
 }
 
-async function ensureSession({ sessionId, userId, deviceId }) {
+async function ensureSession({ sessionId, userId, deviceId, chapterId }) {
   if (!isEnabled) {
     return null;
   }
+
+  const normalizedChapterId = normalizeChapterId(chapterId);
 
   if (sessionId) {
     try {
       const { data, error } = await supabase
         .from(TABLE_SESSIONS)
-        .select('id')
+        .select('id, metadata')
         .eq('id', sessionId)
         .maybeSingle();
 
       if (!error && data?.id) {
-        return data.id;
+        if (normalizedChapterId !== null) {
+          const currentMetadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+          const currentChapterId = normalizeChapterId(currentMetadata.chapterId);
+          if (currentChapterId !== null && currentChapterId !== normalizedChapterId) {
+            // Session belongs to another chapter, create a new one to keep histories separated.
+            // Continue to insert path below.
+          } else {
+            return data.id;
+          }
+        } else {
+          return data.id;
+        }
       }
     } catch (error) {
       logError('ensureSession.lookup', error);
@@ -106,6 +134,7 @@ async function ensureSession({ sessionId, userId, deviceId }) {
   const payload = {
     user_id: userId ?? null,
     device_id: deviceId ?? null,
+    metadata: normalizedChapterId !== null ? { chapterId: normalizedChapterId } : {},
   };
 
   if (sessionId) {
@@ -126,16 +155,22 @@ async function ensureSession({ sessionId, userId, deviceId }) {
   return data.id;
 }
 
-async function createSession({ userId, deviceId, title, metadata = {} }) {
+async function createSession({ userId, deviceId, title, metadata = {}, chapterId }) {
   if (!isEnabled) {
     throw new Error('Chat history tidak aktif');
+  }
+
+  const normalizedChapterId = normalizeChapterId(chapterId);
+  const normalizedMetadata = metadata && typeof metadata === 'object' ? { ...metadata } : {};
+  if (normalizedChapterId !== null) {
+    normalizedMetadata.chapterId = normalizedChapterId;
   }
 
   const payload = {
     user_id: userId ?? null,
     device_id: deviceId ?? null,
     title: title ? title.toString().trim().slice(0, 120) : null,
-    metadata,
+    metadata: normalizedMetadata,
   };
 
   const { data, error } = await supabase
@@ -152,17 +187,25 @@ async function createSession({ userId, deviceId, title, metadata = {} }) {
   return mapRowToSession(data);
 }
 
-async function listSessions({ userId, limit = 20, offset = 0 }) {
+async function listSessions({ userId, chapterId, limit = 20, offset = 0 }) {
   if (!isEnabled || userId === undefined || userId === null) {
     return [];
   }
 
-  const { data, error } = await supabase
+  const normalizedChapterId = normalizeChapterId(chapterId);
+
+  let query = supabase
     .from(TABLE_SESSIONS)
     .select('id, user_id, device_id, title, last_message_preview, metadata, created_at, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .range(offset, offset + limit - 1);
+
+  if (normalizedChapterId !== null) {
+    query = query.filter('metadata->>chapterId', 'eq', String(normalizedChapterId));
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     logError('listSessions', error);
