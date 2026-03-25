@@ -81,7 +81,8 @@ function toSheetRow(userId, summary) {
     };
 }
 
-async function postRowsToGoogleSheets(rows) {
+// payload: { rows: [...logRows], questionnaire: [...qRows] }
+async function postRowsToGoogleSheets(payload) {
     const webhookUrl = process.env.GSHEETS_WEBHOOK_URL;
     const webhookSecret = process.env.GSHEETS_WEBHOOK_SECRET || '';
 
@@ -95,7 +96,8 @@ async function postRowsToGoogleSheets(rows) {
             {
                 source: 'levelearn-backend',
                 secret: webhookSecret,
-                rows,
+                rows: payload.rows,
+                questionnaire: payload.questionnaire || [],
             },
             {
                 timeout: 15000,
@@ -261,7 +263,7 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
 });
 
 // ─── POST /evaluation/sync/google-sheets ───────────────────────────────────
-// Sync one user or all students summaries to Google Sheets (via webhook).
+// Sync all log summaries + questionnaire responses to Google Sheets in one call.
 router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
@@ -273,7 +275,7 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
     const targetUserId = Number(req.body?.userId);
 
     try {
-        const rows = [];
+        const logRows = [];
 
         if (syncAll) {
             const students = await prisma.user.findMany({
@@ -283,7 +285,7 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
 
             for (const student of students) {
                 const summary = await computeSummary(student.id, start, end);
-                rows.push(toSheetRow(student.id, summary));
+                logRows.push(toSheetRow(student.id, summary));
             }
         } else {
             if (!targetUserId) {
@@ -291,10 +293,40 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
             }
 
             const summary = await computeSummary(targetUserId, start, end);
-            rows.push(toSheetRow(targetUserId, summary));
+            logRows.push(toSheetRow(targetUserId, summary));
         }
 
-        const syncResult = await postRowsToGoogleSheets(rows);
+        // Pull questionnaire responses (all, or for specific user)
+        const qFilter = syncAll ? {} : { userId: targetUserId };
+        const qRaw = await prisma.evaluationQuestionnaire.findMany({
+            where: qFilter,
+            include: { user: { select: { name: true, studentId: true } } },
+            orderBy: { submittedAt: 'asc' },
+        });
+
+        const questionnaireRows = qRaw.map((r) => ({
+            syncedAt: new Date().toISOString(),
+            userId: r.userId,
+            studentId: r.user?.studentId,
+            studentName: r.user?.name,
+            submittedAt: r.submittedAt,
+            q1Autonomy:    r.q1Autonomy,
+            q2Competence1: r.q2Competence1,
+            q3Competence2: r.q3Competence2,
+            q4Relatedness: r.q4Relatedness,
+            q5Behavioral:  r.q5Behavioral,
+            q6Cognitive:   r.q6Cognitive,
+            q7Emotional:   r.q7Emotional,
+            q8Overall:     r.q8Overall,
+            avgSDT: parseFloat(((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)),
+            avgEngagement: parseFloat(((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)),
+        }));
+
+        const syncResult = await postRowsToGoogleSheets({
+            rows: logRows,
+            questionnaire: questionnaireRows,
+        });
+
         if (!syncResult.ok) {
             return res.status(502).json({
                 message: 'Failed to sync to Google Sheets',
@@ -305,7 +337,8 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
 
         res.json({
             message: 'Synced to Google Sheets',
-            syncedRows: rows.length,
+            syncedLogRows: logRows.length,
+            syncedQuestionnaireRows: questionnaireRows.length,
             period: { start, end },
             providerResponse: syncResult.data,
         });
