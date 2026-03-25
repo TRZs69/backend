@@ -17,6 +17,7 @@ const badgeRoutes = require("./routes/BadgeRouter.js");
 const userBadgeRoutes = require("./routes/UserBadgeRouter.js");
 const tradeRoutes = require("./routes/TradeRouter.js");
 const userTradeRoutes = require("./routes/UserTradeRouter.js");
+const evaluationRoutes = require("./routes/EvaluationRouter.js");
 const cors = require("cors");
 
 require("dotenv").config();
@@ -74,6 +75,8 @@ app.use("/api", badgeRoutes);
 app.use("/api", userBadgeRoutes);
 app.use("/api", tradeRoutes);
 app.use("/api", userTradeRoutes);
+
+app.use("/api", evaluationRoutes);
 
 app.get('/favicon.ico', (req, res) => {
   res.status(204).end();

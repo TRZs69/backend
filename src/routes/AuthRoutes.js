@@ -77,11 +77,18 @@ router.post('/login', async (req, res) => {
         const expiresIn = 60 * 60 * 1;
 
         const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: expiresIn})
+
+        // Create evaluation session record
+        const session = await prisma.userSession.create({
+            data: { userId: user.id }
+        });
+
         res.json({
             data: {
                 id: user.id,
                 name: user.name,
-                role: user.role
+                role: user.role,
+                sessionId: session.id
             },
             token: token
         })

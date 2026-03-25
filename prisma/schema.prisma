@@ -36,6 +36,7 @@ model User {
   assessmentAttempts AssessmentAttempt[]
   userBadges        UserBadge[]
   userTrades        UserTrade[]
+  sessions          UserSession[]
 
   @@map("users")
 }
@@ -374,4 +375,19 @@ enum Difficulty {
   PROFICIENT
   ADVANCED
   MASTERY
+}
+
+model UserSession {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  loginAt       DateTime  @default(now())
+  lastActiveAt  DateTime  @default(now())
+  logoutAt      DateTime?
+  durationSec   Int?
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([loginAt])
+  @@map("user_sessions")
 }
