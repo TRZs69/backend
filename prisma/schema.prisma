@@ -37,6 +37,7 @@ model User {
   userBadges        UserBadge[]
   userTrades        UserTrade[]
   sessions          UserSession[]
+  questionnaires    EvaluationQuestionnaire[]
 
   @@map("users")
 }
@@ -390,4 +391,30 @@ model UserSession {
   @@index([userId])
   @@index([loginAt])
   @@map("user_sessions")
+}
+
+model EvaluationQuestionnaire {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  submittedAt     DateTime @default(now())
+
+  // SDT — Motivasi (Leroux et al., 2024)
+  q1Autonomy      Int      // "Saya merasa memiliki kendali atas cara saya belajar"
+  q2Competence1   Int      // "Tantangan soal terasa sesuai dengan kemampuan saya"
+  q3Competence2   Int      // "Saya merasa berkembang setelah menggunakan LeveLearn"
+  q4Relatedness   Int      // "Berinteraksi dengan Levely membuat saya lebih terhubung dengan materi"
+
+  // Engagement (Albakri et al., 2024)
+  q5Behavioral    Int      // "Saya aktif menyelesaikan materi dan soal di LeveLearn"
+  q6Cognitive     Int      // "Saya berpikir lebih dalam tentang materi saat menggunakan LeveLearn"
+  q7Emotional     Int      // "Saya menikmati pengalaman belajar di LeveLearn"
+
+  // Global
+  q8Overall       Int      // "Chatbot AI dan gamifikasi adaptif membantu saya belajar lebih baik"
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([submittedAt])
+  @@map("evaluation_questionnaires")
 }

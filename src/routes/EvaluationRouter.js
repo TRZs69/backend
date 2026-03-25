@@ -443,4 +443,90 @@ async function buildSummary(userId, start, end, res) {
     }
 }
 
+// ─── POST /evaluation/questionnaire ─────────────────────────────────────────
+// Called once by the student after the evaluation period ends.
+// Body: { q1, q2, q3, q4, q5, q6, q7, q8 }  — each integer 1-5
+router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const { q1, q2, q3, q4, q5, q6, q7, q8 } = req.body;
+
+    // Basic validation
+    const values = [q1, q2, q3, q4, q5, q6, q7, q8];
+    if (values.some((v) => !Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 5)) {
+        return res.status(400).json({ message: 'Each answer must be an integer 1-5' });
+    }
+
+    try {
+        // Prevent duplicate submission
+        const existing = await prisma.evaluationQuestionnaire.findFirst({
+            where: { userId },
+        });
+        if (existing) {
+            return res.status(409).json({ message: 'Questionnaire already submitted' });
+        }
+
+        const record = await prisma.evaluationQuestionnaire.create({
+            data: {
+                userId,
+                q1Autonomy:    Number(q1),
+                q2Competence1: Number(q2),
+                q3Competence2: Number(q3),
+                q4Relatedness: Number(q4),
+                q5Behavioral:  Number(q5),
+                q6Cognitive:   Number(q6),
+                q7Emotional:   Number(q7),
+                q8Overall:     Number(q8),
+            },
+        });
+
+        res.status(201).json({ id: record.id, submittedAt: record.submittedAt });
+    } catch (err) {
+        console.error('[EvaluationRouter] questionnaire:', err.message);
+        res.sendStatus(503);
+    }
+});
+
+// ─── GET /evaluation/questionnaire/all ───────────────────────────────────────
+// Instructor/admin: export all questionnaire responses.
+router.get('/evaluation/questionnaire/all', authMiddleware, async (req, res) => {
+    const { role: callerRole } = req.user;
+    if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    try {
+        const rows = await prisma.evaluationQuestionnaire.findMany({
+            include: { user: { select: { name: true, studentId: true } } },
+            orderBy: { submittedAt: 'asc' },
+        });
+
+        const result = rows.map((r) => ({
+            id: r.id,
+            userId: r.userId,
+            studentId: r.user?.studentId,
+            studentName: r.user?.name,
+            submittedAt: r.submittedAt,
+            q1Autonomy:    r.q1Autonomy,
+            q2Competence1: r.q2Competence1,
+            q3Competence2: r.q3Competence2,
+            q4Relatedness: r.q4Relatedness,
+            q5Behavioral:  r.q5Behavioral,
+            q6Cognitive:   r.q6Cognitive,
+            q7Emotional:   r.q7Emotional,
+            q8Overall:     r.q8Overall,
+            avgSDT: parseFloat(
+                ((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)
+            ),
+            avgEngagement: parseFloat(
+                ((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)
+            ),
+        }));
+
+        res.json({ total: result.length, responses: result });
+    } catch (err) {
+        console.error('[EvaluationRouter] questionnaire/all:', err.message);
+        res.sendStatus(503);
+    }
+});
+
 module.exports = router;
