@@ -1151,13 +1151,14 @@ exports.streamMessage = async ({
 	const highRiskAssessmentRequest = hasAssessmentContext;
 
 	try {
-		let titlePromise = Promise.resolve();
-		let hasLiveTitleGeneration = false;
+		const shouldGenerateLiveTitle =
+			ENABLE_STREAM_TITLE_GENERATION &&
+			chatHistoryStore.isEnabled &&
+			persistedSessionId &&
+			messages.length <= 3;
 		emitChunk({ mode: responseSettings.mode });
-		if (ENABLE_STREAM_TITLE_GENERATION && chatHistoryStore.isEnabled && persistedSessionId && messages.length <= 3) {
+		if (shouldGenerateLiveTitle) {
 			emitChunk({ sessionId: persistedSessionId });
-			titlePromise = generateSessionTitleStream({ sessionId: persistedSessionId, messages, emitChunk });
-			hasLiveTitleGeneration = true;
 		}
 
 		let reply = '';
@@ -1234,13 +1235,13 @@ exports.streamMessage = async ({
 					{ role: 'assistant', content: reply },
 				],
 			});
-			// Keep title generation working in streaming mode even when live title updates are disabled.
-			if (!hasLiveTitleGeneration) {
+			// Run title generation after main reply flow to avoid parallel LLM contention.
+			if (shouldGenerateLiveTitle) {
+				void generateSessionTitleStream({ sessionId: persistedSessionId, messages, emitChunk });
+			} else {
 				await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
 			}
 		}
-
-		await titlePromise;
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
 		const totalMs = Date.now() - startedAt;
