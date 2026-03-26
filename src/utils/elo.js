@@ -206,6 +206,8 @@ module.exports = {
     MAX_ELO,
     ELO_BANDS,
     clampElo,
+    determineUserKFactor,
+    determineQuestionKFactor,
     calculateQuestionDuelElo,
     determineDifficulty,
     resolveBandIndex,
