@@ -2558,7 +2558,7 @@ async function main() {
     // Create UserBadge relationship
     await prisma.userBadge.create({
       data: {
-        userId: student.id,
+        userId: obenhard.id,
         badgeId: badge1.id,
       },
     });
@@ -2603,7 +2603,7 @@ async function main() {
 
     await prisma.userTrade.create({
       data: {
-        userId: student.id,
+        userId: obenhard.id,
         tradeId: trade3.id,
       },
     });
