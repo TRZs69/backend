@@ -9,6 +9,12 @@ const { createClient } = require('@supabase/supabase-js');
 async function ensureBadgesBucketAndUpload() {
   const assetsUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const uploadEnabled = String(process.env.ENABLE_BADGE_UPLOAD_ON_SEED || '').toLowerCase() === 'true';
+
+  if (!uploadEnabled) {
+    console.log('[seed] Skipping badge storage upload (set ENABLE_BADGE_UPLOAD_ON_SEED=true to enable).');
+    return { assetsUrl };
+  }
 
   if (!serviceKey) {
     console.warn('[seed] Skipping storage upload: missing SUPABASE_SERVICE_ROLE_KEY');
@@ -43,10 +49,14 @@ async function ensureBadgesBucketAndUpload() {
       const bytes = fs.readFileSync(full);
       const { error: upErr } = await supabase.storage.from('badges').upload(f, bytes, {
         contentType: 'image/png',
-        upsert: true,
+        upsert: false,
       });
       if (upErr) {
-        console.warn(`[seed] Upload failed for ${f}:`, upErr.message);
+        if (String(upErr.message || '').toLowerCase().includes('already exists')) {
+          console.log(`[seed] Badge file already exists, skipping upload: ${f}`);
+        } else {
+          console.warn(`[seed] Upload failed for ${f}:`, upErr.message);
+        }
       } else {
         console.log(`[seed] Uploaded ${f} to badges bucket`);
       }

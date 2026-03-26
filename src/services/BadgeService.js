@@ -31,17 +31,23 @@ const getNormalizedBandByName = (name = '') => {
     return ELO_BADGE_BANDS.find((band) => band.name.toLowerCase() === needle) || null;
 };
 
-const normalizeBadgeImage = (rawImage) => {
+const normalizeBadgeImage = (rawImage, updatedAt) => {
     const image = String(rawImage || '').trim();
     if (!image) {
         return image;
     }
 
-    if (image.startsWith('http://') || image.startsWith('https://')) {
+    if (!/^https?:\/\//i.test(image)) {
         return image;
     }
 
-    return `${BADGE_BASE_URL}${image.replace(/^\/+/, '')}`;
+    const version = updatedAt ? new Date(updatedAt).getTime() : null;
+    if (!version || Number.isNaN(version)) {
+        return image;
+    }
+
+    const separator = image.includes('?') ? '&' : '?';
+    return `${image}${separator}v=${version}`;
 };
 
 const normalizeBadgePayload = (badge) => {
@@ -51,7 +57,7 @@ const normalizeBadgePayload = (badge) => {
 
     return {
         ...badge,
-        image: normalizeBadgeImage(badge.image),
+        image: normalizeBadgeImage(badge.image, badge.updatedAt),
     };
 };
 
