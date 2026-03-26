@@ -40,6 +40,25 @@ const GENERATED_POOL_COMPOSITION = {
     EY: 0,
 };
 
+const ASSESSMENT_GENERATION_CONFIG = (() => {
+    const maxOutputTokens = Number(process.env.LEVELY_ASSESSMENT_GEMINI_MAX_OUTPUT_TOKENS || 2048);
+    const temperature = Number(process.env.LEVELY_ASSESSMENT_GEMINI_TEMPERATURE || 0.15);
+    const topP = Number(process.env.LEVELY_ASSESSMENT_GEMINI_TOP_P || 0.8);
+
+    const config = {};
+    if (Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
+        config.maxOutputTokens = maxOutputTokens;
+    }
+    if (Number.isFinite(temperature)) {
+        config.temperature = temperature;
+    }
+    if (Number.isFinite(topP) && topP > 0 && topP <= 1) {
+        config.topP = topP;
+    }
+
+    return config;
+})();
+
 
 const K_STUDENT = 30;
 const K_QUESTION = 15;
@@ -291,32 +310,109 @@ const parseJsonPayload = (text) => {
         throw new Error('LLM response is empty');
     }
 
+    const stripCodeFences = (value) =>
+        String(value || '')
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/i, '')
+            .trim();
+
+    const extractBalancedJson = (value, openChar, closeChar) => {
+        const source = String(value || '');
+        const start = source.indexOf(openChar);
+        if (start < 0) {
+            return null;
+        }
+
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+
+        for (let index = start; index < source.length; index += 1) {
+            const char = source[index];
+
+            if (inString) {
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (char === '\\') {
+                    escaped = true;
+                    continue;
+                }
+                if (char === '"') {
+                    inString = false;
+                }
+                continue;
+            }
+
+            if (char === '"') {
+                inString = true;
+                continue;
+            }
+
+            if (char === openChar) {
+                depth += 1;
+                continue;
+            }
+
+            if (char === closeChar) {
+                depth -= 1;
+                if (depth === 0) {
+                    return source.slice(start, index + 1);
+                }
+            }
+        }
+
+        return null;
+    };
+
+    const sanitizeLooseJson = (value) =>
+        String(value || '')
+            .replace(/\u201c|\u201d/g, '"')
+            .replace(/\u2018|\u2019/g, "'")
+            .replace(/,\s*([}\]])/g, '$1')
+            .trim();
+
     const trimmed = text.trim();
-    const directCandidates = [trimmed, trimmed.replace(/```json|```/gi, '').trim()];
+    const directCandidates = [trimmed, stripCodeFences(trimmed)];
+    const fragments = [];
 
     for (const candidate of directCandidates) {
         if (!candidate) {
             continue;
         }
-        try {
-            return JSON.parse(candidate);
-        } catch (_error) {
-            // continue
+        fragments.push(candidate);
+
+        const objectChunk = extractBalancedJson(candidate, '{', '}');
+        if (objectChunk) {
+            fragments.push(objectChunk);
+        }
+
+        const arrayChunk = extractBalancedJson(candidate, '[', ']');
+        if (arrayChunk) {
+            fragments.push(arrayChunk);
         }
     }
 
-    const objectMatch = trimmed.match(/\{[\s\S]*\}/);
-    if (objectMatch?.[0]) {
-        try {
-            return JSON.parse(objectMatch[0]);
-        } catch (_error) {
-            // continue
+    const tried = new Set();
+    for (const fragment of fragments) {
+        if (!fragment || tried.has(fragment)) {
+            continue;
         }
-    }
+        tried.add(fragment);
 
-    const arrayMatch = trimmed.match(/\[[\s\S]*\]/);
-    if (arrayMatch?.[0]) {
-        return JSON.parse(arrayMatch[0]);
+        const candidates = [fragment, sanitizeLooseJson(fragment)];
+        for (const candidate of candidates) {
+            if (!candidate || tried.has(`parsed:${candidate}`)) {
+                continue;
+            }
+            tried.add(`parsed:${candidate}`);
+            try {
+                return JSON.parse(candidate);
+            } catch (_error) {
+                // continue to next fallback
+            }
+        }
     }
 
     throw new Error('Failed to parse JSON payload from LLM response');
@@ -575,6 +671,9 @@ Kembalikan respon HANYA dalam format JSON teks murni (tanpa markdown fence \`\`\
     }
   ]
 }
+PENTING:
+- Seluruh output WAJIB valid JSON (RFC 8259) dan bisa diparse langsung dengan JSON.parse.
+- Jika ada tanda kutip ganda di dalam nilai string, WAJIB di-escape menjadi \\".
 `.trim();
 };
 
@@ -598,6 +697,7 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
         try {
             const raw = await llmClient.complete({
                 messages: [{ role: 'user', content: prompt }],
+                generationConfig: ASSESSMENT_GENERATION_CONFIG,
             });
 
             const parsed = parseJsonPayload(raw);

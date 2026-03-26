@@ -54,7 +54,10 @@ class GoogleAIClient {
 			model: this.model,
 			mode: this.systemInstructionMode,
 		});
-		this.requestTimeoutMs = Number(process.env.LEVELY_GEMINI_TIMEOUT_MS || 30000);
+		this.requestTimeoutMs = Number(process.env.LEVELY_GEMINI_TIMEOUT_MS || 45000);
+		this.streamRequestTimeoutMs = Number(
+			process.env.LEVELY_GEMINI_STREAM_TIMEOUT_MS || this.requestTimeoutMs,
+		);
 		this.generationConfig = buildGenerationConfig();
 
 		if (this.isVertex) {
@@ -133,7 +136,7 @@ class GoogleAIClient {
 			headers,
 			responseType: 'stream',
 			signal: abortSignal,
-			timeout: this.requestTimeoutMs,
+			timeout: this.streamRequestTimeoutMs,
 			httpAgent: keepAliveHttpAgent,
 			httpsAgent: keepAliveHttpsAgent,
 		});
