@@ -7,6 +7,12 @@
             "maxDuration": 30
         }
     },
+    "crons": [
+        {
+            "path": "/api/evaluation/sync/google-sheets/cron",
+            "schedule": "0 17 * * *"
+        }
+    ],
     "routes": [
         {
             "src": "/(.*)",

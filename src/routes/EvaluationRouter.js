@@ -15,6 +15,34 @@ function toDateRange(startDate, endDate) {
     return { start, end };
 }
 
+function toTodayUntilSundayWIBRange() {
+    // Build a calendar-day range in WIB (UTC+7): today 00:00:00 through upcoming Sunday 23:59:59.999.
+    const now = new Date();
+    const wibNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+    const wibDay = wibNow.getUTCDay(); // 0=Sunday
+    const daysToSunday = (7 - wibDay) % 7;
+
+    const wibStart = new Date(Date.UTC(
+        wibNow.getUTCFullYear(),
+        wibNow.getUTCMonth(),
+        wibNow.getUTCDate(),
+        0, 0, 0, 0,
+    ));
+
+    const wibEnd = new Date(Date.UTC(
+        wibNow.getUTCFullYear(),
+        wibNow.getUTCMonth(),
+        wibNow.getUTCDate() + daysToSunday,
+        23, 59, 59, 999,
+    ));
+
+    // Convert WIB wall-clock back to UTC timestamps for DB filtering.
+    return {
+        start: new Date(wibStart.getTime() - 7 * 60 * 60 * 1000),
+        end: new Date(wibEnd.getTime() - 7 * 60 * 60 * 1000),
+    };
+}
+
 function groupByDay(rows, dateField) {
     const map = {};
     for (const row of rows) {
@@ -191,6 +219,72 @@ async function getChatStats(userId, start, end) {
     }
 }
 
+async function syncEvaluationToGoogleSheets({ start, end, syncAll, targetUserId }) {
+    const logRows = [];
+
+    if (syncAll) {
+        const students = await prisma.user.findMany({
+            where: { role: 'STUDENT' },
+            select: { id: true },
+        });
+
+        for (const student of students) {
+            const summary = await computeSummary(student.id, start, end);
+            logRows.push(toSheetRow(student.id, summary));
+        }
+    } else {
+        if (!targetUserId) {
+            throw new Error('userId required when syncAll is false');
+        }
+
+        const summary = await computeSummary(targetUserId, start, end);
+        logRows.push(toSheetRow(targetUserId, summary));
+    }
+
+    const qFilter = syncAll ? {} : { userId: targetUserId };
+    const qRaw = await prisma.evaluationQuestionnaire.findMany({
+        where: qFilter,
+        include: { user: { select: { name: true, studentId: true } } },
+        orderBy: { submittedAt: 'asc' },
+    });
+
+    const questionnaireRows = qRaw.map((r) => ({
+        syncedAt: new Date().toISOString(),
+        userId: r.userId,
+        studentId: r.user?.studentId,
+        studentName: r.user?.name,
+        submittedAt: r.submittedAt,
+        q1Autonomy: r.q1Autonomy,
+        q2Competence1: r.q2Competence1,
+        q3Competence2: r.q3Competence2,
+        q4Relatedness: r.q4Relatedness,
+        q5Behavioral: r.q5Behavioral,
+        q6Cognitive: r.q6Cognitive,
+        q7Emotional: r.q7Emotional,
+        q8Overall: r.q8Overall,
+        sdtAutonomy: r.q1Autonomy,
+        sdtCompetence: round2((r.q2Competence1 + r.q3Competence2) / 2),
+        sdtRelatedness: r.q4Relatedness,
+        avgSDT: parseFloat(((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)),
+        engagementBehavioral: r.q5Behavioral,
+        engagementCognitive: r.q6Cognitive,
+        engagementEmotional: r.q7Emotional,
+        avgEngagement: parseFloat(((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)),
+    }));
+
+    const syncResult = await postRowsToGoogleSheets({
+        rows: logRows,
+        questionnaire: questionnaireRows,
+    });
+
+    return {
+        syncResult,
+        syncedLogRows: logRows.length,
+        syncedQuestionnaireRows: questionnaireRows.length,
+        period: { start, end },
+    };
+}
+
 // ─── POST /evaluation/session/end ───────────────────────────────────────────
 // Called by client on logout or app close to record session duration.
 router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
@@ -310,63 +404,14 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
     const targetUserId = Number(req.body?.userId);
 
     try {
-        const logRows = [];
-
-        if (syncAll) {
-            const students = await prisma.user.findMany({
-                where: { role: 'STUDENT' },
-                select: { id: true },
-            });
-
-            for (const student of students) {
-                const summary = await computeSummary(student.id, start, end);
-                logRows.push(toSheetRow(student.id, summary));
-            }
-        } else {
-            if (!targetUserId) {
-                return res.status(400).json({ message: 'userId required when syncAll is false' });
-            }
-
-            const summary = await computeSummary(targetUserId, start, end);
-            logRows.push(toSheetRow(targetUserId, summary));
-        }
-
-        // Pull questionnaire responses (all, or for specific user)
-        const qFilter = syncAll ? {} : { userId: targetUserId };
-        const qRaw = await prisma.evaluationQuestionnaire.findMany({
-            where: qFilter,
-            include: { user: { select: { name: true, studentId: true } } },
-            orderBy: { submittedAt: 'asc' },
+        const result = await syncEvaluationToGoogleSheets({
+            start,
+            end,
+            syncAll,
+            targetUserId,
         });
 
-        const questionnaireRows = qRaw.map((r) => ({
-            syncedAt: new Date().toISOString(),
-            userId: r.userId,
-            studentId: r.user?.studentId,
-            studentName: r.user?.name,
-            submittedAt: r.submittedAt,
-            q1Autonomy:    r.q1Autonomy,
-            q2Competence1: r.q2Competence1,
-            q3Competence2: r.q3Competence2,
-            q4Relatedness: r.q4Relatedness,
-            q5Behavioral:  r.q5Behavioral,
-            q6Cognitive:   r.q6Cognitive,
-            q7Emotional:   r.q7Emotional,
-            q8Overall:     r.q8Overall,
-            sdtAutonomy: r.q1Autonomy,
-            sdtCompetence: round2((r.q2Competence1 + r.q3Competence2) / 2),
-            sdtRelatedness: r.q4Relatedness,
-            avgSDT: parseFloat(((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)),
-            engagementBehavioral: r.q5Behavioral,
-            engagementCognitive: r.q6Cognitive,
-            engagementEmotional: r.q7Emotional,
-            avgEngagement: parseFloat(((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)),
-        }));
-
-        const syncResult = await postRowsToGoogleSheets({
-            rows: logRows,
-            questionnaire: questionnaireRows,
-        });
+        const { syncResult, syncedLogRows, syncedQuestionnaireRows, period } = result;
 
         if (!syncResult.ok) {
             return res.status(502).json({
@@ -378,14 +423,66 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
 
         res.json({
             message: 'Synced to Google Sheets',
-            syncedLogRows: logRows.length,
-            syncedQuestionnaireRows: questionnaireRows.length,
-            period: { start, end },
+            syncedLogRows,
+            syncedQuestionnaireRows,
+            period,
             providerResponse: syncResult.data,
         });
     } catch (err) {
+        if (err.message === 'userId required when syncAll is false') {
+            return res.status(400).json({ message: err.message });
+        }
         console.error('[EvaluationRouter] sync/google-sheets:', err.message);
         res.sendStatus(503);
+    }
+});
+
+// ─── GET /evaluation/sync/google-sheets/cron ───────────────────────────────
+// Vercel Cron entrypoint (protected by CRON_SECRET bearer token).
+router.get('/evaluation/sync/google-sheets/cron', async (req, res) => {
+    const cronSecret = process.env.CRON_SECRET;
+    const auth = req.headers.authorization || '';
+    const expected = cronSecret ? `Bearer ${cronSecret}` : null;
+
+    if (!expected || auth !== expected) {
+        return res.status(401).json({ message: 'Unauthorized cron request' });
+    }
+
+    const cronStart = process.env.GSHEETS_CRON_START_DATE || undefined;
+    const cronEnd = process.env.GSHEETS_CRON_END_DATE || undefined;
+    const hasExplicitRange = Boolean(cronStart || cronEnd);
+    const { start, end } = hasExplicitRange
+        ? toDateRange(cronStart, cronEnd)
+        : toTodayUntilSundayWIBRange();
+
+    try {
+        const result = await syncEvaluationToGoogleSheets({
+            start,
+            end,
+            syncAll: true,
+            targetUserId: null,
+        });
+
+        const { syncResult, syncedLogRows, syncedQuestionnaireRows, period } = result;
+
+        if (!syncResult.ok) {
+            return res.status(502).json({
+                message: 'Failed to sync to Google Sheets',
+                detail: syncResult.message,
+                status: syncResult.status,
+            });
+        }
+
+        return res.json({
+            message: 'Cron sync completed',
+            syncedLogRows,
+            syncedQuestionnaireRows,
+            period,
+            providerResponse: syncResult.data,
+        });
+    } catch (err) {
+        console.error('[EvaluationRouter] cron sync:', err.message);
+        return res.sendStatus(503);
     }
 });
 
