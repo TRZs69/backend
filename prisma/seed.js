@@ -2525,43 +2525,76 @@ async function main() {
 
     const badgePublicBaseUrl = `${assetsUrl}/storage/v1/object/public/badges`;
 
-    const badge1 = await prisma.badge.create({
-      data: {
+    const seededBadgeDefinitions = [
+      {
         name: 'Beginner',
         type: BadgeType.BEGINNER,
-        image: `${badgePublicBaseUrl}/beginner.png`,
-        courseId: course1.id,
+        imageFile: 'beginner.png',
+        chapterId: chapter1.id,
+      },
+      {
+        name: 'Basic Understanding',
+        type: BadgeType.BEGINNER,
+        imageFile: 'basic_understanding.png',
+        chapterId: chapter2.id,
+      },
+      {
+        name: 'Developing Learner',
+        type: BadgeType.INTERMEDIATE,
+        imageFile: 'developing_learner.png',
         chapterId: chapter3.id,
       },
-    });
-
-    const badge2 = await prisma.badge.create({
-      data: {
+      {
         name: 'Intermediate',
         type: BadgeType.INTERMEDIATE,
-        image: `${badgePublicBaseUrl}/intermediate.png`,
-        courseId: course1.id,
+        imageFile: 'intermediate.png',
         chapterId: chapter6.id,
       },
-    });
-
-    const badge3 = await prisma.badge.create({
-      data: {
+      {
+        name: 'Proficient',
+        type: BadgeType.ADVANCE,
+        imageFile: 'proficient.png',
+        chapterId: chapter7.id,
+      },
+      {
         name: 'Advanced',
         type: BadgeType.ADVANCE,
-        image: `${badgePublicBaseUrl}/advanced.png`,
-        courseId: course1.id,
+        imageFile: 'advanced.png',
         chapterId: chapter8.id,
       },
-    });
+      {
+        name: 'Mastery',
+        type: BadgeType.ADVANCE,
+        imageFile: 'master.png',
+        chapterId: chapter14.id,
+      },
+    ];
+
+    const createdBadges = await Promise.all(
+      seededBadgeDefinitions.map((badgeDef) =>
+        prisma.badge.create({
+          data: {
+            name: badgeDef.name,
+            type: badgeDef.type,
+            image: `${badgePublicBaseUrl}/${badgeDef.imageFile}`,
+            courseId: course1.id,
+            chapterId: badgeDef.chapterId,
+          },
+        }),
+      ),
+    );
+
+    const beginnerBadge = createdBadges.find((item) => item.name === 'Beginner');
 
     // Create UserBadge relationship
-    await prisma.userBadge.create({
-      data: {
-        userId: obenhard.id,
-        badgeId: badge1.id,
-      },
-    });
+    if (beginnerBadge) {
+      await prisma.userBadge.create({
+        data: {
+          userId: obenhard.id,
+          badgeId: beginnerBadge.id,
+        },
+      });
+    }
 
     // TRADES
 
