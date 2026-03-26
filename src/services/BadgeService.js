@@ -31,10 +31,10 @@ const getNormalizedBandByName = (name = '') => {
     return ELO_BADGE_BANDS.find((band) => band.name.toLowerCase() === needle) || null;
 };
 
-const normalizeBadgeImage = (rawImage, fallbackFileName) => {
+const normalizeBadgeImage = (rawImage) => {
     const image = String(rawImage || '').trim();
     if (!image) {
-        return fallbackFileName ? `${BADGE_BASE_URL}${fallbackFileName}` : image;
+        return image;
     }
 
     if (image.startsWith('http://') || image.startsWith('https://')) {
@@ -49,15 +49,9 @@ const normalizeBadgePayload = (badge) => {
         return badge;
     }
 
-    const band = getNormalizedBandByName(badge.name);
-    if (!band) {
-        return badge;
-    }
-
     return {
         ...badge,
-        // Preserve existing image; only apply default band image when image is missing.
-        image: normalizeBadgeImage(badge.image, band.fileName),
+        image: normalizeBadgeImage(badge.image),
     };
 };
 
