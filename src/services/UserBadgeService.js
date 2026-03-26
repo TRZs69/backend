@@ -160,7 +160,7 @@ exports.getBadgesByUser = async (userId) => {
                 badge: {
                     ...entry.badge,
                     name: band.name,
-                    image: normalizeBadgeImage(entry?.badge?.image, band.fileName),
+                    image: `${BADGE_BASE_URL}${band.fileName}`,
                     type: band.type,
                 },
             };
