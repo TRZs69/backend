@@ -33,6 +33,11 @@ function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function round2(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
+    return parseFloat(Number(value).toFixed(2));
+}
+
 function toSheetRow(userId, summary) {
     const periodDays = summary?.period?.totalDays || 1;
     const sessionsTotal = summary?.sessions?.total || 0;
@@ -42,6 +47,7 @@ function toSheetRow(userId, summary) {
     const totalPointsEarned = summary?.assessments?.totalPointsEarned || 0;
     const chaptersCompleted = summary?.chapters?.totalCompleted || 0;
     const chatUserMessages = summary?.chat?.userMessages || 0;
+    const qScores = summary?.questionnaire?.latest || null;
 
     // Lightweight proxy scores (0-100) for SDT dimensions from behavioral logs.
     const sessionsPerDayPct = clamp(Math.round((sessionsTotal / periodDays) * 100), 0, 100);
@@ -54,6 +60,23 @@ function toSheetRow(userId, summary) {
 
     const chatPerDayPct = clamp(Math.round((chatUserMessages / periodDays) * 20), 0, 100);
     const relatednessScore = chatPerDayPct;
+
+    // Questionnaire-based SDT and engagement scores (Likert 1-5).
+    // These are paper-aligned direct questionnaire aggregates, separate from behavioral proxy scores above.
+    const qAutonomy = qScores?.q1Autonomy ?? null;
+    const qCompetence = qScores ? round2((qScores.q2Competence1 + qScores.q3Competence2) / 2) : null;
+    const qRelatedness = qScores?.q4Relatedness ?? null;
+    const qSdtOverall = qScores
+        ? round2((qScores.q1Autonomy + qScores.q2Competence1 + qScores.q3Competence2 + qScores.q4Relatedness) / 4)
+        : null;
+
+    const qBehavioral = qScores?.q5Behavioral ?? null;
+    const qCognitive = qScores?.q6Cognitive ?? null;
+    const qEmotional = qScores?.q7Emotional ?? null;
+    const qEngagementOverall = qScores
+        ? round2((qScores.q5Behavioral + qScores.q6Cognitive + qScores.q7Emotional) / 3)
+        : null;
+    const qGlobalOverall = qScores?.q8Overall ?? null;
 
     return {
         syncedAt: new Date().toISOString(),
@@ -75,9 +98,21 @@ function toSheetRow(userId, summary) {
         chatSessions: summary?.chat?.totalSessions || 0,
         chatMessages: summary?.chat?.totalMessages || 0,
         chatUserMessages,
+        // Behavioral proxy SDT scores (0-100)
         sdtAutonomyScore: autonomyScore,
         sdtCompetenceScore: competenceScore,
         sdtRelatednessScore: relatednessScore,
+        // Questionnaire-based SDT and engagement scores (Likert 1-5)
+        sdtAutonomyLikert: qAutonomy,
+        sdtCompetenceLikert: qCompetence,
+        sdtRelatednessLikert: qRelatedness,
+        sdtOverallLikert: qSdtOverall,
+        engagementBehavioralLikert: qBehavioral,
+        engagementCognitiveLikert: qCognitive,
+        engagementEmotionalLikert: qEmotional,
+        engagementOverallLikert: qEngagementOverall,
+        globalOverallLikert: qGlobalOverall,
+        questionnaireSubmittedAt: qScores?.submittedAt || null,
     };
 }
 
@@ -318,7 +353,13 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
             q6Cognitive:   r.q6Cognitive,
             q7Emotional:   r.q7Emotional,
             q8Overall:     r.q8Overall,
+            sdtAutonomy: r.q1Autonomy,
+            sdtCompetence: round2((r.q2Competence1 + r.q3Competence2) / 2),
+            sdtRelatedness: r.q4Relatedness,
             avgSDT: parseFloat(((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)),
+            engagementBehavioral: r.q5Behavioral,
+            engagementCognitive: r.q6Cognitive,
+            engagementEmotional: r.q7Emotional,
             avgEngagement: parseFloat(((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)),
         }));
 
@@ -358,6 +399,7 @@ async function computeSummary(userId, start, end) {
         chaptersRaw,
         user,
         chatStats,
+        questionnairesRaw,
     ] = await Promise.all([
         // 1. Sessions in period
         prisma.userSession.findMany({
@@ -413,6 +455,26 @@ async function computeSummary(userId, start, end) {
         }),
         // 6. Chat stats from Supabase
         getChatStats(userId, start, end),
+        // 7. Questionnaire responses in period
+        prisma.evaluationQuestionnaire.findMany({
+            where: {
+                userId,
+                submittedAt: { gte: start, lte: end },
+            },
+            select: {
+                id: true,
+                submittedAt: true,
+                q1Autonomy: true,
+                q2Competence1: true,
+                q3Competence2: true,
+                q4Relatedness: true,
+                q5Behavioral: true,
+                q6Cognitive: true,
+                q7Emotional: true,
+                q8Overall: true,
+            },
+            orderBy: { submittedAt: 'asc' },
+        }),
     ]);
 
     // Sessions metrics
@@ -433,6 +495,48 @@ async function computeSummary(userId, start, end) {
     const periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
     const activeDays = new Set(sessionsRaw.map((s) => s.loginAt.toISOString().slice(0, 10))).size;
     const returnRate = Math.round((activeDays / periodDays) * 100);
+
+    const latestQuestionnaire = questionnairesRaw.length > 0 ? questionnairesRaw[questionnairesRaw.length - 1] : null;
+    const avgQuestionnaire = questionnairesRaw.length > 0
+        ? {
+            q1Autonomy: round2(questionnairesRaw.reduce((acc, r) => acc + r.q1Autonomy, 0) / questionnairesRaw.length),
+            q2Competence1: round2(questionnairesRaw.reduce((acc, r) => acc + r.q2Competence1, 0) / questionnairesRaw.length),
+            q3Competence2: round2(questionnairesRaw.reduce((acc, r) => acc + r.q3Competence2, 0) / questionnairesRaw.length),
+            q4Relatedness: round2(questionnairesRaw.reduce((acc, r) => acc + r.q4Relatedness, 0) / questionnairesRaw.length),
+            q5Behavioral: round2(questionnairesRaw.reduce((acc, r) => acc + r.q5Behavioral, 0) / questionnairesRaw.length),
+            q6Cognitive: round2(questionnairesRaw.reduce((acc, r) => acc + r.q6Cognitive, 0) / questionnairesRaw.length),
+            q7Emotional: round2(questionnairesRaw.reduce((acc, r) => acc + r.q7Emotional, 0) / questionnairesRaw.length),
+            q8Overall: round2(questionnairesRaw.reduce((acc, r) => acc + r.q8Overall, 0) / questionnairesRaw.length),
+        }
+        : null;
+
+    const latestSdt = latestQuestionnaire
+        ? {
+            autonomy: latestQuestionnaire.q1Autonomy,
+            competence: round2((latestQuestionnaire.q2Competence1 + latestQuestionnaire.q3Competence2) / 2),
+            relatedness: latestQuestionnaire.q4Relatedness,
+            overall: round2((
+                latestQuestionnaire.q1Autonomy +
+                latestQuestionnaire.q2Competence1 +
+                latestQuestionnaire.q3Competence2 +
+                latestQuestionnaire.q4Relatedness
+            ) / 4),
+        }
+        : null;
+
+    const latestEngagement = latestQuestionnaire
+        ? {
+            behavioral: latestQuestionnaire.q5Behavioral,
+            cognitive: latestQuestionnaire.q6Cognitive,
+            emotional: latestQuestionnaire.q7Emotional,
+            overall: round2((
+                latestQuestionnaire.q5Behavioral +
+                latestQuestionnaire.q6Cognitive +
+                latestQuestionnaire.q7Emotional
+            ) / 3),
+            global: latestQuestionnaire.q8Overall,
+        }
+        : null;
 
     return {
         period: { start, end, totalDays: periodDays },
@@ -463,6 +567,14 @@ async function computeSummary(userId, start, end) {
         },
         // SDT: Relatedness + Cognitive Engagement
         chat: chatStats,
+        questionnaire: {
+            totalSubmitted: questionnairesRaw.length,
+            latest: latestQuestionnaire,
+            averages: avgQuestionnaire,
+            sdt: latestSdt,
+            engagement: latestEngagement,
+            raw: questionnairesRaw,
+        },
     };
 }
 
