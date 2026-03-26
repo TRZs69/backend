@@ -31,7 +31,7 @@ const getNormalizedBandByName = (name = '') => {
     return ELO_BADGE_BANDS.find((band) => band.name.toLowerCase() === needle) || null;
 };
 
-const normalizeBadgeImage = (rawImage, updatedAt) => {
+const normalizeBadgeImage = (rawImage) => {
     const image = String(rawImage || '').trim();
     if (!image) {
         return image;
@@ -41,11 +41,7 @@ const normalizeBadgeImage = (rawImage, updatedAt) => {
         return image;
     }
 
-    const version = updatedAt ? new Date(updatedAt).getTime() : null;
-    if (!version || Number.isNaN(version)) {
-        return image;
-    }
-
+    const version = Date.now();
     const separator = image.includes('?') ? '&' : '?';
     return `${image}${separator}v=${version}`;
 };
@@ -57,7 +53,7 @@ const normalizeBadgePayload = (badge) => {
 
     return {
         ...badge,
-        image: normalizeBadgeImage(badge.image, badge.updatedAt),
+        image: normalizeBadgeImage(badge.image),
     };
 };
 

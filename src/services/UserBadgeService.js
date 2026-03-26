@@ -31,7 +31,7 @@ const getNormalizedBandByName = (name = '') => {
     return ELO_BADGE_BANDS.find((band) => band.name.toLowerCase() === needle) || null;
 };
 
-const normalizeBadgeImage = (rawImage, updatedAt) => {
+const normalizeBadgeImage = (rawImage) => {
     const image = String(rawImage || '').trim();
     if (!image) {
         return image;
@@ -41,11 +41,7 @@ const normalizeBadgeImage = (rawImage, updatedAt) => {
         return image;
     }
 
-    const version = updatedAt ? new Date(updatedAt).getTime() : null;
-    if (!version || Number.isNaN(version)) {
-        return image;
-    }
-
+    const version = Date.now();
     const separator = image.includes('?') ? '&' : '?';
     return `${image}${separator}v=${version}`;
 };
@@ -156,7 +152,7 @@ exports.getBadgesByUser = async (userId) => {
         ]);
 
         const withNormalizedImages = badge.map((entry) => {
-            const normalizedImage = normalizeBadgeImage(entry?.badge?.image, entry?.badge?.updatedAt);
+            const normalizedImage = normalizeBadgeImage(entry?.badge?.image);
             const band = getNormalizedBandByName(entry?.badge?.name);
             if (!entry?.badge) {
                 return entry;
