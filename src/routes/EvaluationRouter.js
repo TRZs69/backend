@@ -148,6 +148,10 @@ function toSheetRow(userId, summary) {
 async function postRowsToGoogleSheets(payload) {
     const webhookUrl = process.env.GSHEETS_WEBHOOK_URL;
     const webhookSecret = process.env.GSHEETS_WEBHOOK_SECRET || '';
+    const configuredTimeout = Number(process.env.GSHEETS_WEBHOOK_TIMEOUT_MS);
+    const webhookTimeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+        ? configuredTimeout
+        : 60000;
 
     if (!webhookUrl) {
         return { ok: false, message: 'GSHEETS_WEBHOOK_URL is not configured' };
@@ -163,7 +167,7 @@ async function postRowsToGoogleSheets(payload) {
                 questionnaire: payload.questionnaire || [],
             },
             {
-                timeout: 15000,
+                timeout: webhookTimeoutMs,
             }
         );
 
