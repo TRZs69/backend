@@ -31,6 +31,19 @@ const getNormalizedBandByName = (name = '') => {
     return ELO_BADGE_BANDS.find((band) => band.name.toLowerCase() === needle) || null;
 };
 
+const normalizeBadgeImage = (rawImage, fallbackFileName) => {
+    const image = String(rawImage || '').trim();
+    if (!image) {
+        return fallbackFileName ? `${BADGE_BASE_URL}${fallbackFileName}` : image;
+    }
+
+    if (image.startsWith('http://') || image.startsWith('https://')) {
+        return image;
+    }
+
+    return `${BADGE_BASE_URL}${image.replace(/^\/+/, '')}`;
+};
+
 const buildEloBadgesForUser = ({ userId, userElo, fallbackCourseId, fallbackChapterId }) => {
     const effectiveElo = Number.isFinite(Number(userElo)) ? Number(userElo) : 750;
     return ELO_BADGE_BANDS
@@ -147,7 +160,7 @@ exports.getBadgesByUser = async (userId) => {
                 badge: {
                     ...entry.badge,
                     name: band.name,
-                    image: `${BADGE_BASE_URL}${band.fileName}`,
+                    image: normalizeBadgeImage(entry?.badge?.image, band.fileName),
                     type: band.type,
                 },
             };

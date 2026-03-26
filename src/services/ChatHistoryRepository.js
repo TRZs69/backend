@@ -105,18 +105,18 @@ async function ensureSession({ sessionId, userId, deviceId, chapterId }) {
         .maybeSingle();
 
       if (!error && data?.id) {
-        if (normalizedChapterId !== null) {
-          const currentMetadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
-          const currentChapterId = normalizeChapterId(currentMetadata.chapterId);
-          if (currentChapterId !== null && currentChapterId !== normalizedChapterId) {
-            // Session belongs to another chapter, create a new one to keep histories separated.
-            // Continue to insert path below.
-          } else {
-            return data.id;
-          }
-        } else {
+        const currentMetadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+        const currentChapterId = normalizeChapterId(currentMetadata.chapterId);
+
+        // Enforce strict context isolation:
+        // - chapter chat can only reuse session with same chapterId
+        // - non-chapter chat can only reuse session without chapterId
+        const isSameChapterContext = currentChapterId === normalizedChapterId;
+        if (isSameChapterContext) {
           return data.id;
         }
+
+        // Session belongs to another chapter/context, create a new one below.
       }
     } catch (error) {
       logError('ensureSession.lookup', error);
