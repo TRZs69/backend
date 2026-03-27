@@ -493,6 +493,27 @@ router.get('/evaluation/sync/google-sheets/cron', async (req, res) => {
 // ─── core logic ─────────────────────────────────────────────────────────────
 
 async function computeSummary(userId, start, end) {
+    // 0. Clean up hanging sessions for this user before computing metrics
+    const deadTimeout = new Date(Date.now() - 5 * 60 * 1000);
+    const deadSessions = await prisma.userSession.findMany({
+        where: {
+            userId,
+            logoutAt: null,
+            lastActiveAt: { lt: deadTimeout }
+        }
+    });
+
+    for (const s of deadSessions) {
+        const durationSec = Math.max(0, Math.round((s.lastActiveAt - s.loginAt) / 1000));
+        await prisma.userSession.update({
+            where: { id: s.id },
+            data: {
+                logoutAt: s.lastActiveAt,
+                durationSec
+            }
+        });
+    }
+
     const [
         sessionsRaw,
         assessmentsRaw,
