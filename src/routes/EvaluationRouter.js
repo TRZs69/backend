@@ -1,5 +1,4 @@
 const express = require('express');
-const axios = require('axios');
 const prisma = require('../prismaClient.js');
 const authMiddleware = require('../middlewares/AuthMiddleware.js');
 const supabase = require('../../supabase/supabase.js');
@@ -15,34 +14,6 @@ function toDateRange(startDate, endDate) {
     return { start, end };
 }
 
-function toTodayUntilSundayWIBRange() {
-    // Build a calendar-day range in WIB (UTC+7): today 00:00:00 through upcoming Sunday 23:59:59.999.
-    const now = new Date();
-    const wibNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-    const wibDay = wibNow.getUTCDay(); // 0=Sunday
-    const daysToSunday = (7 - wibDay) % 7;
-
-    const wibStart = new Date(Date.UTC(
-        wibNow.getUTCFullYear(),
-        wibNow.getUTCMonth(),
-        wibNow.getUTCDate(),
-        0, 0, 0, 0,
-    ));
-
-    const wibEnd = new Date(Date.UTC(
-        wibNow.getUTCFullYear(),
-        wibNow.getUTCMonth(),
-        wibNow.getUTCDate() + daysToSunday,
-        23, 59, 59, 999,
-    ));
-
-    // Convert WIB wall-clock back to UTC timestamps for DB filtering.
-    return {
-        start: new Date(wibStart.getTime() - 7 * 60 * 60 * 1000),
-        end: new Date(wibEnd.getTime() - 7 * 60 * 60 * 1000),
-    };
-}
-
 function groupByDay(rows, dateField) {
     const map = {};
     for (const row of rows) {
@@ -52,21 +23,16 @@ function groupByDay(rows, dateField) {
     return Object.entries(map).map(([date, count]) => ({ date, count }));
 }
 
-function toIsoDate(dateValue) {
-    if (!dateValue) return null;
-    return new Date(dateValue).toISOString();
+function round2(value) {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
+    return parseFloat(Number(value).toFixed(2));
 }
 
 function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
-function round2(value) {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
-    return parseFloat(Number(value).toFixed(2));
-}
-
-function toSheetRow(userId, summary) {
+function toSummaryPayload(userId, summary) {
     const periodDays = summary?.period?.totalDays || 1;
     const sessionsTotal = summary?.sessions?.total || 0;
     const returnRatePct = summary?.sessions?.returnRatePct || 0;
@@ -77,9 +43,9 @@ function toSheetRow(userId, summary) {
     const chatUserMessages = summary?.chat?.userMessages || 0;
     const qScores = summary?.questionnaire?.latest || null;
 
-    // Lightweight proxy scores (0-100) for SDT dimensions from behavioral logs.
+    // Behavioral proxies
     const sessionsPerDayPct = clamp(Math.round((sessionsTotal / periodDays) * 100), 0, 100);
-    const durationPct = clamp(Math.round((avgDurationSec / 1800) * 100), 0, 100); // 30 min baseline
+    const durationPct = clamp(Math.round((avgDurationSec / 1800) * 100), 0, 100);
     const autonomyScore = Math.round((returnRatePct + sessionsPerDayPct + durationPct) / 3);
 
     const chapterPct = clamp(Math.round((chaptersCompleted / periodDays) * 100), 0, 100);
@@ -89,96 +55,54 @@ function toSheetRow(userId, summary) {
     const chatPerDayPct = clamp(Math.round((chatUserMessages / periodDays) * 20), 0, 100);
     const relatednessScore = chatPerDayPct;
 
-    // Questionnaire-based SDT and engagement scores (Likert 1-5).
-    // These are paper-aligned direct questionnaire aggregates, separate from behavioral proxy scores above.
-    const qAutonomy = qScores?.q1Autonomy ?? null;
-    const qCompetence = qScores ? round2((qScores.q2Competence1 + qScores.q3Competence2) / 2) : null;
-    const qRelatedness = qScores?.q4Relatedness ?? null;
-    const qSdtOverall = qScores
-        ? round2((qScores.q1Autonomy + qScores.q2Competence1 + qScores.q3Competence2 + qScores.q4Relatedness) / 4)
-        : null;
-
-    const qBehavioral = qScores?.q5Behavioral ?? null;
-    const qCognitive = qScores?.q6Cognitive ?? null;
-    const qEmotional = qScores?.q7Emotional ?? null;
-    const qEngagementOverall = qScores
-        ? round2((qScores.q5Behavioral + qScores.q6Cognitive + qScores.q7Emotional) / 3)
-        : null;
-    const qGlobalOverall = qScores?.q8Overall ?? null;
-
     return {
-        syncedAt: new Date().toISOString(),
-        userId,
-        studentId: summary?.user?.studentId || null,
-        studentName: summary?.user?.name || null,
-        periodStart: toIsoDate(summary?.period?.start),
-        periodEnd: toIsoDate(summary?.period?.end),
-        periodDays,
-        sessionsTotal,
-        activeDays: summary?.sessions?.activeDays || 0,
-        returnRatePct,
-        avgSessionDurationSec: avgDurationSec,
-        assessmentsSubmitted: summary?.assessments?.totalSubmitted || 0,
-        avgGrade,
-        totalPointsEarned,
-        badgesEarned: summary?.badges?.totalEarned || 0,
-        chaptersCompleted,
-        chatSessions: summary?.chat?.totalSessions || 0,
-        chatMessages: summary?.chat?.totalMessages || 0,
-        chatUserMessages,
-        // Behavioral proxy SDT scores (0-100)
-        sdtAutonomyScore: autonomyScore,
-        sdtCompetenceScore: competenceScore,
-        sdtRelatednessScore: relatednessScore,
-        // Questionnaire-based SDT and engagement scores (Likert 1-5)
-        sdtAutonomyLikert: qAutonomy,
-        sdtCompetenceLikert: qCompetence,
-        sdtRelatednessLikert: qRelatedness,
-        sdtOverallLikert: qSdtOverall,
-        engagementBehavioralLikert: qBehavioral,
-        engagementCognitiveLikert: qCognitive,
-        engagementEmotionalLikert: qEmotional,
-        engagementOverallLikert: qEngagementOverall,
-        globalOverallLikert: qGlobalOverall,
-        questionnaireSubmittedAt: qScores?.submittedAt || null,
+        user_id: userId,
+        student_id: summary?.user?.studentId || null,
+        student_name: summary?.user?.name || null,
+        period_start: summary?.period?.start,
+        period_end: summary?.period?.end,
+        sessions_total: sessionsTotal,
+        active_days: summary?.sessions?.activeDays || 0,
+        return_rate_pct: returnRatePct,
+        avg_session_duration_sec: avgDurationSec,
+        assessments_submitted: summary?.assessments?.totalSubmitted || 0,
+        avg_grade: avgGrade,
+        total_points_earned: totalPointsEarned,
+        badges_earned: summary?.badges?.totalEarned || 0,
+        chapters_completed: chaptersCompleted,
+        chat_sessions: summary?.chat?.totalSessions || 0,
+        chat_messages: summary?.chat?.totalMessages || 0,
+        chat_user_messages: chatUserMessages,
+        sdt_autonomy_score: autonomyScore,
+        sdt_competence_score: competenceScore,
+        sdt_relatedness_score: relatednessScore,
+        sdt_autonomy_likert: qScores?.q1Autonomy ?? null,
+        sdt_competence_likert: qScores ? round2((qScores.q2Competence1 + qScores.q3Competence2) / 2) : null,
+        sdt_relatedness_likert: qScores?.q4Relatedness ?? null,
+        sdt_overall_likert: qScores ? round2((qScores.q1Autonomy + qScores.q2Competence1 + qScores.q3Competence2 + qScores.q4Relatedness) / 4) : null,
+        engagement_behavioral_likert: qScores?.q5Behavioral ?? null,
+        engagement_cognitive_likert: qScores?.q6Cognitive ?? null,
+        engagement_emotional_likert: qScores?.q7Emotional ?? null,
+        engagement_overall_likert: qScores ? round2((qScores.q5Behavioral + qScores.q6Cognitive + qScores.q7Emotional) / 3) : null,
+        global_overall_likert: qScores?.q8Overall ?? null,
+        updated_at: new Date().toISOString(),
     };
 }
 
-async function postRowsToGoogleSheets(payload) {
-    const webhookUrl = process.env.GSHEETS_WEBHOOK_URL;
-    const webhookSecret = process.env.GSHEETS_WEBHOOK_SECRET || '';
-    const configuredTimeout = Number(process.env.GSHEETS_WEBHOOK_TIMEOUT_MS);
-    const webhookTimeoutMs = Number.isFinite(configuredTimeout);
-
-    if (!webhookUrl) {
-        return { ok: false, message: 'GSHEETS_WEBHOOK_URL is not configured' };
-    }
-
+async function syncSummaryToSupabase(userId, start, end) {
     try {
-        const response = await axios.post(
-            webhookUrl,
-            {
-                source: 'levelearn-backend',
-                secret: webhookSecret,
-                rows: payload.rows,
-                questionnaire: payload.questionnaire || [],
-            },
-            {
-                timeout: webhookTimeoutMs,
-            }
-        );
+        const summary = await computeSummary(userId, start, end);
+        const payload = toSummaryPayload(userId, summary);
 
-        return {
-            ok: true,
-            status: response.status,
-            data: response.data,
-        };
-    } catch (error) {
-        return {
-            ok: false,
-            message: error?.response?.data?.message || error.message,
-            status: error?.response?.status || null,
-        };
+        const { error } = await supabase
+            .from('student_summaries')
+            .upsert(payload, { onConflict: 'user_id' });
+
+        if (error) throw error;
+        return { ok: true };
+    } catch (err) {
+        console.error('[EvaluationRouter] syncSummaryToSupabase:', err.message);
+        return { ok: false, error: err.message };
     }
 }
 
@@ -220,72 +144,6 @@ async function getChatStats(userId, start, end) {
     }
 }
 
-async function syncEvaluationToGoogleSheets({ start, end, syncAll, targetUserId }) {
-    const logRows = [];
-
-    if (syncAll) {
-        const students = await prisma.user.findMany({
-            where: { role: 'STUDENT' },
-            select: { id: true },
-        });
-
-        for (const student of students) {
-            const summary = await computeSummary(student.id, start, end);
-            logRows.push(toSheetRow(student.id, summary));
-        }
-    } else {
-        if (!targetUserId) {
-            throw new Error('userId required when syncAll is false');
-        }
-
-        const summary = await computeSummary(targetUserId, start, end);
-        logRows.push(toSheetRow(targetUserId, summary));
-    }
-
-    const qFilter = syncAll ? {} : { userId: targetUserId };
-    const qRaw = await prisma.evaluationQuestionnaire.findMany({
-        where: qFilter,
-        include: { user: { select: { name: true, studentId: true } } },
-        orderBy: { submittedAt: 'asc' },
-    });
-
-    const questionnaireRows = qRaw.map((r) => ({
-        syncedAt: new Date().toISOString(),
-        userId: r.userId,
-        studentId: r.user?.studentId,
-        studentName: r.user?.name,
-        submittedAt: r.submittedAt,
-        q1Autonomy: r.q1Autonomy,
-        q2Competence1: r.q2Competence1,
-        q3Competence2: r.q3Competence2,
-        q4Relatedness: r.q4Relatedness,
-        q5Behavioral: r.q5Behavioral,
-        q6Cognitive: r.q6Cognitive,
-        q7Emotional: r.q7Emotional,
-        q8Overall: r.q8Overall,
-        sdtAutonomy: r.q1Autonomy,
-        sdtCompetence: round2((r.q2Competence1 + r.q3Competence2) / 2),
-        sdtRelatedness: r.q4Relatedness,
-        avgSDT: parseFloat(((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)),
-        engagementBehavioral: r.q5Behavioral,
-        engagementCognitive: r.q6Cognitive,
-        engagementEmotional: r.q7Emotional,
-        avgEngagement: parseFloat(((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)),
-    }));
-
-    const syncResult = await postRowsToGoogleSheets({
-        rows: logRows,
-        questionnaire: questionnaireRows,
-    });
-
-    return {
-        syncResult,
-        syncedLogRows: logRows.length,
-        syncedQuestionnaireRows: questionnaireRows.length,
-        period: { start, end },
-    };
-}
-
 router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
@@ -307,6 +165,10 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
             data: { logoutAt, durationSec },
         });
 
+        // Sync to Supabase in background
+        const { start, end } = toDateRange(); 
+        syncSummaryToSupabase(req.user.id, start, end);
+
         res.json({ durationSec });
     } catch (err) {
         console.error('[EvaluationRouter] session/end:', err.message);
@@ -327,15 +189,11 @@ router.get('/evaluation/summary', authMiddleware, async (req, res) => {
     return buildSummary(targetUserId, start, end, res);
 });
 
-// ─── GET /evaluation/summary/me?startDate=Y&endDate=Z ───────────────────────
-// Students see their own summary.
 router.get('/evaluation/summary/me', authMiddleware, async (req, res) => {
     const { start, end } = toDateRange(req.query.startDate, req.query.endDate);
     return buildSummary(req.user.id, start, end, res);
 });
 
-// ─── GET /evaluation/summary/all?startDate=Y&endDate=Z ──────────────────────
-// Admin/instructor: summary of ALL students for export.
 router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
@@ -345,6 +203,15 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
     const { start, end } = toDateRange(req.query.startDate, req.query.endDate);
 
     try {
+        const { data: storedSummaries } = await supabase
+            .from('student_summaries')
+            .select('*');
+
+        if (storedSummaries && storedSummaries.length > 0) {
+            return res.json({ source: 'supabase', summaries: storedSummaries });
+        }
+
+        // Fallback to compute
         const students = await prisma.user.findMany({
             where: { role: 'STUDENT' },
             select: { id: true, name: true, studentId: true },
@@ -357,103 +224,10 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
             })
         );
 
-        res.json({ period: { start, end }, students: results });
+        res.json({ source: 'computed', period: { start, end }, students: results });
     } catch (err) {
         console.error('[EvaluationRouter] summary/all:', err.message);
         res.sendStatus(503);
-    }
-});
-
-// ─── POST /evaluation/sync/google-sheets ───────────────────────────────────
-// Sync all log summaries + questionnaire responses to Google Sheets in one call.
-router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) => {
-    const { role: callerRole } = req.user;
-    if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
-        return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    const { start, end } = toDateRange(req.body?.startDate, req.body?.endDate);
-    const syncAll = Boolean(req.body?.syncAll);
-    const targetUserId = Number(req.body?.userId);
-
-    try {
-        const result = await syncEvaluationToGoogleSheets({
-            start,
-            end,
-            syncAll,
-            targetUserId,
-        });
-
-        const { syncResult, syncedLogRows, syncedQuestionnaireRows, period } = result;
-
-        if (!syncResult.ok) {
-            return res.status(502).json({
-                message: 'Failed to sync to Google Sheets',
-                detail: syncResult.message,
-                status: syncResult.status,
-            });
-        }
-
-        res.json({
-            message: 'Synced to Google Sheets',
-            syncedLogRows,
-            syncedQuestionnaireRows,
-            period,
-            providerResponse: syncResult.data,
-        });
-    } catch (err) {
-        if (err.message === 'userId required when syncAll is false') {
-            return res.status(400).json({ message: err.message });
-        }
-        console.error('[EvaluationRouter] sync/google-sheets:', err.message);
-        res.sendStatus(503);
-    }
-});
-
-router.get('/evaluation/sync/google-sheets/cron', async (req, res) => {
-    const cronSecret = process.env.CRON_SECRET;
-    const auth = req.headers.authorization || '';
-    const expected = cronSecret ? `Bearer ${cronSecret}` : null;
-
-    if (!expected || auth !== expected) {
-        return res.status(401).json({ message: 'Unauthorized cron request' });
-    }
-
-    const cronStart = process.env.GSHEETS_CRON_START_DATE || undefined;
-    const cronEnd = process.env.GSHEETS_CRON_END_DATE || undefined;
-    const hasExplicitRange = Boolean(cronStart || cronEnd);
-    const { start, end } = hasExplicitRange
-        ? toDateRange(cronStart, cronEnd)
-        : toTodayUntilSundayWIBRange();
-
-    try {
-        const result = await syncEvaluationToGoogleSheets({
-            start,
-            end,
-            syncAll: true,
-            targetUserId: null,
-        });
-
-        const { syncResult, syncedLogRows, syncedQuestionnaireRows, period } = result;
-
-        if (!syncResult.ok) {
-            return res.status(502).json({
-                message: 'Failed to sync to Google Sheets',
-                detail: syncResult.message,
-                status: syncResult.status,
-            });
-        }
-
-        return res.json({
-            message: 'Cron sync completed',
-            syncedLogRows,
-            syncedQuestionnaireRows,
-            period,
-            providerResponse: syncResult.data,
-        });
-    } catch (err) {
-        console.error('[EvaluationRouter] cron sync:', err.message);
-        return res.sendStatus(503);
     }
 });
 
@@ -469,13 +243,11 @@ async function computeSummary(userId, start, end) {
         chatStats,
         questionnairesRaw,
     ] = await Promise.all([
-        // 1. Sessions in period
         prisma.userSession.findMany({
             where: { userId, loginAt: { gte: start, lte: end } },
             select: { id: true, loginAt: true, logoutAt: true, durationSec: true },
             orderBy: { loginAt: 'asc' },
         }),
-        // 2. Submitted assessments in period
         prisma.assessmentAttempt.findMany({
             where: {
                 userId,
@@ -489,7 +261,6 @@ async function computeSummary(userId, start, end) {
             },
             orderBy: { submittedAt: 'asc' },
         }),
-        // 3. Badges earned in period
         prisma.userBadge.findMany({
             where: {
                 userId,
@@ -502,7 +273,6 @@ async function computeSummary(userId, start, end) {
             },
             orderBy: { awardedAt: 'asc' },
         }),
-        // 4. Chapters completed in period
         prisma.userChapter.findMany({
             where: {
                 userId,
@@ -516,14 +286,11 @@ async function computeSummary(userId, start, end) {
             },
             orderBy: { timeFinished: 'asc' },
         }),
-        // 5. Current user snapshot
         prisma.user.findUnique({
             where: { id: userId },
             select: { points: true, badges: true, elo: true, name: true, studentId: true },
         }),
-        // 6. Chat stats from Supabase
         getChatStats(userId, start, end),
-        // 7. Questionnaire responses in period
         prisma.evaluationQuestionnaire.findMany({
             where: {
                 userId,
@@ -545,7 +312,6 @@ async function computeSummary(userId, start, end) {
         }),
     ]);
 
-    // Sessions metrics
     const completedSessions = sessionsRaw.filter((s) => s.durationSec !== null);
     const avgDuration =
         completedSessions.length > 0
@@ -553,13 +319,11 @@ async function computeSummary(userId, start, end) {
             : null;
     const sessionsPerDay = groupByDay(sessionsRaw, 'loginAt');
 
-    // Assessment metrics
     const grades = assessmentsRaw.filter((a) => a.grade !== null).map((a) => a.grade);
     const avgGrade = grades.length > 0 ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length) : null;
     const totalPointsEarned = assessmentsRaw.reduce((acc, a) => acc + (a.pointsEarned || 0), 0);
     const assessmentsPerDay = groupByDay(assessmentsRaw, 'submittedAt');
 
-    // Return rate: % of days with session relative to total days in period
     const periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
     const activeDays = new Set(sessionsRaw.map((s) => s.loginAt.toISOString().slice(0, 10))).size;
     const returnRate = Math.round((activeDays / periodDays) * 100);
@@ -609,7 +373,6 @@ async function computeSummary(userId, start, end) {
     return {
         period: { start, end, totalDays: periodDays },
         user: user || {},
-        // SDT: Autonomy indicators
         sessions: {
             total: sessionsRaw.length,
             activeDays,
@@ -618,7 +381,6 @@ async function computeSummary(userId, start, end) {
             perDay: sessionsPerDay,
             raw: sessionsRaw,
         },
-        // SDT: Competence indicators
         assessments: {
             totalSubmitted: assessmentsRaw.length,
             avgGrade,
@@ -633,7 +395,6 @@ async function computeSummary(userId, start, end) {
             totalCompleted: chaptersRaw.length,
             list: chaptersRaw,
         },
-        // SDT: Relatedness + Cognitive Engagement
         chat: chatStats,
         questionnaire: {
             totalSubmitted: questionnairesRaw.length,
@@ -648,8 +409,18 @@ async function computeSummary(userId, start, end) {
 
 async function buildSummary(userId, start, end, res) {
     try {
+        const { data: storedSummary } = await supabase
+            .from('student_summaries')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
+
+        if (storedSummary) {
+            return res.json({ source: 'supabase', userId, ...storedSummary });
+        }
+
         const summary = await computeSummary(userId, start, end);
-        res.json({ userId, ...summary });
+        res.json({ source: 'computed', userId, ...summary });
     } catch (err) {
         console.error('[EvaluationRouter] buildSummary:', err.message);
         res.sendStatus(503);
@@ -660,14 +431,12 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { q1, q2, q3, q4, q5, q6, q7, q8 } = req.body;
 
-    // Basic validation
     const values = [q1, q2, q3, q4, q5, q6, q7, q8];
     if (values.some((v) => !Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 5)) {
         return res.status(400).json({ message: 'Each answer must be an integer 1-5' });
     }
 
     try {
-        // Prevent duplicate submission
         const existing = await prisma.evaluationQuestionnaire.findFirst({
             where: { userId },
         });
@@ -688,6 +457,10 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
                 q8Overall:     Number(q8),
             },
         });
+
+        // Sync to Supabase in background
+        const { start, end } = toDateRange(); 
+        syncSummaryToSupabase(userId, start, end);
 
         res.status(201).json({ id: record.id, submittedAt: record.submittedAt });
     } catch (err) {
