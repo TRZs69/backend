@@ -144,14 +144,11 @@ function toSheetRow(userId, summary) {
     };
 }
 
-// payload: { rows: [...logRows], questionnaire: [...qRows] }
 async function postRowsToGoogleSheets(payload) {
     const webhookUrl = process.env.GSHEETS_WEBHOOK_URL;
     const webhookSecret = process.env.GSHEETS_WEBHOOK_SECRET || '';
     const configuredTimeout = Number(process.env.GSHEETS_WEBHOOK_TIMEOUT_MS);
-    const webhookTimeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-        ? configuredTimeout
-        : 60000;
+    const webhookTimeoutMs = Number.isFinite(configuredTimeout);
 
     if (!webhookUrl) {
         return { ok: false, message: 'GSHEETS_WEBHOOK_URL is not configured' };
@@ -289,8 +286,6 @@ async function syncEvaluationToGoogleSheets({ start, end, syncAll, targetUserId 
     };
 }
 
-// ─── POST /evaluation/session/end ───────────────────────────────────────────
-// Called by client on logout or app close to record session duration.
 router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
     const { sessionId } = req.body;
     if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
@@ -309,7 +304,7 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
 
         await prisma.userSession.update({
             where: { id: session.id },
-            data: { logoutAt, lastActiveAt: logoutAt, durationSec },
+            data: { logoutAt, durationSec },
         });
 
         res.json({ durationSec });
@@ -319,32 +314,6 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
     }
 });
 
-// ─── POST /evaluation/session/heartbeat ─────────────────────────────────────
-// Called periodically (every ~60 s) to keep lastActiveAt fresh.
-router.post('/evaluation/session/heartbeat', authMiddleware, async (req, res) => {
-    const { sessionId } = req.body;
-    if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
-
-    try {
-        const session = await prisma.userSession.findUnique({ where: { id: Number(sessionId) } });
-        if (!session || session.userId !== req.user.id) {
-            return res.status(404).json({ message: 'Session not found' });
-        }
-
-        await prisma.userSession.update({
-            where: { id: session.id },
-            data: { lastActiveAt: new Date() },
-        });
-
-        res.json({ ok: true });
-    } catch (err) {
-        console.error('[EvaluationRouter] heartbeat:', err.message);
-        res.sendStatus(503);
-    }
-});
-
-// ─── GET /evaluation/summary?userId=X&startDate=Y&endDate=Z ─────────────────
-// For instructors/admins to view a specific student's log summary.
 router.get('/evaluation/summary', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
@@ -441,8 +410,6 @@ router.post('/evaluation/sync/google-sheets', authMiddleware, async (req, res) =
     }
 });
 
-// ─── GET /evaluation/sync/google-sheets/cron ───────────────────────────────
-// Vercel Cron entrypoint (protected by CRON_SECRET bearer token).
 router.get('/evaluation/sync/google-sheets/cron', async (req, res) => {
     const cronSecret = process.env.CRON_SECRET;
     const auth = req.headers.authorization || '';
@@ -493,27 +460,6 @@ router.get('/evaluation/sync/google-sheets/cron', async (req, res) => {
 // ─── core logic ─────────────────────────────────────────────────────────────
 
 async function computeSummary(userId, start, end) {
-    // 0. Clean up hanging sessions for this user before computing metrics
-    const deadTimeout = new Date(Date.now() - 5 * 60 * 1000);
-    const deadSessions = await prisma.userSession.findMany({
-        where: {
-            userId,
-            logoutAt: null,
-            lastActiveAt: { lt: deadTimeout }
-        }
-    });
-
-    for (const s of deadSessions) {
-        const durationSec = Math.max(0, Math.round((s.lastActiveAt - s.loginAt) / 1000));
-        await prisma.userSession.update({
-            where: { id: s.id },
-            data: {
-                logoutAt: s.lastActiveAt,
-                durationSec
-            }
-        });
-    }
-
     const [
         sessionsRaw,
         assessmentsRaw,
@@ -526,7 +472,7 @@ async function computeSummary(userId, start, end) {
         // 1. Sessions in period
         prisma.userSession.findMany({
             where: { userId, loginAt: { gte: start, lte: end } },
-            select: { id: true, loginAt: true, logoutAt: true, durationSec: true, lastActiveAt: true },
+            select: { id: true, loginAt: true, logoutAt: true, durationSec: true },
             orderBy: { loginAt: 'asc' },
         }),
         // 2. Submitted assessments in period
@@ -710,9 +656,6 @@ async function buildSummary(userId, start, end, res) {
     }
 }
 
-// ─── POST /evaluation/questionnaire ─────────────────────────────────────────
-// Called once by the student after the evaluation period ends.
-// Body: { q1, q2, q3, q4, q5, q6, q7, q8 }  — each integer 1-5
 router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { q1, q2, q3, q4, q5, q6, q7, q8 } = req.body;
@@ -753,8 +696,6 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
     }
 });
 
-// ─── GET /evaluation/questionnaire/all ───────────────────────────────────────
-// Instructor/admin: export all questionnaire responses.
 router.get('/evaluation/questionnaire/all', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
