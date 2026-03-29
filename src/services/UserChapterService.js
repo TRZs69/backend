@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const evaluationService = require('./EvaluationService');
 
 const isMissingColumnError = (error, columnName) => {
     const message = error?.message || '';
@@ -201,6 +202,10 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
             },
             data: dataToUpdate,
         });
+
+        // Sync to Supabase Live
+        evaluationService.syncSummaryToSupabase(userId);
+
         return userChapter;
     } catch (error) {
         if (isMissingColumnError(error, '`assessmentPointsEarned`')) {

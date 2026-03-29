@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const evaluationService = require('./EvaluationService');
 const { GoogleAIClient } = require('./GoogleAIClient');
 const {
     clampElo,
@@ -1431,6 +1432,9 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
+    // Sync to Supabase Live
+    evaluationService.syncSummaryToSupabase(userId);
+
     return {
         grade,
         pointsEarned: userPointsEarned,
@@ -2053,8 +2057,11 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
+    // Sync to Supabase Live
+    evaluationService.syncSummaryToSupabase(userId);
+
     return {
-        attemptId: attempt.id,
+        attemptId: refreshedAttempt.id,
         grade,
         pointsEarned: localPointsToRecord, // Show the final high score of points for this chapter
         eloDelta: eloDeltaSigned,

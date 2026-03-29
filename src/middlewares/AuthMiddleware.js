@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const prisma = require('../prismaClient');
+const evaluationService = require('../services/EvaluationService');
 
 async function authMiddleware(req, res, next) {
     const token = req.headers['authorization']?.split(' ')[1];
@@ -34,6 +35,9 @@ async function authMiddleware(req, res, next) {
                 // We run this in the background (no await) to avoid slowing down every request
                 prisma.userSession.create({
                     data: { userId: jwtDecode.id }
+                }).then(() => {
+                    // Sync to Supabase Live when a new session starts
+                    evaluationService.syncSummaryToSupabase(jwtDecode.id);
                 }).catch(err => console.error('[AuthMiddleware] Passive session start failed:', err.message));
             }
         }
