@@ -7,6 +7,16 @@ const router = express.Router();
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
+const ELO_BADGE_BANDS = [
+    { name: 'Beginner', min: 750 },
+    { name: 'Basic Understanding', min: 1000 },
+    { name: 'Developing Learner', min: 1200 },
+    { name: 'Intermediate', min: 1400 },
+    { name: 'Proficient', min: 1600 },
+    { name: 'Advanced', min: 1800 },
+    { name: 'Mastery', min: 2000 },
+];
+
 function toDateRange(startDate, endDate) {
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const end = endDate ? new Date(endDate) : new Date();
@@ -325,7 +335,21 @@ async function computeSummary(userId, start, end) {
     const assessmentsPerDay = groupByDay(assessmentsRaw, 'submittedAt');
 
     const periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-    const activeDays = new Set(sessionsRaw.map((s) => s.loginAt.toISOString().slice(0, 10))).size;
+    const activeDaysSet = new Set();
+    sessionsRaw.forEach((s) => {
+        const start = new Date(s.loginAt.getTime() + 7 * 60 * 60 * 1000);
+        const last = new Date((s.lastActiveAt || s.loginAt).getTime() + 7 * 60 * 60 * 1000);
+        
+        // Loop through each day in the span of this session
+        let current = new Date(start.toISOString().slice(0, 10)); // Start of the first day
+        const lastDayStr = last.toISOString().slice(0, 10);
+        
+        while (current.toISOString().slice(0, 10) <= lastDayStr) {
+            activeDaysSet.add(current.toISOString().slice(0, 10));
+            current.setDate(current.getDate() + 1);
+        }
+    });
+    const activeDays = activeDaysSet.size;
     const returnRate = Math.round((activeDays / periodDays) * 100);
 
     const latestQuestionnaire = questionnairesRaw.length > 0 ? questionnairesRaw[questionnairesRaw.length - 1] : null;
@@ -370,6 +394,14 @@ async function computeSummary(userId, start, end) {
         }
         : null;
 
+    // Badges: Combine earned badges in period with virtual Elo-based badges
+    const eloBadgeCount = ELO_BADGE_BANDS.filter((band) => (user?.elo || 750) >= band.min).length;
+    const earnedBadgeCount = badgesRaw.length;
+    
+    // Total badges (Elo bands + unique earned ones that aren't Elo bands)
+    // For simplicity and since we want beginner badge included:
+    const totalBadges = Math.max(eloBadgeCount, earnedBadgeCount);
+
     return {
         period: { start, end, totalDays: periodDays },
         user: user || {},
@@ -388,7 +420,7 @@ async function computeSummary(userId, start, end) {
             perDay: assessmentsPerDay,
         },
         badges: {
-            totalEarned: badgesRaw.length,
+            totalEarned: totalBadges,
             list: badgesRaw,
         },
         chapters: {

@@ -1389,12 +1389,15 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
         totalQuestions,
     });
 
+    const isCompleted = userChapter.materialDone === true;
+
     const transactionOperations = [
         prisma.userChapter.update({
             where: { id: userChapter.id },
             data: {
                 isStarted: true,
                 assessmentDone: true,
+                isCompleted: isCompleted,
                 assessmentGrade: grade,
                 assessmentEloDelta: eloDeltaSigned,
                 assessmentPointsEarned: { increment: userPointsEarned },
@@ -1601,11 +1604,15 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     const aiFeedback = buildFeedback(grade, correctAnswers);
     const orderedAnswers = servedQuestions.map((q) => q.submittedAnswer || '');
 
+    // A chapter is completed if both material and assessment are done
+    const isCompleted = userChapter.materialDone === true;
+
     const updatedChapter = await tx.userChapter.update({
         where: { id: userChapter.id },
         data: {
             isStarted: true,
             assessmentDone: true,
+            isCompleted: isCompleted,
             assessmentGrade: grade,
             assessmentEloDelta: eloDeltaSigned,
             assessmentPointsEarned: localPointsToRecord,
@@ -1971,12 +1978,15 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
         }
     }
 
+    const isCompleted = userChapter.materialDone === true;
+
     const transactionOperations = [
         prisma.userChapter.update({
             where: { id: userChapter.id },
             data: {
                 isStarted: true,
                 assessmentDone: true,
+                isCompleted: isCompleted,
                 assessmentGrade: grade,
                 assessmentEloDelta: eloDeltaSigned,
                 assessmentPointsEarned: localPointsToRecord,

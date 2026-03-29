@@ -173,12 +173,33 @@ exports.getUserChapterByUserByChapter = async (userId, chapterId) => {
 
 exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData) => {
     try {
+        // Find existing record to check current status
+        const existing = await prisma.userChapter.findFirst({
+            where: { userId, chapterId }
+        });
+
+        const materialDone = updateData.materialDone !== undefined ? updateData.materialDone : (existing?.materialDone || false);
+        const assessmentDone = updateData.assessmentDone !== undefined ? updateData.assessmentDone : (existing?.assessmentDone || false);
+        
+        // A chapter is completed if both material and assessment are done
+        const isCompleted = materialDone && assessmentDone;
+
+        const dataToUpdate = {
+            ...updateData,
+            isCompleted
+        };
+
+        // Set timeFinished if it's newly completed
+        if (isCompleted && (!existing || !existing.isCompleted)) {
+            dataToUpdate.timeFinished = new Date();
+        }
+
         const userChapter = await prisma.userChapter.updateMany({
             where: {
                 userId,
                 chapterId
             },
-            data: updateData,
+            data: dataToUpdate,
         });
         return userChapter;
     } catch (error) {
