@@ -16,16 +16,56 @@ const formatUser = (user) => {
 exports.getAllUsers = async (role) => {
   try {
     let users;
+    const isStudent = role && role.toUpperCase() === 'STUDENT';
     if (role) {
       users = await prisma.user.findMany({
         where: { role: role.toUpperCase() },
+        // Jika role STUDENT, urutkan berdasarkan Elo tertinggi
+        orderBy: isStudent ? { elo: 'desc' } : { createdAt: 'asc' },
       });
     } else {
-      users = await prisma.user.findMany();
+      users = await prisma.user.findMany({
+        orderBy: { createdAt: 'asc' },
+      });
     }
     return users.map(formatUser);
   } catch (error) {
     throw new Error("Error retrieving users");
+  }
+};
+
+/**
+ * Mendapatkan papan peringkat mahasiswa berdasarkan Elo tertinggi.
+ * @param {number} limit - Jumlah mahasiswa yang ditampilkan (default 50)
+ * @returns {Array} Daftar mahasiswa STUDENT diurutkan Elo descending, dengan tambahan field `rank`
+ */
+exports.getLeaderboard = async (limit = 50) => {
+  try {
+    const students = await prisma.user.findMany({
+      where: { role: 'STUDENT' },
+      orderBy: { elo: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        studentId: true,
+        elo: true,
+        points: true,
+        image: true,
+        badges: true,
+        totalCourses: true,
+        role: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    return students.map((student, index) => ({
+      ...formatUser(student),
+      rank: index + 1,
+    }));
+  } catch (error) {
+    throw new Error('Error retrieving leaderboard: ' + error.message);
   }
 };
 

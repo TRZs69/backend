@@ -8,6 +8,10 @@ const router = express.Router();
 // Route for get all users
 router.get('/user', userController.getAllUsers);
 
+// Route for leaderboard (mahasiswa diurutkan berdasarkan Elo tertinggi)
+// HARUS sebelum /user/:id agar tidak dianggap sebagai id parameter
+router.get('/user/leaderboard', userController.getLeaderboard);
+
 // Route for get user by id
 router.get('/user/:id', userController.getUserById);
 

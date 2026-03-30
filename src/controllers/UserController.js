@@ -19,6 +19,17 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+// Controller untuk mendapatkan papan peringkat mahasiswa (sorted by Elo desc)
+const getLeaderboard = async (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  try {
+    const leaderboard = await userService.getLeaderboard(limit);
+    res.status(200).json(leaderboard);
+  } catch (error) {
+    res.status(500).json({ message: 'Gagal mengambil data leaderboard', details: error.message });
+  }
+};
+
 // Controller untuk mendapatkan user by id
 const getUserById = async (req, res) => {
   const id = parseInt(req.params.id);
@@ -241,4 +252,6 @@ module.exports = {
   getTradesByUser,
   getCoursesByUser,
   getBadgesByUser,
+  getLeaderboard,
 };
+
