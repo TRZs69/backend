@@ -37,6 +37,25 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
     }
 });
 
+router.post('/evaluation/session/heartbeat', authMiddleware, async (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
+
+    try {
+        await prisma.userSession.update({
+            where: { id: Number(sessionId) },
+            data: { lastActiveAt: new Date() },
+        });
+        res.sendStatus(204);
+    } catch (err) {
+        if (err.code === 'P2025') {
+            return res.status(404).json({ message: 'Session not found' });
+        }
+        console.error('[EvaluationRouter] session/heartbeat:', err.message);
+        res.sendStatus(503);
+    }
+});
+
 router.get('/evaluation/summary', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
@@ -87,18 +106,20 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
     const { start, end } = evaluationService.toDateRange(req.query.startDate, req.query.endDate);
 
     try {
-        const { data: storedSummaries } = await supabase
-            .from('student_summaries')
-            .select('*');
-
-        if (storedSummaries && storedSummaries.length > 0) {
-            return res.json({ source: 'supabase', summaries: storedSummaries });
-        }
-
         const students = await prisma.user.findMany({
             where: { role: 'STUDENT' },
             select: { id: true, name: true, studentId: true },
         });
+
+        const { data: storedSummaries } = await supabase
+            .from('student_summaries')
+            .select('*');
+
+        // Only return from Supabase if we have data for all students and no specific date range was requested
+        // that might differ from what's stored. 
+        if (storedSummaries && storedSummaries.length === students.length && !req.query.startDate && !req.query.endDate) {
+            return res.json({ source: 'supabase', summaries: storedSummaries });
+        }
 
         const results = await Promise.all(
             students.map(async (s) => {
