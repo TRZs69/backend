@@ -80,6 +80,14 @@ exports.streamMessage = async (req, res) => {
   res.on('close', handleClose);
   sendEvent({ status: 'started' });
 
+  // Heartbeat to keep connection alive on Vercel/proxies
+  const heartbeatInterval = setInterval(() => {
+    if (!res.writableEnded) {
+      res.write(': heartbeat\n\n');
+      if (typeof res.flush === 'function') res.flush();
+    }
+  }, 5000);
+
   try {
     const result = await chatbotService.streamMessage({
       message,
@@ -97,6 +105,7 @@ exports.streamMessage = async (req, res) => {
     console.error('ChatbotController stream error:', error.message);
     sendEvent({ error: 'Gagal memproses pesan chatbot' });
   } finally {
+    clearInterval(heartbeatInterval);
     detachListener(res, 'close', handleClose);
     if (!res.writableEnded) {
       res.write('data: [DONE]\n\n');
