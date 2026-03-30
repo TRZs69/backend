@@ -37,6 +37,25 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
     }
 });
 
+router.post('/evaluation/session/heartbeat', authMiddleware, async (req, res) => {
+    const { sessionId } = req.body;
+    if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
+
+    try {
+        await prisma.userSession.update({
+            where: { id: Number(sessionId) },
+            data: { lastActiveAt: new Date() },
+        });
+        res.sendStatus(204);
+    } catch (err) {
+        if (err.code === 'P2025') {
+            return res.status(404).json({ message: 'Session not found' });
+        }
+        console.error('[EvaluationRouter] session/heartbeat:', err.message);
+        res.sendStatus(503);
+    }
+});
+
 router.get('/evaluation/summary', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
