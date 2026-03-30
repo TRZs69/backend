@@ -64,8 +64,12 @@ const ASSESSMENT_GENERATION_CONFIG = (() => {
 const K_STUDENT = 30;
 const K_QUESTION = 15;
 const INTERACTIVE_TX_OPTIONS = {
-    maxWait: 10000,
-    timeout: 30000,
+    // maxWait: waktu tunggu untuk mendapatkan koneksi dari pool.
+    // Dinaikkan dari 10s ke 20s untuk Supabase/serverless yang koneksinya bisa lambat.
+    maxWait: 20000,
+    // timeout: batas total waktu untuk menyelesaikan transaksi.
+    // Dinaikkan dari 30s ke 45s agar jawaban yang memicu finalisasi (essay terakhir) tetap bisa selesai.
+    timeout: 45000,
 };
 
 const DIFFICULTY_ENUM = {
@@ -2092,13 +2096,33 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         throw new Error('Jawaban tidak boleh kosong');
     }
 
-    return prisma.$transaction(async (tx) => {
-        const user = await tx.user.findUnique({
+    // --- Pre-fetch di luar transaksi agar transaksi sesingkat mungkin ---
+    // Read user role & attempt sekarang supaya koneksi TX tidak dipakai untuk operasi read awal.
+    const [userPreFetch, attemptPreFetch] = await Promise.all([
+        prisma.user.findUnique({
             where: { id: normalizedUserId },
             select: { role: true },
-        });
-        const isStudent = isStudentRole(user?.role);
+        }),
+        prisma.assessmentAttempt.findFirst({
+            where: {
+                id: normalizedAttemptId,
+                userId: normalizedUserId,
+                chapterId: normalizedChapterId,
+                status: ATTEMPT_STATUS.IN_PROGRESS,
+            },
+            include: { questions: true },
+        }),
+    ]);
 
+    // Validasi awal sebelum masuk transaksi
+    if (!attemptPreFetch) {
+        throw new Error('Assessment attempt tidak ditemukan atau sudah selesai');
+    }
+
+    const isStudent = isStudentRole(userPreFetch?.role);
+
+    return prisma.$transaction(async (tx) => {
+        // Reload attempt di dalam TX untuk memastikan data konsisten (row lock)
         let attempt = await tx.assessmentAttempt.findFirst({
             where: {
                 id: normalizedAttemptId,

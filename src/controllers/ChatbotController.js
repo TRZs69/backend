@@ -60,6 +60,8 @@ exports.streamMessage = async (req, res) => {
       return;
     }
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    // Flush wajib setelah setiap event agar Vercel/proxy tidak buffer data
+    if (typeof res.flush === 'function') res.flush();
   };
 
   const abortController = new AbortController();
@@ -80,13 +82,13 @@ exports.streamMessage = async (req, res) => {
   res.on('close', handleClose);
   sendEvent({ status: 'started' });
 
-  // Heartbeat to keep connection alive on Vercel/proxies
+  // Heartbeat setiap 3 detik agar koneksi tetap hidup di Vercel (batas 30 detik)
   const heartbeatInterval = setInterval(() => {
     if (!res.writableEnded) {
       res.write(': heartbeat\n\n');
       if (typeof res.flush === 'function') res.flush();
     }
-  }, 5000);
+  }, 3000);
 
   try {
     const result = await chatbotService.streamMessage({
