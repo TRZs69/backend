@@ -1590,19 +1590,17 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
 
     if (isStudent) {
         if (userChapter.assessmentDone) {
-            // Re-attempt: Only award points if the new positive delta is higher than the previously earned points
             const previousEarned = userChapter.assessmentPointsEarned || 0;
-            const newEarned = Math.max(0, pointsEarned);
+            const newEarned = Math.max(0, Math.round(pointsEarned));
 
             if (newEarned > previousEarned) {
                 globalPointsToAward = newEarned - previousEarned;
-                localPointsToRecord = newEarned; // New high score
+                localPointsToRecord = newEarned;
             } else {
-                localPointsToRecord = previousEarned; // Keep the existing high score
+                localPointsToRecord = previousEarned;
             }
         } else {
-            // First time: Award all positive points
-            globalPointsToAward = Math.max(0, pointsEarned);
+            globalPointsToAward = Math.max(0, Math.round(pointsEarned));
             localPointsToRecord = globalPointsToAward;
         }
     }
