@@ -1129,6 +1129,8 @@ const formatAttemptResponse = (attempt, resumed = false) => {
 };
 
 const getGradeMultiplier = (grade) => {
+    // Multiplier ini HANYA dipakai untuk delta Elo, BUKAN untuk poin gamifikasi.
+    // Poin gamifikasi menggunakan rumus murni: base × (1 - E), tanpa multiplier.
     if (grade >= 79.5) {
         return 1.5;
     }
@@ -1141,13 +1143,13 @@ const getGradeMultiplier = (grade) => {
     if (grade >= 57) {
         return 1.0;
     }
-    if (grade >= 49.5) {
-        return 0.5;
+    if (grade >= 42) {
+        return 0.9;
     }
-    if (grade >= 34) {
-        return 1.5;
+    if (grade >= 28) {
+        return 0.8;
     }
-    return 2.0;
+    return 0.7;
 };
 
 const buildAnswerMap = (answers = []) => {
@@ -1201,16 +1203,12 @@ const calculateEloOutcome = ({
     totalQuestions,
     userElo,
 }) => {
-    let normalizedUserElo = userElo || MIN_ELO;
-    if (normalizedUserElo < MIN_ELO) {
-        normalizedUserElo = MIN_ELO;
-    }
-
-    const isProvisional = normalizedUserElo <= MIN_ELO;
+    let runningUserElo = Math.max(MIN_ELO, userElo || MIN_ELO);
+    const isProvisional = runningUserElo <= MIN_ELO;
 
     let totalUserEloEarned = 0;
     const questionUpdates = [];
-    let totalPointsEarnedRaw = 0; // NEW: Track points separately
+    let totalPointsEarned = 0; // Poin murni: sum per soal, tanpa multiplier
 
     for (const evaluation of evaluations) {
         const question = questions[evaluation.index];
@@ -1218,55 +1216,59 @@ const calculateEloOutcome = ({
             continue;
         }
 
-        const questionElo = clampElo(question.elo);
-        const K_USER = determineUserKFactor(normalizedUserElo);
-        const K_QUESTION = determineQuestionKFactor(questionElo);
-        
-        // Sesuai rumus gambar: P_s,i = 1 / (1 + 10^(-(R_s - D_i) / 400))
-        const expectedProbUser = 1 / (1 + Math.pow(10, -(normalizedUserElo - questionElo) / 400));
-        // S (Skor mahasiswa): Benar = 1, Salah = 0
+        // Gunakan elo soal SEBELUM duel (original elo dari pool).
+        // question.elo sudah diupdate per-duel, tapi untuk kalkulasi finalisasi
+        // kita rekonstruksi dari userEloDeltaRaw & questionEloDeltaRaw jika tersedia.
+        const questionEloAfterDuel = clampElo(question.elo);
+        const questionEloDelta = Number(question.questionEloDeltaRaw || 0);
+        const questionEloBeforeDuel = Number.isFinite(questionEloDelta)
+            ? Math.max(MIN_ELO, questionEloAfterDuel - questionEloDelta)
+            : questionEloAfterDuel;
+
+        const K_USER = determineUserKFactor(runningUserElo);
+        const K_QUESTION = determineQuestionKFactor(questionEloBeforeDuel);
+
+        // P_s,i = 1 / (1 + 10^(-(R_s - D_i) / 400))
+        const expectedProbUser = 1 / (1 + Math.pow(10, -(runningUserElo - questionEloBeforeDuel) / 400));
         const actualUserScore = evaluation.isCorrect ? 1 : 0;
 
-        // Formula 3. Update Rating Mahasiswa: R_s^baru = R_s + K_s(S - P_s,i)
+        // R_s^baru = R_s + K_s(S - P_s,i)
         let userEloChange = K_USER * (actualUserScore - expectedProbUser);
-        
-        // Formula 3. Update Rating Soal: D_i^baru = D_i + K_i(P_s,i - S)
+
+        // D_i^baru = D_i + K_i(P_s,i - S)
         const questionEloChange = K_QUESTION * (expectedProbUser - actualUserScore);
 
         if (isProvisional && evaluation.isCorrect) {
             userEloChange += (100 / totalQuestions) * 0.5;
         }
 
-        // --- NEW POINT CALCULATION ---
+        // --- POIN GAMIFIKASI ---
+        // Rumus: Poin = Base × (1 - E) jika benar, 0 jika salah.
+        // TIDAK ada grade multiplier pada poin — hanya murni kesulitan soal.
         if (evaluation.isCorrect) {
-            // Difficulty = 1 - E
-            const difficulty = 1 - expectedProbUser;
-            // Dynamic points = Base Poin x Difficulty
-            // Memnggunakan base poin statis 100 per soal sesuai instruksi.
-            const basePointPerQuestion = 100;
-            const dynamicPoints = basePointPerQuestion * difficulty;
-            totalPointsEarnedRaw += dynamicPoints;
+            const difficulty = 1 - expectedProbUser; // Difficulty = 1 - E
+            const dynamicPoints = 100 * difficulty;  // Base = 100
+            totalPointsEarned += dynamicPoints;
         }
 
+        // Update running user elo untuk soal berikutnya (agar konsisten dengan preview)
+        runningUserElo = Math.max(MIN_ELO, runningUserElo + userEloChange);
         totalUserEloEarned += userEloChange;
+
         questionUpdates.push({
             questionId: question.id,
-            newElo: Math.round(questionElo + questionEloChange),
+            newElo: Math.round(questionEloBeforeDuel + questionEloChange),
         });
     }
 
+    // Grade multiplier HANYA dipakai untuk delta Elo, bukan poin.
     let totalEloChangeRaw = totalUserEloEarned * getGradeMultiplier(grade);
     if (isProvisional && totalEloChangeRaw < 0) {
         totalEloChangeRaw = 0;
     }
 
-    // Terapkan grade multiplier juga ke points jika dibutuhkan (opsional, ikuti Elo sementara)
-    let finalPointsEarned = totalPointsEarnedRaw * getGradeMultiplier(grade);
-
     return {
-        // Return pointsEarned as the new dynamic point calculation
-        pointsEarned: Math.round(finalPointsEarned),
-        // Return eloDeltaRaw for separating the real Elo
+        pointsEarned: Math.round(totalPointsEarned), // Tanpa multiplier, sesuai rumus asli
         eloDeltaRaw: totalEloChangeRaw,
         questionUpdates,
     };
