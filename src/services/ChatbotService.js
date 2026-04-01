@@ -1416,19 +1416,29 @@ exports.deleteSession = async ({ sessionId }) => {
 	return chatHistoryStore.deleteSession({ sessionId: trimmedSessionId });
 };
 
+const supabase = require('../../supabase/supabase');
+
 exports.saveRating = async ({ userId, userRequest, botResponse, rating }) => {
 	try {
-		const result = await prisma.chatbotRating.create({
-			data: {
-				userId,
-				userRequest,
-				botResponse,
-				rating,
-			},
-		});
-		return result;
+		const { data, error } = await supabase
+			.from('chatbot_ratings')
+			.insert([
+				{
+					userId,
+					userRequest,
+					botResponse,
+					rating,
+				},
+			])
+			.select();
+
+		if (error) {
+			throw error;
+		}
+
+		return data?.[0] || null;
 	} catch (error) {
-		console.error('ChatbotService saveRating error:', error.message);
+		console.error('ChatbotService saveRating Supabase error:', error.message);
 		throw new Error('Gagal menyimpan rating chatbot');
 	}
 };
