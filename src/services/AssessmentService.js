@@ -1439,7 +1439,7 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
     // Sync to Supabase Live
-    evaluationService.syncSummaryToSupabase(userId);
+    await evaluationService.syncSummaryToSupabase(userId);
 
     return {
         grade,
@@ -2062,7 +2062,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
     // Sync to Supabase Live
-    evaluationService.syncSummaryToSupabase(userId);
+    await evaluationService.syncSummaryToSupabase(userId);
 
     return {
         attemptId: refreshedAttempt.id,

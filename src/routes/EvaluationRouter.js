@@ -28,7 +28,7 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
         });
 
         // Sync to Supabase Live
-        evaluationService.syncSummaryToSupabase(req.user.id);
+        await evaluationService.syncSummaryToSupabase(req.user.id);
 
         res.json({ durationSec });
     } catch (err) {
@@ -167,7 +167,7 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
         });
 
         // Sync to Supabase Live
-        evaluationService.syncSummaryToSupabase(userId);
+        await evaluationService.syncSummaryToSupabase(userId);
 
         res.status(201).json({ id: record.id, submittedAt: record.submittedAt });
     } catch (err) {

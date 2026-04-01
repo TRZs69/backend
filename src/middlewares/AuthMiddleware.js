@@ -35,9 +35,9 @@ async function authMiddleware(req, res, next) {
                 // We run this in the background (no await) to avoid slowing down every request
                 prisma.userSession.create({
                     data: { userId: jwtDecode.id }
-                }).then(() => {
+                }).then(async () => {
                     // Sync to Supabase Live when a new session starts
-                    evaluationService.syncSummaryToSupabase(jwtDecode.id);
+                    await evaluationService.syncSummaryToSupabase(jwtDecode.id);
                 }).catch(err => console.error('[AuthMiddleware] Passive session start failed:', err.message));
             }
         }

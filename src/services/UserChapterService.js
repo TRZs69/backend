@@ -204,7 +204,7 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
         });
 
         // Sync to Supabase Live
-        evaluationService.syncSummaryToSupabase(userId);
+        await evaluationService.syncSummaryToSupabase(userId);
 
         return userChapter;
     } catch (error) {

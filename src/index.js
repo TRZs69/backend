@@ -1,26 +1,8 @@
+require("dotenv").config();
+
 const express = require("express");
 const multer = require("multer");
 const path = require("path");
-
-const authRoutes = require("./routes/AuthRoutes.js");
-const authMiddleware = require("./middlewares/AuthMiddleware.js");
-const userRoutes = require("./routes/UserRouter.js");
-const courseRoutes = require("./routes/CourseRouter.js");
-const userCourseRoutes = require("./routes/UserCourseRouter.js");
-const userChapterRoutes = require("./routes/UserChapterRouter.js");
-const chapterRoutes = require("./routes/ChapterRouter.js");
-const materialRoutes = require("./routes/MaterialRouter.js");
-const assessmentRoutes = require("./routes/AssessmentRouter.js");
-const assignmentRoutes = require("./routes/AssignmentRouter.js");
-const chatbotRoutes = require("./routes/ChatbotRouter.js");
-const badgeRoutes = require("./routes/BadgeRouter.js");
-const userBadgeRoutes = require("./routes/UserBadgeRouter.js");
-const tradeRoutes = require("./routes/TradeRouter.js");
-const userTradeRoutes = require("./routes/UserTradeRouter.js");
-const evaluationRoutes = require("./routes/EvaluationRouter.js");
-const cors = require("cors");
-
-require("dotenv").config();
 
 // Express Settings
 const app = express();
