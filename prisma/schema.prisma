@@ -38,6 +38,7 @@ model User {
   userTrades        UserTrade[]
   sessions          UserSession[]
   questionnaires    EvaluationQuestionnaire[]
+  chatbotRatings    ChatbotRating[]
 
   @@map("users")
 }
@@ -417,4 +418,18 @@ model EvaluationQuestionnaire {
   @@index([userId])
   @@index([submittedAt])
   @@map("evaluation_questionnaires")
+}
+
+model ChatbotRating {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  userRequest     String   @db.Text
+  botResponse     String   @db.Text
+  rating          Int
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("chatbot_ratings")
 }

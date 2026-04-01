@@ -11,5 +11,7 @@ router.get('/chat/history/user/:userId', ChatbotController.getHistoryByUser);
 router.get('/chat/history/:sessionId', ChatbotController.getHistory);
 router.get('/chat/session/user/:userId', ChatbotController.listSessionsByUser);
 router.delete('/chat/session/:sessionId', ChatbotController.deleteSession);
+router.post('/chat/rating', ChatbotController.saveRating);
+router.get('/chat/sampling/status', ChatbotController.getSamplingStatus);
 
 module.exports = router;

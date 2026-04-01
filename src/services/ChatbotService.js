@@ -653,7 +653,7 @@ const ensureGoogleCredentials = () => {
 
 const buildGoogleAIClient = () => {
 	ensureGoogleCredentials();
-	const apiKey = process.env.LEVELY_GEMINI_API_KEY;
+	const apiKey = (process.env.LEVELY_GEMINI_API_KEY || '').trim();
 	const model = process.env.LEVELY_GEMINI_MODEL || 'gemma-3-12b-it';
 	const baseUrl = process.env.LEVELY_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models';
 	const isVertex = baseUrl.includes('aiplatform.googleapis.com');
@@ -1078,12 +1078,11 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 			replyChars: 0,
 			error: error.message,
 		});
+
 		const status = error?.response?.status;
-		const body = error?.response?.data;
-		if (status || body) {
-			console.error('ChatbotService error:', status || error.message, body || '');
-		} else {
-			console.error('ChatbotService error:', error.message);
+		console.error(`ChatbotService error [${status || 'No Status'}]:`, error.message);
+		if (error.response?.data && typeof error.response.data.on !== 'function') {
+			console.error('Error body:', error.response.data);
 		}
 		return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
 	}
@@ -1254,13 +1253,13 @@ exports.streamMessage = async ({
 			replyChars: 0,
 			error: error.message,
 		});
+
 		const status = error?.response?.status;
-		const body = error?.response?.data;
 		if (!abortSignal?.aborted) {
-			if (status || body) {
-				console.error('ChatbotService stream error:', status || error.message, body || '');
-			} else {
-				console.error('ChatbotService stream error:', error.message);
+			console.error(`ChatbotService stream error [${status || 'No Status'}]:`, error.message);
+			if (error.response?.data && typeof error.response.data.on !== 'function') {
+				// Only log body if it's not a stream to avoid [Object] or circular clutter
+				console.error('Error body:', error.response.data);
 			}
 			emitChunk(FALLBACK_REPLY);
 			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
@@ -1415,4 +1414,21 @@ exports.deleteSession = async ({ sessionId }) => {
 	}
 
 	return chatHistoryStore.deleteSession({ sessionId: trimmedSessionId });
+};
+
+exports.saveRating = async ({ userId, userRequest, botResponse, rating }) => {
+	try {
+		const result = await prisma.chatbotRating.create({
+			data: {
+				userId,
+				userRequest,
+				botResponse,
+				rating,
+			},
+		});
+		return result;
+	} catch (error) {
+		console.error('ChatbotService saveRating error:', error.message);
+		throw new Error('Gagal menyimpan rating chatbot');
+	}
 };

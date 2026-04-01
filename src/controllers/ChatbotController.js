@@ -1,4 +1,23 @@
-const chatbotService = require('../services/ChatbotService');
+const samplingService = require('../services/SamplingService');
+
+// ... (existing code)
+
+exports.getSamplingStatus = async (req, res) => {
+  try {
+    const status = await samplingService.getStratifiedSample();
+    
+    // We also need to know how many ratings have already been done
+    const totalRated = await prisma.chatbotRating.count();
+    
+    return res.status(200).json({
+      ...status,
+      totalRated
+    });
+  } catch (error) {
+    console.error('ChatbotController getSamplingStatus error:', error.message);
+    return res.status(400).json({ message: error.message || 'Gagal mengambil status sampling' });
+  }
+};
 
 const SSE_HEADERS = {
   'Content-Type': 'text/event-stream',
@@ -205,5 +224,24 @@ exports.deleteSession = async (req, res) => {
   } catch (error) {
     console.error('ChatbotController delete error:', error.message);
     return res.status(400).json({ message: error.message || 'Gagal menghapus sesi chat' });
+  }
+};
+
+exports.saveRating = async (req, res) => {
+  try {
+    const { userId, userRequest, botResponse, rating } = req.body || {};
+    if (!userId || !userRequest || !botResponse || !rating) {
+      return res.status(400).json({ message: 'Missing required fields (userId, userRequest, botResponse, rating)' });
+    }
+    const result = await chatbotService.saveRating({
+      userId: Number(userId),
+      userRequest,
+      botResponse,
+      rating: Number(rating),
+    });
+    return res.status(201).json(result);
+  } catch (error) {
+    console.error('ChatbotController save rating error:', error.message);
+    return res.status(400).json({ message: error.message || 'Gagal menyimpan rating chatbot' });
   }
 };

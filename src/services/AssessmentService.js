@@ -620,7 +620,7 @@ const ensureGoogleCredentials = () => {
 
 const buildGoogleAIClient = () => {
     ensureGoogleCredentials();
-    const apiKey = process.env.LEVELY_GEMINI_API_KEY;
+    const apiKey = (process.env.LEVELY_GEMINI_API_KEY || '').trim();
     const model = process.env.LEVELY_GEMINI_MODEL || 'gemma-3-12b-it';
     const baseUrl =
         process.env.LEVELY_GEMINI_BASE_URL ||

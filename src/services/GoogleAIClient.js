@@ -3,8 +3,9 @@ const { GoogleAuth } = require('google-auth-library');
 const http = require('http');
 const https = require('https');
 
-const keepAliveHttpAgent = new http.Agent({ keepAlive: true });
-const keepAliveHttpsAgent = new https.Agent({ keepAlive: true });
+// Disable keepAlive for serverless stability to avoid stale connections
+const standardHttpAgent = new http.Agent({ keepAlive: false });
+const standardHttpsAgent = new https.Agent({ keepAlive: false });
 
 const buildGenerationConfig = () => {
 	const temperature = Number(process.env.LEVELY_GEMINI_TEMPERATURE || 0.3);
@@ -43,7 +44,7 @@ class GoogleAIClient {
 		model = 'gemma-3-12b-it',
 		baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models',
 	}) {
-		this.apiKey = apiKey;
+		this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
 		this.model = model;
 		this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 		this.isVertex = this.baseUrl.includes('aiplatform.googleapis.com');
@@ -105,12 +106,15 @@ class GoogleAIClient {
 		const payload = this._buildRequestPayload({ messages, system, generationConfig });
 		const url = this._buildUrl();
 		const headers = await this._buildHeaders();
-		const response = await axios.post(url, payload, {
-			headers,
-			timeout: this.requestTimeoutMs,
-			httpAgent: keepAliveHttpAgent,
-			httpsAgent: keepAliveHttpsAgent,
-		});
+
+		const response = await this._doRequestWithRetry(() =>
+			axios.post(url, payload, {
+				headers,
+				timeout: this.requestTimeoutMs,
+				httpAgent: standardHttpAgent,
+				httpsAgent: standardHttpsAgent,
+			})
+		);
 
 		return this._extractTextFromCandidates(response?.data)?.trim() || '';
 	}
@@ -132,14 +136,17 @@ class GoogleAIClient {
 		const payload = this._buildRequestPayload({ messages, system, generationConfig });
 		const url = this._buildUrl({ stream: true });
 		const headers = await this._buildHeaders();
-		const response = await axios.post(url, payload, {
-			headers,
-			responseType: 'stream',
-			signal: abortSignal,
-			timeout: this.streamRequestTimeoutMs,
-			httpAgent: keepAliveHttpAgent,
-			httpsAgent: keepAliveHttpsAgent,
-		});
+
+		const response = await this._doRequestWithRetry(() =>
+			axios.post(url, payload, {
+				headers,
+				responseType: 'stream',
+				signal: abortSignal,
+				timeout: this.streamRequestTimeoutMs,
+				httpAgent: standardHttpAgent,
+				httpsAgent: standardHttpsAgent,
+			})
+		);
 
 		const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
 		const useEventStream = contentType.includes('text/event-stream');
@@ -331,6 +338,118 @@ class GoogleAIClient {
 			response.data.on('error', fail);
 		});
 	}
+
+	async _doRequestWithRetry(requestFn, maxRetries = 2) {
+		let lastError;
+		for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+			try {
+				return await requestFn();
+			} catch (error) {
+				lastError = error;
+				const status = error?.response?.status;
+				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
+
+				if (attempt < maxRetries && isRetryable) {
+					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+					console.warn(`LLM request failed with ${status}. Retrying in ${Math.round(delay)}ms... (Attempt ${attempt + 1}/${maxRetries})`);
+					await new Promise((resolve) => setTimeout(resolve, delay));
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw lastError;
+	}
+
+	_buildRequestPayload({ messages, system, generationConfig }) {
+		const contents = messages.map((message) => {
+			const parts = [];
+
+			if (message.content) {
+				parts.push({ text: message.content });
+			}
+
+			if (message.media && Array.isArray(message.media)) {
+				parts.push(...message.media);
+			}
+
+			return {
+				role: message.role === 'assistant' ? 'model' : 'user',
+				parts,
+			};
+		});
+
+		if (system && !this.usesNativeSystemInstruction) {
+			contents.unshift(...this._buildGemmaSystemWrapperContents(system));
+		}
+
+		const payload = {
+			contents,
+			generationConfig: {
+				...this.generationConfig,
+				...(generationConfig && typeof generationConfig === 'object' ? generationConfig : {}),
+			},
+		};
+
+		if (system && this.usesNativeSystemInstruction) {
+			payload.systemInstruction = { parts: [{ text: system }] };
+		}
+
+		return payload;
+	}
+
+	_extractTextFromCandidates(payload) {
+		const candidates = payload?.candidates || [];
+		if (!candidates.length) {
+			return '';
+		}
+
+		const parts = candidates[0]?.content?.parts || [];
+		return parts
+			.map((part) => (typeof part.text === 'string' ? part.text : ''))
+			.filter(Boolean)
+			.join('\n');
+	}
+
+	_buildUrl({ stream = false } = {}) {
+		const action = stream ? 'streamGenerateContent' : 'generateContent';
+		if (this.isVertex) {
+			return `${this.baseUrl}/${this.model}:${action}`;
+		}
+		const encodedKey = encodeURIComponent(this.apiKey);
+		return `${this.baseUrl}/${this.model}:${action}?key=${encodedKey}`;
+	}
+
+	_assertMessages(messages) {
+		if (!Array.isArray(messages) || !messages.length) {
+			throw new Error('Messages are required');
+		}
+	}
+
+	_assertCredentials() {
+		if (!this.isVertex && !this.apiKey) {
+			throw new Error('Missing Google AI API key');
+		}
+	}
+
+	async _buildHeaders() {
+		if (this.isVertex) {
+			if (!this.authClient) {
+				throw new Error('Missing Google auth client for Vertex requests');
+			}
+			const googleHeaders = await this.authClient.getRequestHeaders();
+			return {
+				...googleHeaders,
+				'Content-Type': 'application/json',
+			};
+		}
+
+		return { 'Content-Type': 'application/json' };
+	}
+}
+
+module.exports = { GoogleAIClient };
+
 
 	_buildRequestPayload({ messages, system, generationConfig }) {
 		const contents = messages.map((message) => {
