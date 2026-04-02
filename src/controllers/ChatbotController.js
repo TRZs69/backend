@@ -227,9 +227,27 @@ exports.deleteSession = async (req, res) => {
   }
 };
 
+exports.getUnratedPair = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { chapterId } = req.query;
+    if (userId === undefined) {
+      return res.status(400).json({ message: 'UserId is required' });
+    }
+    const result = await chatbotService.getUnratedPair({
+      userId: Number(userId),
+      chapterId: (chapterId && chapterId !== 'null') ? Number(chapterId) : undefined,
+    });
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('ChatbotController get unrated pair error:', error.message);
+    return res.status(400).json({ message: error.message || 'Gagal mengambil pasangan chat belum dinilai' });
+  }
+};
+
 exports.saveRating = async (req, res) => {
   try {
-    const { userId, userRequest, botResponse, rating } = req.body || {};
+    const { userId, userRequest, botResponse, rating, comment } = req.body || {};
     if (!userId || !userRequest || !botResponse || !rating) {
       return res.status(400).json({ message: 'Missing required fields (userId, userRequest, botResponse, rating)' });
     }
@@ -238,6 +256,7 @@ exports.saveRating = async (req, res) => {
       userRequest,
       botResponse,
       rating: Number(rating),
+      comment,
     });
     return res.status(201).json(result);
   } catch (error) {

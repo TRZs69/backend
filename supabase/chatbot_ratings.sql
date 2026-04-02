@@ -7,6 +7,7 @@ create table if not exists public.chatbot_ratings (
   user_request text not null,
   bot_response text not null,
   rating integer not null check (rating >= 1 and rating <= 5),
+  comment text,
   created_at timestamptz not null default now()
 );
 

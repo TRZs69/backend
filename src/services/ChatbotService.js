@@ -1,6 +1,7 @@
 const { EMOJI } = require('../misc/emojies.js');
 const { GoogleAIClient } = require('./GoogleAIClient');
 const chatHistoryStore = require('./ChatHistoryRepository');
+const samplingService = require('./SamplingService');
 const prisma = require('../prismaClient');
 const fs = require('fs');
 const path = require('path');
@@ -1418,7 +1419,74 @@ exports.deleteSession = async ({ sessionId }) => {
 
 const supabase = require('../../supabase/supabase');
 
-exports.saveRating = async ({ userId, userRequest, botResponse, rating }) => {
+exports.getUnratedPair = async ({ userId, chapterId }) => {
+	const normalizedUserId = Number(userId);
+	const normalizedChapterId = normalizeChapterId(chapterId);
+	
+	if (isNaN(normalizedUserId)) {
+		throw new Error('UserId is required and must be a number');
+	}
+
+	// 1. Get user history
+	const history = await this.getHistoryByUser({ userId: normalizedUserId, chapterId: normalizedChapterId, limit: 100 });
+	const messages = history.messages || [];
+	
+	if (messages.length < 2) {
+		return { message: 'Belum ada riwayat chat untuk dinilai.' };
+	}
+
+	// 2. Get existing ratings for this user to filter them out
+	const { data: existingRatings, error } = await supabase
+		.from('chatbot_ratings')
+		.select('user_request, bot_response')
+		.eq('user_id', normalizedUserId);
+
+	if (error) {
+		console.error('Error fetching existing ratings:', error.message);
+	}
+
+	const ratedPairs = new Set((existingRatings || []).map(r => `${r.user_request}|${r.bot_response}`));
+
+	// 3. Dynamic Sampling based on Cochran + FPC + Equal Allocation per User
+	const samplePlan = await samplingService.getUserSamplePlan();
+	const USER_SAMPLE_LIMIT = samplePlan.samplesPerUser || 1; // Fallback to 1 if something goes wrong
+	
+	if (existingRatings && existingRatings.length >= USER_SAMPLE_LIMIT) {
+		return { message: 'Terima kasih sudah merating Levely! 😊', limitReached: true };
+	}
+
+	// 4. Find pairs of (user, assistant) that haven't been rated
+	const unratedPairs = [];
+	for (let i = messages.length - 1; i >= 1; i--) {
+		const assistantMsg = messages[i];
+		const userMsg = messages[i - 1];
+
+		if (assistantMsg.role === 'assistant' && userMsg.role === 'user') {
+			const pairKey = `${userMsg.content}|${assistantMsg.content}`;
+			if (!ratedPairs.has(pairKey)) {
+				unratedPairs.push({
+					userRequest: userMsg.content,
+					botResponse: assistantMsg.content
+				});
+			}
+		}
+	}
+
+	if (unratedPairs.length === 0) {
+		return { message: 'Terima kasih sudah merating Levely! 😊', allRated: true };
+	}
+
+	// 5. Pick a RANDOM pair from unrated ones for "Stratified Random Sampling"
+	const randomIndex = Math.floor(Math.random() * unratedPairs.length);
+	return {
+		...unratedPairs[randomIndex],
+		found: true,
+		userSampleLimit: USER_SAMPLE_LIMIT,
+		alreadyRated: existingRatings ? existingRatings.length : 0
+	};
+};
+
+exports.saveRating = async ({ userId, userRequest, botResponse, rating, comment }) => {
 	try {
 		const { data, error } = await supabase
 			.from('chatbot_ratings')
@@ -1427,7 +1495,8 @@ exports.saveRating = async ({ userId, userRequest, botResponse, rating }) => {
 					user_id: userId,
 					user_request: userRequest,
 					bot_response: botResponse,
-					rating,
+					rating: Number(rating),
+					comment: comment || null,
 				},
 			])
 			.select();
