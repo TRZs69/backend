@@ -1419,6 +1419,8 @@ exports.deleteSession = async ({ sessionId }) => {
 
 const supabase = require('../../supabase/supabase');
 
+const normalizeForMatch = (text) => (text || '').trim().replace(/\s+/g, ' ');
+
 exports.getUnratedPair = async ({ userId, chapterId }) => {
 	const normalizedUserId = Number(userId);
 	const normalizedChapterId = normalizeChapterId(chapterId);
@@ -1445,7 +1447,9 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 		console.error('Error fetching existing ratings:', error.message);
 	}
 
-	const ratedPairs = new Set((existingRatings || []).map(r => `${r.user_request}|${r.bot_response}`));
+	const ratedPairs = new Set((existingRatings || []).map(r => 
+		`${normalizeForMatch(r.user_request)}|${normalizeForMatch(r.bot_response)}`
+	));
 
 	// 3. Dynamic Sampling based on Cochran + FPC + Equal Allocation per User
 	const samplePlan = await samplingService.getUserSamplePlan();
@@ -1462,7 +1466,7 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 		const userMsg = messages[i - 1];
 
 		if (assistantMsg.role === 'assistant' && userMsg.role === 'user') {
-			const pairKey = `${userMsg.content}|${assistantMsg.content}`;
+			const pairKey = `${normalizeForMatch(userMsg.content)}|${normalizeForMatch(assistantMsg.content)}`;
 			if (!ratedPairs.has(pairKey)) {
 				unratedPairs.push({
 					userRequest: userMsg.content,
@@ -1493,8 +1497,8 @@ exports.saveRating = async ({ userId, userRequest, botResponse, rating, comment 
 			.insert([
 				{
 					user_id: userId,
-					user_request: userRequest,
-					bot_response: botResponse,
+					user_request: userRequest.trim(),
+					bot_response: botResponse.trim(),
 					rating: Number(rating),
 					comment: comment || null,
 				},
