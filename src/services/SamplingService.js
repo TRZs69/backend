@@ -94,7 +94,6 @@ class SamplingService {
   async getStratifiedSample() {
     // ... (rest of the file as is, or we can focus on the user-based sampling as requested)
   }
-}
 
   /**
    * Fetch actual messages to be rated based on sampling
