@@ -2,6 +2,7 @@ const axios = require('axios');
 const { GoogleAuth } = require('google-auth-library');
 const http = require('http');
 const https = require('https');
+const { StringDecoder } = require('string_decoder');
 
 // Disable keepAlive for serverless stability to avoid stale connections
 const standardHttpAgent = new http.Agent({ keepAlive: false });
@@ -202,6 +203,7 @@ class GoogleAIClient {
 			};
 
 			const createSseHandler = () => {
+				const decoder = new StringDecoder('utf8');
 				let buffer = '';
 				let eventBuffer = '';
 
@@ -240,7 +242,7 @@ class GoogleAIClient {
 				};
 
 				const onDataChunk = (chunk) => {
-					buffer += chunk.toString('utf8');
+					buffer += decoder.write(chunk);
 					let newlineIndex = buffer.indexOf('\n');
 					while (newlineIndex !== -1) {
 						const line = buffer.slice(0, newlineIndex);
@@ -254,6 +256,7 @@ class GoogleAIClient {
 			};
 
 			const createJsonArrayHandler = () => {
+				const decoder = new StringDecoder('utf8');
 				let depth = 0;
 				let inString = false;
 				let escape = false;
@@ -273,7 +276,7 @@ class GoogleAIClient {
 				};
 
 				const onDataChunk = (chunk) => {
-					const text = chunk.toString('utf8');
+					const text = decoder.write(chunk);
 					for (let i = 0; i < text.length; i += 1) {
 						const char = text[i];
 
