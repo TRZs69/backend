@@ -1424,9 +1424,9 @@ exports.saveRating = async ({ userId, userRequest, botResponse, rating }) => {
 			.from('chatbot_ratings')
 			.insert([
 				{
-					userId,
-					userRequest,
-					botResponse,
+					user_id: userId,
+					user_request: userRequest,
+					bot_response: botResponse,
 					rating,
 				},
 			])
