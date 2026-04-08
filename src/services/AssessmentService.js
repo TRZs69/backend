@@ -1243,11 +1243,12 @@ const calculateEloOutcome = ({
         }
 
         // --- POIN GAMIFIKASI ---
-        // Rumus: Poin = Base × (1 - E) jika benar, 0 jika salah.
+        // Rumus: Poin = B × Difficulty, di mana Difficulty = 1 - E (E = probabilitas ekspektasi Elo)
+        // B (Base Poin) = 10, jika benar; 0 jika salah.
         // TIDAK ada grade multiplier pada poin — hanya murni kesulitan soal.
         if (evaluation.isCorrect) {
-            const difficulty = 1 - expectedProbUser; // Difficulty = 1 - E
-            const dynamicPoints = 100 * difficulty;  // Base = 100
+            const difficulty = 1 - expectedProbUser; // Difficulty = 1 - P
+            const dynamicPoints = 10 * difficulty;   // Base (B) = 10
             totalPointsEarned += dynamicPoints;
         }
 
@@ -2295,7 +2296,8 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         let dynamicPointsEarnedThisQuestion = 0;
         if (isObjective && isStudent && isCorrect) {
             const expectedProbUser = 1 / (1 + Math.pow(10, -(courseEloBefore - clampElo(activeQuestion.elo)) / 400));
-            dynamicPointsEarnedThisQuestion = Math.round(100 * (1 - expectedProbUser));
+            // Rumus: Poin = B × (1 - P), di mana B = 10 (base poin)
+            dynamicPointsEarnedThisQuestion = Math.round(10 * (1 - expectedProbUser));
         }
 
         return {
