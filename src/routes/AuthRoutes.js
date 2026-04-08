@@ -74,7 +74,7 @@ router.post('/login', async (req, res) => {
             role: user.role
         }
 
-        const expiresIn = 60 * 60 * 1;
+        const expiresIn = 60 * 60 * 24 * 7; // 7 days
 
         const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: expiresIn})
 
@@ -99,5 +99,36 @@ router.post('/login', async (req, res) => {
 
 })
 
+router.post('/refresh-token', async (req, res) => {
+    const { token } = req.body;
+
+    if (!token) {
+        return res.status(400).json({ message: 'Token required' });
+    }
+
+    const secret = process.env.JWT_SECRET;
+
+    if (!secret) {
+        return res.status(500).json({ message: 'JWT secret is not set' });
+    }
+
+    try {
+        // Verify the token is still valid
+        const payload = jwt.verify(token, secret);
+
+        // Issue a new token with the same payload and extended expiration
+        const expiresIn = 60 * 60 * 24 * 7; // 7 days
+        const newToken = jwt.sign(
+            { id: payload.id, name: payload.name, role: payload.role },
+            secret,
+            { expiresIn: expiresIn }
+        );
+
+        return res.json({ token: newToken });
+    } catch (err) {
+        console.log(err.message);
+        return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+});
 
 module.exports = router;
