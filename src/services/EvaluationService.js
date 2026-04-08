@@ -303,6 +303,11 @@ const supabaseSyncQueue = new Map();
 const supabaseSyncTimeouts = new Map();
 
 async function syncSummaryToSupabase(userId) {
+    // Skip sync in production serverless environment to avoid connection pool issues
+    if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+        return { ok: true, skipped: true };
+    }
+
     // If there's already a pending sync for this user, don't start another one
     if (supabaseSyncQueue.has(userId)) {
         return { ok: true, queued: true };

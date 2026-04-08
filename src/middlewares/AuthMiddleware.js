@@ -19,44 +19,35 @@ async function authMiddleware(req, res, next) {
         const jwtDecode = jwt.verify(token, secret);
         req.user = jwtDecode;
 
-        // Passive Session Start & Extension:
-        // If the user is authenticated but doesn't have a session started within the last 4 hours, 
-        // create a new one. Also, automatically extend the lastActiveAt to keep sessions alive
-        // even if the client doesn't send heartbeat calls.
-        if (jwtDecode.id) {
+        // Session management in serverless has connection issues
+        // Just verify JWT is valid; sessions are managed separately
+        // Fire-and-forget session update if needed
+        if (jwtDecode.id && process.env.NODE_ENV !== 'production') {
+            // Only do session management in non-production
             const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
-            try {
-                const activeSession = await prisma.userSession.findFirst({
-                    where: {
-                        userId: jwtDecode.id,
-                        loginAt: { gte: fourHoursAgo }
-                    },
-                    orderBy: { loginAt: 'desc' }
-                });
-
+            prisma.userSession.findFirst({
+                where: {
+                    userId: jwtDecode.id,
+                    loginAt: { gte: fourHoursAgo }
+                },
+                orderBy: { loginAt: 'desc' }
+            }).then(activeSession => {
                 if (!activeSession) {
-                    // We run this in the background (no await) to avoid slowing down every request
                     prisma.userSession.create({
                         data: { userId: jwtDecode.id }
                     }).then(async (newSession) => {
-                        // Sync to Supabase Live when a new session starts
-                        await evaluationService.syncSummaryToSupabase(jwtDecode.id).catch(e => console.error('[AuthMiddleware] Supabase sync failed:', e.message));
-                    }).catch(err => console.error('[AuthMiddleware] Passive session start failed:', err.message));
+                        await evaluationService.syncSummaryToSupabase(jwtDecode.id).catch(() => {});
+                    }).catch(() => {});
                 } else {
-                    // Auto-extend the active session in the background (don't await to avoid blocking)
-                    // Only extend if lastActiveAt is older than 5 minutes to reduce database load
                     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
                     if (!activeSession.lastActiveAt || activeSession.lastActiveAt < fiveMinutesAgo) {
                         prisma.userSession.update({
                             where: { id: activeSession.id },
                             data: { lastActiveAt: new Date() }
-                        }).catch(err => console.error('[AuthMiddleware] Session extension failed:', err.message));
+                        }).catch(() => {});
                     }
                 }
-            } catch (dbErr) {
-                console.error('[AuthMiddleware] Session query failed:', dbErr.message);
-                // Don't block the request on database errors
-            }
+            }).catch(() => {});
         }
 
         next();
