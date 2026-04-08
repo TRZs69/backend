@@ -197,6 +197,19 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
     }
 });
 
+router.get('/evaluation/questionnaire/status', authMiddleware, async (req, res) => {
+    try {
+        const existing = await prisma.evaluationQuestionnaire.findFirst({
+            where: { userId: req.user.id },
+        });
+        
+        return res.json({ hasSubmitted: !!existing });
+    } catch (err) {
+        console.error('[EvaluationRouter] questionnaire/status:', err.message);
+        res.sendStatus(503);
+    }
+});
+
 router.get('/evaluation/questionnaire/all', authMiddleware, async (req, res) => {
     const { role: callerRole } = req.user;
     if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
