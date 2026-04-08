@@ -299,22 +299,47 @@ function toSummaryPayload(userId, summary) {
     };
 }
 
+const supabaseSyncQueue = new Map();
+const supabaseSyncTimeouts = new Map();
+
 async function syncSummaryToSupabase(userId) {
-    try {
-        const { start, end } = toDateRange();
-        const summary = await computeSummary(userId, start, end);
-        const payload = toSummaryPayload(userId, summary);
-
-        const { error } = await supabase
-            .from('student_summaries')
-            .upsert(payload, { onConflict: 'user_id' });
-
-        if (error) throw error;
-        return { ok: true };
-    } catch (err) {
-        console.error('[EvaluationService] syncSummaryToSupabase:', err.message);
-        return { ok: false, error: err.message };
+    // If there's already a pending sync for this user, don't start another one
+    if (supabaseSyncQueue.has(userId)) {
+        return { ok: true, queued: true };
     }
+
+    // Clear any existing timeout
+    if (supabaseSyncTimeouts.has(userId)) {
+        clearTimeout(supabaseSyncTimeouts.get(userId));
+    }
+
+    // Debounce: wait 5 seconds before actually syncing
+    return new Promise((resolve) => {
+        const timeout = setTimeout(async () => {
+            supabaseSyncQueue.set(userId, true);
+            supabaseSyncTimeouts.delete(userId);
+
+            try {
+                const { start, end } = toDateRange();
+                const summary = await computeSummary(userId, start, end);
+                const payload = toSummaryPayload(userId, summary);
+
+                const { error } = await supabase
+                    .from('student_summaries')
+                    .upsert(payload, { onConflict: 'user_id' });
+
+                if (error) throw error;
+                resolve({ ok: true });
+            } catch (err) {
+                console.error('[EvaluationService] syncSummaryToSupabase:', err.message);
+                resolve({ ok: false, error: err.message });
+            } finally {
+                supabaseSyncQueue.delete(userId);
+            }
+        }, 5000); // 5 second debounce
+
+        supabaseSyncTimeouts.set(userId, timeout);
+    });
 }
 
 module.exports = {

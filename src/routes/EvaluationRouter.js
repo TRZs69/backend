@@ -48,6 +48,27 @@ router.post('/evaluation/session/heartbeat', authMiddleware, async (req, res) =>
         });
         res.sendStatus(204);
     } catch (err) {
+        console.error('[EvaluationRouter] heartbeat error:', err.message);
+        if (err.code === 'P2028' || err.message.includes('Too many connections')) {
+            // Connection pool exhausted, try to reconnect
+            try {
+                await prisma.$disconnect();
+                await prisma.$connect();
+                // Retry the operation
+                await prisma.userSession.update({
+                    where: { id: Number(sessionId) },
+                    data: { lastActiveAt: new Date() },
+                });
+                res.sendStatus(204);
+            } catch (retryErr) {
+                console.error('[EvaluationRouter] heartbeat retry failed:', retryErr.message);
+                res.status(503).json({ message: 'Database temporarily unavailable' });
+            }
+        } else {
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    }
+});
         if (err.code === 'P2025') {
             return res.status(404).json({ message: 'Session not found' });
         }
