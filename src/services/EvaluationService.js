@@ -12,9 +12,9 @@ const ELO_BADGE_BANDS = [
 ];
 
 function toDateRange(startDate, endDate) {
-    // HARDCODED EVALUATION WINDOW: March 26 - March 29, 2026
-    const start = startDate ? new Date(startDate) : new Date('2026-03-26T00:00:00.000Z');
-    const end = endDate ? new Date(endDate) : new Date('2026-03-29T23:59:59.999Z');
+    // HARDCODED EVALUATION WINDOW: March 23-26 and April 8-9, 2026 (Combined March 23 to April 9)
+    const start = startDate ? new Date(startDate) : new Date('2026-03-23T00:00:00.000Z');
+    const end = endDate ? new Date(endDate) : new Date('2026-04-09T23:59:59.999Z');
     
     // Ensure hours are set for custom ranges
     if (endDate && !endDate.includes('T')) {
@@ -44,7 +44,19 @@ function clamp(value, min, max) {
 
 async function getChatStats(userId, start, end) {
     try {
-        const { data: sessions, error: sessErr } = await supabase
+        const isDefault = start.getTime() === new Date('2026-03-23T00:00:00.000Z').getTime() && 
+                          end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
+        const inWindow = (dStr) => {
+            if (!dStr) return false;
+            const d = new Date(dStr);
+            const s1 = new Date('2026-03-23T00:00:00.000Z');
+            const e1 = new Date('2026-03-26T23:59:59.999Z');
+            const s2 = new Date('2026-04-08T00:00:00.000Z');
+            const e2 = new Date('2026-04-09T23:59:59.999Z');
+            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
+        };
+
+        let { data: sessions, error: sessErr } = await supabase
             .from('chat_sessions')
             .select('id, created_at')
             .eq('user_id', userId)
@@ -52,6 +64,14 @@ async function getChatStats(userId, start, end) {
             .lte('created_at', end.toISOString());
 
         if (sessErr || !sessions || sessions.length === 0) {
+            return { totalSessions: 0, totalMessages: 0, userMessages: 0, perDay: [] };
+        }
+
+        if (isDefault) {
+            sessions = sessions.filter(s => inWindow(s.created_at));
+        }
+
+        if (sessions.length === 0) {
             return { totalSessions: 0, totalMessages: 0, userMessages: 0, perDay: [] };
         }
 
@@ -66,12 +86,17 @@ async function getChatStats(userId, start, end) {
             return { totalSessions: sessions.length, totalMessages: 0, userMessages: 0, perDay: [] };
         }
 
-        const userMessages = messages.filter((m) => m.role === 'user');
+        let filteredMessages = messages;
+        if (isDefault) {
+            filteredMessages = messages.filter(m => inWindow(m.created_at));
+        }
+
+        const userMessages = filteredMessages.filter((m) => m.role === 'user');
         const perDay = groupByDay(userMessages, 'created_at');
 
         return {
             totalSessions: sessions.length,
-            totalMessages: messages.length,
+            totalMessages: filteredMessages.length,
             userMessages: userMessages.length,
             perDay,
         };
@@ -81,7 +106,7 @@ async function getChatStats(userId, start, end) {
 }
 
 async function computeSummary(userId, start, end) {
-    const [
+    let [
         sessionsRaw,
         assessmentsRaw,
         badgesRaw,
@@ -159,6 +184,26 @@ async function computeSummary(userId, start, end) {
         }),
     ]);
 
+    const isDefault = start.getTime() === new Date('2026-03-23T00:00:00.000Z').getTime() && 
+                      end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
+
+    if (isDefault) {
+        const inWindow = (dStr) => {
+            if (!dStr) return false;
+            const d = new Date(dStr);
+            const s1 = new Date('2026-03-23T00:00:00.000Z');
+            const e1 = new Date('2026-03-26T23:59:59.999Z');
+            const s2 = new Date('2026-04-08T00:00:00.000Z');
+            const e2 = new Date('2026-04-09T23:59:59.999Z');
+            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
+        };
+        sessionsRaw = sessionsRaw.filter(s => inWindow(s.loginAt));
+        assessmentsRaw = assessmentsRaw.filter(a => inWindow(a.submittedAt));
+        badgesRaw = badgesRaw.filter(b => inWindow(b.awardedAt));
+        chaptersRaw = chaptersRaw.filter(c => inWindow(c.timeFinished));
+        questionnairesRaw = questionnairesRaw.filter(q => inWindow(q.submittedAt));
+    }
+
     const completedSessions = sessionsRaw.filter((s) => s.durationSec !== null);
     const avgDuration =
         completedSessions.length > 0
@@ -169,7 +214,10 @@ async function computeSummary(userId, start, end) {
     const avgGrade = grades.length > 0 ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length) : null;
     const totalPointsEarned = assessmentsRaw.reduce((acc, a) => acc + (a.pointsEarned || 0), 0);
 
-    const periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    let periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    if (isDefault) {
+        periodDays = 6; // March 23-26 (4 days) + April 8-9 (2 days)
+    }
     const activeDaysSet = new Set();
     let calculatedSessionsTotal = 0;
 
