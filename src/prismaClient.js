@@ -2,9 +2,9 @@ const { PrismaClient } = require('@prisma/client');
 
 if (process.env.DATABASE_URL) {
 	if (process.env.DATABASE_URL.includes("connection_limit=")) {
-		process.env.DATABASE_URL = process.env.DATABASE_URL.replace(/connection_limit=\d+/, 'connection_limit=20');
+		process.env.DATABASE_URL = process.env.DATABASE_URL.replace(/connection_limit=\d+/, 'connection_limit=65');
 	} else {
-		process.env.DATABASE_URL += (process.env.DATABASE_URL.includes("?") ? "&" : "?") + "connection_limit=20";
+		process.env.DATABASE_URL += (process.env.DATABASE_URL.includes("?") ? "&" : "?") + "connection_limit=65";
 	}
     
     // Antrian request di Prisma Pool agar saat diakses banyak siswa bersamaan tidak langsung ditolak
