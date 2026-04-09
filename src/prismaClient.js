@@ -1,19 +1,23 @@
 const { PrismaClient } = require('@prisma/client');
-const { withAccelerate } = require('@prisma/extension-accelerate');
+
+if (process.env.DATABASE_URL) {
+	if (process.env.DATABASE_URL.includes("connection_limit=")) {
+		process.env.DATABASE_URL = process.env.DATABASE_URL.replace(/connection_limit=\d+/, 'connection_limit=25');
+	} else {
+		process.env.DATABASE_URL += (process.env.DATABASE_URL.includes("?") ? "&" : "?") + "connection_limit=25";
+	}
+
+    // Antrian request di Prisma Pool agar saat diakses banyak siswa bersamaan tidak langsung ditolak
+    if (!process.env.DATABASE_URL.includes("pool_timeout=")) {
+        process.env.DATABASE_URL += "&pool_timeout=20";
+    }
+}
 
 const globalForPrisma = globalThis;
 
-// DEBUG: Check if Vercel picked up the variable
-if (process.env.NODE_ENV === 'production') {
-    const hasAccelerateUrl = !!process.env.ACCELERATE_URL;
-    console.log(`[LeveLearn] Prisma Accelerate URL Found: ${hasAccelerateUrl}`);
-}
-
 const prisma = globalForPrisma.prisma || new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error'] : ['error'],
-}).$extends(withAccelerate({
-  endpoint: process.env.ACCELERATE_URL
-}));
+});
 
 if (process.env.NODE_ENV !== 'production') {
 	globalForPrisma.prisma = prisma;
