@@ -42,7 +42,3 @@ services:
         value: "300000"
       - key: LEVELY_LLM_WARMUP_PROMPT
         value: "ping"
-      - key: GSHEETS_WEBHOOK_URL
-        sync: false
-      - key: GSHEETS_WEBHOOK_SECRET
-        sync: false
