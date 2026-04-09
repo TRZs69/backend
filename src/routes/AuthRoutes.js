@@ -74,16 +74,8 @@ router.post('/login', async (req, res) => {
             role: user.role
         }
 
-        const expiresIn = 60 * 60 * 24 * 7; // 7 days
+        const expiresIn = 60 * 60 * 24 * 30; // 30 days
         const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: expiresIn})
-
-        // Create evaluation token with longer expiry (30 days)
-        const evalExpiresIn = 60 * 60 * 24 * 30; // 30 days
-        const evalToken = jwt.sign(
-            { id: user.id, name: user.name, role: user.role, eval: true },
-            process.env.JWT_SECRET,
-            { expiresIn: evalExpiresIn }
-        )
 
         // Create evaluation session record
         const session = await prisma.userSession.create({
@@ -97,8 +89,7 @@ router.post('/login', async (req, res) => {
                 role: user.role,
                 sessionId: session.id
             },
-            token: token,
-            evalToken: evalToken
+            token: token
         })
     } catch (err) {
         console.log(err.message)
@@ -125,7 +116,7 @@ router.post('/refresh-token', async (req, res) => {
         const payload = jwt.verify(token, secret);
 
         // Issue a new token with the same payload and extended expiration
-        const expiresIn = 60 * 60 * 24 * 7; // 7 days
+        const expiresIn = 60 * 60 * 24 * 30; // 30 days
         const newToken = jwt.sign(
             { id: payload.id, name: payload.name, role: payload.role },
             secret,

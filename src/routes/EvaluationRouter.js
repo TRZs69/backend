@@ -1,7 +1,6 @@
 const express = require('express');
 const prisma = require('../prismaClient.js');
 const authMiddleware = require('../middlewares/AuthMiddleware.js');
-const evalAuthMiddleware = require('../middlewares/EvalAuthMiddleware.js');
 const evaluationService = require('../services/EvaluationService');
 const supabase = require('../../supabase/supabase.js');
 
@@ -150,7 +149,7 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
     }
 });
 
-router.post('/evaluation/questionnaire', evalAuthMiddleware, async (req, res) => {
+router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { q1, q2, q3, q4, q5, q6, q7, q8 } = req.body;
 
@@ -191,7 +190,7 @@ router.post('/evaluation/questionnaire', evalAuthMiddleware, async (req, res) =>
     }
 });
 
-router.get('/evaluation/questionnaire/status', evalAuthMiddleware, async (req, res) => {
+router.get('/evaluation/questionnaire/status', authMiddleware, async (req, res) => {
     try {
         const existing = await prisma.evaluationQuestionnaire.findFirst({
             where: { userId: req.user.id },
