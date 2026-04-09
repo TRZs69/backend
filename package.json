@@ -25,7 +25,6 @@
     "@prisma/extension-accelerate": "^3.0.1",
     "@supabase/supabase-js": "^2.49.1",
     "axios": "^1.7.9",
-    "backend": "file:",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
