@@ -39,7 +39,7 @@ router.post('/register', async (req, res) => {
         // })
 
         // create a token
-        const token = jwt.sign({ id: result.lastInsertRowid, sessionId: null }, process.env.JWT_SECRET, { expiresIn: '24h' })
+        const token = jwt.sign({ id: result.lastInsertRowid }, process.env.JWT_SECRET, { expiresIn: '24h' })
         res.json({ token })
     } catch (err) {
         console.log(err.message)
@@ -71,8 +71,7 @@ router.post('/login', async (req, res) => {
         const payload = {
             id: user.id,
             name: user.name,
-            role: user.role,
-            sessionId: session.id
+            role: user.role
         }
 
         const expiresIn = 60 * 60 * 24 * 7; // 7 days
@@ -120,7 +119,7 @@ router.post('/refresh-token', async (req, res) => {
         // Issue a new token with the same payload and extended expiration
         const expiresIn = 60 * 60 * 24 * 7; // 7 days
         const newToken = jwt.sign(
-            { id: payload.id, name: payload.name, role: payload.role, sessionId: payload.sessionId },
+            { id: payload.id, name: payload.name, role: payload.role },
             secret,
             { expiresIn: expiresIn }
         );
