@@ -122,7 +122,13 @@ const getMaterialImage = async (req, res) => {
             return res.status(400).json({ message: 'Missing image path' });
         }
 
-        const storagePath = decodeURIComponent(encodedPath);
+        let storagePath;
+        try {
+            storagePath = decodeURIComponent(encodedPath);
+        } catch (error) {
+            return res.status(400).json({ message: 'Invalid image path format' });
+        }
+
         const { data, error } = await supabase.storage.from('materials').download(storagePath);
 
         if (error || !data) {
