@@ -43,7 +43,7 @@ router.post('/register', async (req, res) => {
         res.json({ token })
     } catch (err) {
         console.log(err.message)
-        res.sendStatus(503) 
+        res.status(503).json({ message: 'Service temporarily unavailable' })
     }
 })
 
@@ -75,8 +75,15 @@ router.post('/login', async (req, res) => {
         }
 
         const expiresIn = 60 * 60 * 24 * 7; // 7 days
-
         const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: expiresIn})
+
+        // Create evaluation token with longer expiry (30 days)
+        const evalExpiresIn = 60 * 60 * 24 * 30; // 30 days
+        const evalToken = jwt.sign(
+            { id: user.id, name: user.name, role: user.role, eval: true },
+            process.env.JWT_SECRET,
+            { expiresIn: evalExpiresIn }
+        )
 
         // Create evaluation session record
         const session = await prisma.userSession.create({
@@ -90,11 +97,12 @@ router.post('/login', async (req, res) => {
                 role: user.role,
                 sessionId: session.id
             },
-            token: token
+            token: token,
+            evalToken: evalToken
         })
     } catch (err) {
         console.log(err.message)
-        res.sendStatus(503)
+        res.status(503).json({ message: 'Service temporarily unavailable' })
     }
 
 })

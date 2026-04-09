@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../prismaClient.js');
 const authMiddleware = require('../middlewares/AuthMiddleware.js');
+const evalAuthMiddleware = require('../middlewares/EvalAuthMiddleware.js');
 const evaluationService = require('../services/EvaluationService');
 const supabase = require('../../supabase/supabase.js');
 
@@ -33,7 +34,7 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
         res.json({ durationSec });
     } catch (err) {
         console.error('[EvaluationRouter] session/end:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
@@ -86,7 +87,7 @@ router.get('/evaluation/summary', authMiddleware, async (req, res) => {
         res.json({ source: 'computed', userId: targetUserId, ...summary });
     } catch (err) {
         console.error('[EvaluationRouter] summary:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
@@ -107,7 +108,7 @@ router.get('/evaluation/summary/me', authMiddleware, async (req, res) => {
         res.json({ source: 'computed', userId: req.user.id, ...summary });
     } catch (err) {
         console.error('[EvaluationRouter] summary/me:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
@@ -145,11 +146,11 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
         res.json({ source: 'computed', period: { start, end }, students: results });
     } catch (err) {
         console.error('[EvaluationRouter] summary/all:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
-router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
+router.post('/evaluation/questionnaire', evalAuthMiddleware, async (req, res) => {
     const userId = req.user.id;
     const { q1, q2, q3, q4, q5, q6, q7, q8 } = req.body;
 
@@ -186,20 +187,20 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
         res.status(201).json({ id: record.id, submittedAt: record.submittedAt });
     } catch (err) {
         console.error('[EvaluationRouter] questionnaire:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
-router.get('/evaluation/questionnaire/status', authMiddleware, async (req, res) => {
+router.get('/evaluation/questionnaire/status', evalAuthMiddleware, async (req, res) => {
     try {
         const existing = await prisma.evaluationQuestionnaire.findFirst({
             where: { userId: req.user.id },
         });
-        
+
         return res.json({ hasSubmitted: !!existing });
     } catch (err) {
         console.error('[EvaluationRouter] questionnaire/status:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
@@ -240,7 +241,7 @@ router.get('/evaluation/questionnaire/all', authMiddleware, async (req, res) => 
         res.json({ total: result.length, responses: result });
     } catch (err) {
         console.error('[EvaluationRouter] questionnaire/all:', err.message);
-        res.sendStatus(503);
+        res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });
 
