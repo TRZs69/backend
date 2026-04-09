@@ -1,0 +1,48 @@
+services:
+  - type: web
+    name: levelearn-backend
+    runtime: node
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: LEVELY_GEMINI_API_KEY
+        sync: false
+      - key: LEVELY_GEMINI_MODEL
+        sync: false
+      - key: LEVELY_GEMINI_TEMPERATURE
+        value: "0.3"
+      - key: LEVELY_GEMINI_MAX_OUTPUT_TOKENS
+        value: "384"
+      - key: LEVELY_GEMINI_TOP_P
+        value: "0.9"
+      - key: LEVELY_GEMINI_TIMEOUT_MS
+        value: "30000"
+      - key: LEVELY_CHAT_MAX_MATERIAL_CONTEXT_CHARS
+        value: "3500"
+      - key: LEVELY_CHAT_MAX_HISTORY_CHARS
+        value: "700"
+      - key: LEVELY_CHAT_MAX_HISTORY_MESSAGES
+        value: "8"
+      - key: LEVELY_CHAT_IMAGE_DOWNLOAD_TIMEOUT_MS
+        value: "1200"
+      - key: LEVELY_LLM_WARMUP_INTERVAL_MS
+        value: "600000"
+      - key: LEVELY_LLM_WARMUP_INITIAL_DELAY_MS
+        value: "300000"
+      - key: LEVELY_LLM_WARMUP_PROMPT
+        value: "ping"
+      - key: GSHEETS_WEBHOOK_URL
+        sync: false
+      - key: GSHEETS_WEBHOOK_SECRET
+        sync: false
