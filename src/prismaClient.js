@@ -3,6 +3,12 @@ const { withAccelerate } = require('@prisma/extension-accelerate');
 
 const globalForPrisma = globalThis;
 
+// DEBUG: Check if Vercel picked up the variable
+if (process.env.NODE_ENV === 'production') {
+    const hasAccelerateUrl = !!process.env.ACCELERATE_URL;
+    console.log(`[LeveLearn] Prisma Accelerate URL Found: ${hasAccelerateUrl}`);
+}
+
 const prisma = globalForPrisma.prisma || new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error'] : ['error'],
 }).$extends(withAccelerate({
