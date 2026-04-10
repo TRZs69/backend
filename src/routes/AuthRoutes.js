@@ -61,11 +61,11 @@ router.post('/login', async (req, res) => {
         if (!user) {
             return res.status(404).send({ message: "User not found" }) }
 
-        // RESTRICT LOGIN: Only Ralphael, Kevin, and Grace Simanullang can login
-        const allowedNames = ['Ralphael', 'Kevin', 'Grace Simanullang'];
+        // RESTRICT LOGIN: Only authorized users can login
+        const allowedNames = ['Ralphael', 'Kevin', 'Grace Simanullang', 'ralph1'];
         if (!allowedNames.includes(user.name)) {
-            return res.status(403).json({ 
-                message: "Login temporarily disabled for this account. Please try again later." 
+            return res.status(403).json({
+                message: "Login temporarily disabled for this account. Please try again later."
             });
         }
 
