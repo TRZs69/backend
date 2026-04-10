@@ -12,10 +12,10 @@ const ELO_BADGE_BANDS = [
 ];
 
 function toDateRange(startDate, endDate) {
-    // HARDCODED EVALUATION WINDOW: March 23-26 and April 8-9, 2026 (Combined March 23 to April 9)
-    const start = startDate ? new Date(startDate) : new Date('2026-03-23T00:00:00.000Z');
+    // HARDCODED EVALUATION WINDOW: March 26-29 AND April 8-9, 2026 (Combined)
+    const start = startDate ? new Date(startDate) : new Date('2026-03-26T00:00:00.000Z');
     const end = endDate ? new Date(endDate) : new Date('2026-04-09T23:59:59.999Z');
-    
+
     // Ensure hours are set for custom ranges
     if (endDate && !endDate.includes('T')) {
         end.setHours(23, 59, 59, 999);
@@ -44,13 +44,13 @@ function clamp(value, min, max) {
 
 async function getChatStats(userId, start, end) {
     try {
-        const isDefault = start.getTime() === new Date('2026-03-23T00:00:00.000Z').getTime() && 
+        const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
                           end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
         const inWindow = (dStr) => {
             if (!dStr) return false;
             const d = new Date(dStr);
-            const s1 = new Date('2026-03-23T00:00:00.000Z');
-            const e1 = new Date('2026-03-26T23:59:59.999Z');
+            const s1 = new Date('2026-03-26T00:00:00.000Z');
+            const e1 = new Date('2026-03-29T23:59:59.999Z');
             const s2 = new Date('2026-04-08T00:00:00.000Z');
             const e2 = new Date('2026-04-09T23:59:59.999Z');
             return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
@@ -184,15 +184,15 @@ async function computeSummary(userId, start, end) {
         }),
     ]);
 
-    const isDefault = start.getTime() === new Date('2026-03-23T00:00:00.000Z').getTime() && 
+    const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
                       end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
 
     if (isDefault) {
         const inWindow = (dStr) => {
             if (!dStr) return false;
             const d = new Date(dStr);
-            const s1 = new Date('2026-03-23T00:00:00.000Z');
-            const e1 = new Date('2026-03-26T23:59:59.999Z');
+            const s1 = new Date('2026-03-26T00:00:00.000Z');
+            const e1 = new Date('2026-03-29T23:59:59.999Z');
             const s2 = new Date('2026-04-08T00:00:00.000Z');
             const e2 = new Date('2026-04-09T23:59:59.999Z');
             return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
@@ -216,7 +216,7 @@ async function computeSummary(userId, start, end) {
 
     let periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
     if (isDefault) {
-        periodDays = 6; // March 23-26 (4 days) + April 8-9 (2 days)
+        periodDays = 6; // March 26-29 (4 days) + April 8-9 (2 days)
     }
     const activeDaysSet = new Set();
     let calculatedSessionsTotal = 0;
@@ -310,8 +310,10 @@ function toSummaryPayload(userId, summary) {
     const pointsPct = clamp(totalPointsEarned, 0, 100);
     const competenceScore = Math.round((avgGrade + chapterPct + pointsPct) / 3);
 
+    // Option 3: Composite Score (Chat + Return Rate)
+    // Normalized chat score (0-100) averaged with return rate for a stable relatedness metric
     const chatPerDayPct = clamp(Math.round((chatUserMessages / periodDays) * 20), 0, 100);
-    const relatednessScore = chatPerDayPct;
+    const relatednessScore = Math.round((returnRatePct + chatPerDayPct) / 2);
 
     return {
         user_id: userId,
@@ -398,5 +400,6 @@ async function syncSummaryToSupabase(userId) {
 module.exports = {
     toDateRange,
     computeSummary,
+    toSummaryPayload,
     syncSummaryToSupabase
 };
