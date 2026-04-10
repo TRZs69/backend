@@ -63,7 +63,8 @@ router.post('/login', async (req, res) => {
 
         // RESTRICT LOGIN: Only authorized users can login
         const allowedNames = ['Ralphael', 'Kevin', 'Grace Simanullang', 'ralph1'];
-        if (!allowedNames.includes(user.name)) {
+        const allowedUsernames = ['ralph1'];
+        if (!allowedNames.includes(user.name) && !allowedUsernames.includes(user.username)) {
             return res.status(403).json({
                 message: "Login temporarily disabled for this account. Please try again later."
             });
