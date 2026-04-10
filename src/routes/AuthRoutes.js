@@ -58,8 +58,16 @@ router.post('/login', async (req, res) => {
             }
         })
 
-        if (!user) { 
+        if (!user) {
             return res.status(404).send({ message: "User not found" }) }
+
+        // RESTRICT LOGIN: Only Ralphael, Kevin, and Grace Simanullang can login
+        const allowedNames = ['Ralphael', 'Kevin', 'Grace Simanullang'];
+        if (!allowedNames.includes(user.name)) {
+            return res.status(403).json({ 
+                message: "Login temporarily disabled for this account. Please try again later." 
+            });
+        }
 
         const passwordIsValid = await bcrypt.compareSync(password, user.password)
 
