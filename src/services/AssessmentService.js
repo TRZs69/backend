@@ -2377,7 +2377,75 @@ exports.getLatestAttempt = async (userId, chapterId) => {
         orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
     });
 
-    return formatAttemptResponse(attempt, false);
+    if (attempt) {
+        return formatAttemptResponse(attempt, false);
+    }
+    const [userChapter, assessment] = await Promise.all([
+        prisma.userChapter.findFirst({
+            where: { userId: normalizedUserId, chapterId: normalizedChapterId, assessmentDone: true },
+        }),
+        prisma.assessment.findFirst({
+            where: { chapterId: normalizedChapterId },
+            include: { questions: true },
+        }),
+    ]);
+
+    if (!userChapter?.assessmentDone || !assessment?.questions?.length) {
+        return null;
+    }
+
+    const storedAnswers = Array.isArray(userChapter.assessmentAnswer) ? userChapter.assessmentAnswer : [];
+    const objectiveTotal = assessment.questions.filter(
+        (q) => normaliseAttemptQuestionType(q.type) !== 'EY'
+    ).length || 1;
+
+    const syntheticQuestions = assessment.questions.map((q, index) => {
+        const submittedAnswer = (storedAnswers[index] ?? '').toString();
+        const correctAnswer = (q.correctedAnswer || q.answer || '').toString();
+        const normalizedType = normaliseAttemptQuestionType(q.type);
+        const isEssay = normalizedType === 'EY';
+        const isCorrect =
+            !isEssay &&
+            submittedAnswer.trim().length > 0 &&
+            submittedAnswer.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+        const score = isCorrect ? Math.ceil(100 / objectiveTotal) : 0;
+
+        return {
+            id: q.id,
+            question: q.question,
+            type: normalizedType,
+            options: Array.isArray(q.options) ? q.options : [],
+            elo: clampElo(q.elo),
+            order: index,
+            servedOrder: index,
+            submittedAnswer,
+            isCorrect,
+            score,
+            correctedAnswer: correctAnswer,
+            answer: correctAnswer,
+            answeredAt: userChapter.updatedAt || new Date(),
+        };
+    });
+
+    const objectiveCorrect = syntheticQuestions.filter((q) => q.isCorrect).length;
+    const syntheticAttempt = {
+        id: null,
+        userId: normalizedUserId,
+        chapterId: normalizedChapterId,
+        assessmentId: assessment.id,
+        status: ATTEMPT_STATUS.SUBMITTED,
+        source: 'LEGACY',
+        instruction: assessment.instruction || '',
+        poolSize: syntheticQuestions.length,
+        objectiveTarget: objectiveTotal,
+        totalTarget: syntheticQuestions.length,
+        objectiveAnswered: objectiveTotal,
+        objectiveCorrect,
+        submittedAt: userChapter.updatedAt,
+        questions: syntheticQuestions,
+    };
+
+    return formatAttemptResponse(syntheticAttempt, false);
 };
 
 exports.processSubmission = async (userId, chapterId, answers = [], attemptId = null) => {
