@@ -2,8 +2,7 @@
     "compilerOptions": {
         "module": "commonjs",
         "target": "es2020",
-        "forceConsistentCasingInFileNames": true,
-        "baseUrl": "."
+        "forceConsistentCasingInFileNames": true
     },
     "include": [
         "src/**/*"
