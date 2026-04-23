@@ -762,19 +762,17 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 		try {
 			const material = await prisma.material.findUnique({
 				where: { id: parseInt(materialId, 10) },
-				include: { chapter: true } // Include chapter for assessment context
+				include: { chapter: true }
 			});
 			if (material) {
 				if (material.chapter?.id && resolvedChapterId === null) {
 					resolvedChapterId = normalizeChapterId(material.chapter.id);
 				}
 				if (material.content) {
-					// preserve image tags by converting them to text descriptions
 					let cleanContent = material.content.replace(/<img[^>]+src="([^">]+)"[^>]*>/g, ' [Image: $1] ');
 
 					const includeImageContext = shouldIncludeImageContext(prompt);
 
-					// Extract a small number of images and only when user asks visual questions.
 					if (includeImageContext && MAX_MATERIAL_IMAGES > 0) {
 						const imageRegex = /\[Image:\s*([^\]]+)\]/g;
 						let match;
@@ -806,9 +804,7 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 									console.error('Failed to download image from', imgPath, downloadError.message);
 								}
 							} else {
-								// Paths look like "asset:lib/assets/alurHCI.png" in the old seed
 								let relativePath = imgPath.replace('asset:', '');
-								// Resolve assuming backend is at c:/Projects/Levelearn/backend and Mobile is alongside it
 								const absolutePath = path.resolve(__dirname, '../../../Mobile', relativePath);
 
 								if (fs.existsSync(absolutePath)) {
@@ -1235,7 +1231,6 @@ exports.streamMessage = async ({
 					{ role: 'assistant', content: reply },
 				],
 			});
-			// Run title generation after main reply flow to avoid parallel LLM contention.
 			if (shouldGenerateLiveTitle) {
 				void generateSessionTitleStream({ sessionId: persistedSessionId, messages, emitChunk });
 			} else {
@@ -1276,10 +1271,6 @@ const maybeUpdateSessionTitle = async ({ sessionId }) => {
 
 	try {
 		const messages = await chatHistoryStore.fetchMessages({ sessionId, limit: 5 });
-		// Only generate title if it's the beginning of a conversation (e.g. <= 2 exchanges)
-		// and the session likely doesn't have a custom title yet.
-		// We'll trust the caller or check if the title is default/empty if we had access to session details here.
-		// For now, let's just do it if we have 2-4 messages (1-2 turns).
 		if (messages.length >= 2 && messages.length <= 4) {
 			await generateSessionTitle({ sessionId, messages });
 		}
@@ -1429,7 +1420,6 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 		throw new Error('UserId is required and must be a number');
 	}
 
-	// 1. Get user history
 	const history = await this.getHistoryByUser({ userId: normalizedUserId, chapterId: normalizedChapterId, limit: 100 });
 	const messages = history.messages || [];
 	
@@ -1437,7 +1427,6 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 		return { message: 'Belum ada riwayat chat untuk dinilai.' };
 	}
 
-	// 2. Get existing ratings for this user to filter them out
 	const { data: existingRatings, error } = await supabase
 		.from('chatbot_ratings')
 		.select('user_request, bot_response')
@@ -1451,15 +1440,13 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 		`${normalizeForMatch(r.user_request)}|${normalizeForMatch(r.bot_response)}`
 	));
 
-	// 3. Dynamic Sampling based on Cochran + FPC + Equal Allocation per User
 	const samplePlan = await samplingService.getUserSamplePlan();
-	const USER_SAMPLE_LIMIT = samplePlan.samplesPerUser || 1; // Fallback to 1 if something goes wrong
+	const USER_SAMPLE_LIMIT = samplePlan.samplesPerUser || 1;
 	
 	if (existingRatings && existingRatings.length >= USER_SAMPLE_LIMIT) {
 		return { message: 'Terima kasih sudah merating Levely! 😊', limitReached: true };
 	}
 
-	// 4. Find pairs of (user, assistant) that haven't been rated
 	const unratedPairs = [];
 	for (let i = messages.length - 1; i >= 1; i--) {
 		const assistantMsg = messages[i];
@@ -1480,7 +1467,6 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 		return { message: 'Terima kasih sudah merating Levely! 😊', allRated: true };
 	}
 
-	// 5. Pick a RANDOM pair from unrated ones for "Stratified Random Sampling"
 	const randomIndex = Math.floor(Math.random() * unratedPairs.length);
 	return {
 		...unratedPairs[randomIndex],

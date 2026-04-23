@@ -71,9 +71,6 @@ exports.deleteTrade = async(id) => {
     }
 }
 
-
-// SPECIAL SERVICES
-
 exports.getTradesByCourse = async(courseId) => {
     try {
         const trade = await prisma.trade.findMany({

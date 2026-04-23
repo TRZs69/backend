@@ -2,11 +2,10 @@ const chatbotService = require('../services/ChatbotService');
 const samplingService = require('../services/SamplingService');
 const prisma = require('../prismaClient');
 
-exports.getSamplingStatus = async (req, res) => {
+exports.getSamplingStatus = async (_, res) => {
   try {
     const status = await samplingService.getStratifiedSample();
-    
-    // We also need to know how many ratings have already been done
+
     const totalRated = await prisma.chatbotRating.count();
     
     return res.status(200).json({
@@ -79,7 +78,6 @@ exports.streamMessage = async (req, res) => {
       return;
     }
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    // Flush wajib setelah setiap event agar Vercel/proxy tidak buffer data
     if (typeof res.flush === 'function') res.flush();
   };
 
@@ -101,7 +99,6 @@ exports.streamMessage = async (req, res) => {
   res.on('close', handleClose);
   sendEvent({ status: 'started' });
 
-  // Heartbeat setiap 3 detik agar koneksi tetap hidup di Vercel (batas 30 detik)
   const heartbeatInterval = setInterval(() => {
     if (!res.writableEnded) {
       res.write(': heartbeat\n\n');

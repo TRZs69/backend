@@ -15,16 +15,16 @@ if (!fs.existsSync(pdfsDir)) {
 }
 
 const imageStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
+    destination: (_, _, cb) => {
         cb(null, imagesDir);
     },
-    filename: (req, file, cb) => {
+    filename: (_, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
-const imageFilter = (req, file, cb) => {
+const imageFilter = (_, file, cb) => {
     const allowedMimes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif'];
     if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
@@ -40,16 +40,16 @@ const uploadImage = multer({
 }).single('image');
 
 const pdfStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
+    destination: (_, _, cb) => {
         cb(null, pdfsDir); 
     },
-    filename: (req, file, cb) => {
+    filename: (_, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
-const pdfFilter = (req, file, cb) => {
+const pdfFilter = (_, file, cb) => {
     if (file.mimetype === 'application/pdf') {
         cb(null, true);
     } else {
@@ -60,8 +60,8 @@ const pdfFilter = (req, file, cb) => {
 const uploadPdf = multer({
     storage: pdfStorage,
     fileFilter: pdfFilter,
-    limits: { fileSize: 20 * 1024 * 1024 } // 20MB (bisa disesuaikan)
-}).single('pdf'); // Nama field formulir untuk PDF adalah 'pdf'
+    limits: { fileSize: 20 * 1024 * 1024 }
+}).single('pdf');
 
 
 module.exports = { uploadImage, uploadPdf };

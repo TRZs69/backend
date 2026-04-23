@@ -7,7 +7,6 @@ if (process.env.DATABASE_URL) {
 		process.env.DATABASE_URL += (process.env.DATABASE_URL.includes("?") ? "&" : "?") + "connection_limit=25";
 	}
 
-    // Antrian request di Prisma Pool agar saat diakses banyak siswa bersamaan tidak langsung ditolak
     if (!process.env.DATABASE_URL.includes("pool_timeout=")) {
         process.env.DATABASE_URL += "&pool_timeout=20";
     }
@@ -23,7 +22,6 @@ if (process.env.NODE_ENV !== 'production') {
 	globalForPrisma.prisma = prisma;
 }
 
-// Graceful shutdown
 process.on('SIGTERM', async () => {
   await prisma.$disconnect();
 });

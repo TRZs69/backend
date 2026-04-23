@@ -4,7 +4,6 @@ const { GoogleAIClient } = require('./GoogleAIClient');
 const {
     clampElo,
     MIN_ELO,
-    MAX_ELO,
     DEFAULT_ELO,
     ELO_BANDS,
     calculateQuestionDuelElo,
@@ -61,14 +60,8 @@ const ASSESSMENT_GENERATION_CONFIG = (() => {
 })();
 
 
-const K_STUDENT = 30;
-const K_QUESTION = 15;
 const INTERACTIVE_TX_OPTIONS = {
-    // maxWait: waktu tunggu untuk mendapatkan koneksi dari pool.
-    // Dinaikkan dari 10s ke 20s untuk Supabase/serverless yang koneksinya bisa lambat.
     maxWait: 20000,
-    // timeout: batas total waktu untuk menyelesaikan transaksi.
-    // Dinaikkan dari 30s ke 45s agar jawaban yang memicu finalisasi (essay terakhir) tetap bisa selesai.
     timeout: 45000,
 };
 

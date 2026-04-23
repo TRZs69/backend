@@ -12,7 +12,7 @@ router.post("/enrollment", async (req, res) => {
     }
 });
 
-router.get("/enrollment", async (req, res) => {
+router.get("/enrollment", async (_, res) => {
     try {
         const enrollments = await enrollmentService.getEnrollments();
         res.status(200).json(enrollments);

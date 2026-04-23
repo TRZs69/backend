@@ -1,4 +1,3 @@
-// @ts-ignore
 const bcrypt = require('bcrypt');
 
 const userService = require("../services/UserService");
@@ -8,7 +7,6 @@ const UserTradeService = require("../services/UserTradeService");
 
 const { validationResult } = require("express-validator");
 
-// Controller untuk mendapatkan daftar user
 const getAllUsers = async (req, res) => {
   const { role } = req.query;
   try {
@@ -19,7 +17,6 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Controller untuk mendapatkan papan peringkat mahasiswa (sorted by Elo desc)
 const getLeaderboard = async (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   try {
@@ -30,7 +27,6 @@ const getLeaderboard = async (req, res) => {
   }
 };
 
-// Controller untuk mendapatkan user by id
 const getUserById = async (req, res) => {
   const id = parseInt(req.params.id);
 
@@ -49,7 +45,6 @@ const getUserById = async (req, res) => {
   }
 };
 
-// Controller untuk membuat user baru
 const createUser = async (req, res) => {
   const errors = validationResult(req);
 
@@ -103,7 +98,6 @@ const createUser = async (req, res) => {
   }
 };
 
-// Controller untuk update user by id
 const updateUser = async (req, res) => {
   const errors = validationResult(req);
 
@@ -165,8 +159,6 @@ const updateUser = async (req, res) => {
   }
 };
 
-
-// Controller untuk delete user by id
 const deleteUser = async (req, res) => {
   const id = parseInt(req.params.id);
 
@@ -186,8 +178,6 @@ const deleteUser = async (req, res) => {
     console.log(error.message);
   }
 };
-
-// SPECIAL CONTROLLERS
 
 const getCoursesByUser = async (req, res) => {
   const userId = parseInt(req.params.id);

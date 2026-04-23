@@ -2,9 +2,7 @@ const userChapterService = require('../services/UserChapterService');
 
 const {validationResult} = require('express-validator');
 
-
-// Controller untuk mendapatkan daftar userChapter
-const getAllUserChapters = async (req, res) => {
+const getAllUserChapters = async (_, res) => {
     try {
         const userChapters = await userChapterService.getAllUserChapters();
         res.status(200).json(userChapters);
@@ -15,7 +13,6 @@ const getAllUserChapters = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan userChapter by id
 const getUserChapterById = async(req, res) => {
     const id = parseInt(req.params.id);
 
@@ -28,7 +25,6 @@ const getUserChapterById = async(req, res) => {
     }
 }
 
-// Controller untuk membuat userChapter baru
 const createUserChapter = async (req, res) => {
 
     const errors = validationResult(req);
@@ -52,7 +48,6 @@ const createUserChapter = async (req, res) => {
     }
 };
 
-// Controller untuk update userChapter by id
 const updateUserChapter = async (req, res) => {
     const user_course_id = parseInt(req.params.id);
 
@@ -67,7 +62,6 @@ const updateUserChapter = async (req, res) => {
     }
 };
 
-// Controller untuk delete userChapter by id
 const deleteUserChapter = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -80,9 +74,6 @@ const deleteUserChapter = async (req, res) => {
         
     }
 };
-
-
-// SPECIAL CONTROLLER
 
 const getUserChapterByUserByChapter = async (req, res) => {
     const userId = parseInt(req.params.userId);

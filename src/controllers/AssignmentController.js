@@ -1,7 +1,6 @@
 const assignmentService = require('../services/AssignmentService');
 
-// Controller untuk mendapatkan daftar assignment
-const getAllAssignments = async (req, res) => {
+const getAllAssignments = async (_, res) => {
     try {
         const assignments = await assignmentService.getAllAssignments();
         res.status(200).json(assignments);
@@ -12,7 +11,6 @@ const getAllAssignments = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan assignment by id
 const getAssignmentById = async(req, res) => {
     const id = parseInt(req.params.id);
 
@@ -26,7 +24,6 @@ const getAssignmentById = async(req, res) => {
     }
 }
 
-// Controller untuk membuat assignment baru
 const createAssignment = async (req, res) => {
     try {
         const newData = req.body;
@@ -40,7 +37,6 @@ const createAssignment = async (req, res) => {
     }
 };
 
-// Controller untuk update assignment by id
 const updateAssignment = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -56,7 +52,6 @@ const updateAssignment = async (req, res) => {
     }
 };
 
-// Controller untuk delete assignment by id
 const deleteAssignment = async (req, res) => {
     const id = parseInt(req.params.id);
 

@@ -4,8 +4,7 @@ const fs = require('fs');
 
 const MATERIAL_IMAGE_FOLDER = 'editor-images';
 
-// Controller untuk mendapatkan daftar material
-const getAllMaterials = async (req, res) => {
+const getAllMaterials = async (_, res) => {
     try {
         const materials = await materialService.getAllMaterials();
         res.status(200).json(materials);
@@ -16,7 +15,6 @@ const getAllMaterials = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan material by id
 const getMaterialById = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -30,7 +28,6 @@ const getMaterialById = async (req, res) => {
     }
 }
 
-// Controller untuk membuat material baru
 const createMaterial = async (req, res) => {
     try {
         const newData = req.body;
@@ -44,7 +41,6 @@ const createMaterial = async (req, res) => {
     }
 };
 
-// Controller untuk update material by id
 const updateMaterial = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -60,7 +56,6 @@ const updateMaterial = async (req, res) => {
     }
 };
 
-// Controller untuk delete material by id
 const deleteMaterial = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -89,7 +84,6 @@ const uploadImage = async (req, res) => {
             upsert: true,
         });
 
-        // Delete temporary file
         try {
             fs.unlinkSync(file.path);
         } catch (e) {
@@ -104,7 +98,6 @@ const uploadImage = async (req, res) => {
             .from('materials')
             .getPublicUrl(storagePath);
 
-        // Froala editor requires the response to have a 'link' property.
         res.status(200).json({
             link: publicUrlData.publicUrl,
             path: storagePath,

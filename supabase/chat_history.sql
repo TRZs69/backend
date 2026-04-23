@@ -1,6 +1,3 @@
--- Chat history storage for Levely chatbot
--- Run this script inside the Supabase SQL editor or the CLI once per project.
-
 create extension if not exists pgcrypto;
 
 create table if not exists public.chat_sessions (

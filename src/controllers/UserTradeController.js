@@ -1,7 +1,6 @@
 const UserTradeService = require('../services/UserTradeService');
 
-// Controller untuk mendapatkan daftar UserTrade
-const getAllUserTrades = async (req, res) => {
+const getAllUserTrades = async (_, res) => {
     try {
         const UserTrades = await UserTradeService.getAllUserTrades();
         res.status(200).json(UserTrades);
@@ -12,7 +11,6 @@ const getAllUserTrades = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan UserTrade by id
 const getUserTradeById = async(req, res) => {
     const id = parseInt(req.params.id);
 
@@ -26,7 +24,6 @@ const getUserTradeById = async(req, res) => {
     }
 }
 
-// Controller untuk membuat UserTrade baru
 const createUserTrade = async (req, res) => {
     try {
         const newData = req.body;
@@ -40,7 +37,6 @@ const createUserTrade = async (req, res) => {
     }
 };
 
-// Controller untuk update UserTrade by id
 const updateUserTrade = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -56,7 +52,6 @@ const updateUserTrade = async (req, res) => {
     }
 };
 
-// Controller untuk delete UserTrade by id
 const deleteUserTrade = async (req, res) => {
     const id = parseInt(req.params.id);
 

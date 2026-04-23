@@ -1,7 +1,6 @@
 const UserBadgeService = require('../services/UserBadgeService');
 
-// Controller untuk mendapatkan daftar UserBadge
-const getAllUserBadges = async (req, res) => {
+const getAllUserBadges = async (_, res) => {
     try {
         const UserBadges = await UserBadgeService.getAllUserBadges();
         res.status(200).json(UserBadges);
@@ -12,7 +11,6 @@ const getAllUserBadges = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan UserBadge by id
 const getUserBadgeById = async(req, res) => {
     const id = parseInt(req.params.id);
 
@@ -26,7 +24,6 @@ const getUserBadgeById = async(req, res) => {
     }
 }
 
-// Controller untuk membuat UserBadge baru
 const createUserBadge = async (req, res) => {
     try {
         const newData = req.body;
@@ -40,7 +37,6 @@ const createUserBadge = async (req, res) => {
     }
 };
 
-// Controller untuk update UserBadge by id
 const updateUserBadge = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -57,7 +53,6 @@ const updateUserBadge = async (req, res) => {
     }
 };
 
-// Controller untuk delete UserBadge by id
 const deleteUserBadge = async (req, res) => {
     const id = parseInt(req.params.id);
 

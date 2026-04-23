@@ -8,10 +8,8 @@ const router = express.Router()
 router.post('/register', async (req, res) => {
     const { username, password, name } = req.body
 
-    // encrypt the password
     const hashedPassword = bcrypt.hashSync(password, 8)
 
-    // save the new user and hashed password to the db
     try {
         const user = await prisma.user.create({
             data : {
@@ -28,17 +26,6 @@ router.post('/register', async (req, res) => {
             }
         })
 
-        // now that we have a user, I want to add their first course for them
-        // const defaultCourse = `Hello :) Add your first course!`
-        
-        // await prisma.course.create({
-        //     data: {
-        //         task: defaultCourse,
-        //         userId: user.id
-        //     }
-        // })
-
-        // create a token
         const token = jwt.sign({ id: result.lastInsertRowid }, process.env.JWT_SECRET, { expiresIn: '24h' })
         res.json({ token })
     } catch (err) {
@@ -61,7 +48,6 @@ router.post('/login', async (req, res) => {
         if (!user) {
             return res.status(404).send({ message: "User not found" }) }
 
-        // RESTRICT LOGIN: Only authorized users can login
         const allowedNames = ['Ralphael S', 'Ralphael Siahaan', 'Kevin', 'Grace Simanullang', 'ralph1'];
         const allowedUsernames = ['ralph1', 'ralph2', 'test'];
         if (!allowedNames.includes(user.name) && !allowedUsernames.includes(user.username)) {
@@ -83,10 +69,9 @@ router.post('/login', async (req, res) => {
             role: user.role
         }
 
-        const expiresIn = 60 * 60 * 24 * 30; // 30 days
+        const expiresIn = 60 * 60 * 24 * 30;
         const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: expiresIn})
 
-        // Create evaluation session record
         const session = await prisma.userSession.create({
             data: { userId: user.id }
         });
@@ -121,11 +106,9 @@ router.post('/refresh-token', async (req, res) => {
     }
 
     try {
-        // Verify the token is still valid
         const payload = jwt.verify(token, secret);
 
-        // Issue a new token with the same payload and extended expiration
-        const expiresIn = 60 * 60 * 24 * 30; // 30 days
+        const expiresIn = 60 * 60 * 24 * 30;
         const newToken = jwt.sign(
             { id: payload.id, name: payload.name, role: payload.role },
             secret,

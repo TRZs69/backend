@@ -4,7 +4,6 @@ const http = require('http');
 const https = require('https');
 const { StringDecoder } = require('string_decoder');
 
-// Disable keepAlive for serverless stability to avoid stale connections
 const standardHttpAgent = new http.Agent({ keepAlive: false });
 const standardHttpsAgent = new https.Agent({ keepAlive: false });
 
@@ -221,7 +220,7 @@ class GoogleAIClient {
 						eventBuffer = '';
 						emitChunk(this._extractTextFromCandidates(parsed));
 					} catch (error) {
-						// Wait for more data.
+						console.error('Data error: ', error);
 					}
 				};
 
@@ -271,7 +270,7 @@ class GoogleAIClient {
 						const parsed = JSON.parse(trimmed);
 						emitChunk(this._extractTextFromCandidates(parsed));
 					} catch (error) {
-						// Ignore malformed chunks until complete.
+						console.error('Data error: ', error);
 					}
 				};
 

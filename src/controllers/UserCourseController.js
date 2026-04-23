@@ -1,7 +1,6 @@
 const userCourseService = require('../services/UserCourseService');
 
-// Controller untuk mendapatkan daftar userCourse
-const getAllUserCourses = async (req, res) => {
+const getAllUserCourses = async (_, res) => {
     try {
         const userCourses = await userCourseService.getAllUserCourses();
         res.status(200).json(userCourses);
@@ -12,7 +11,6 @@ const getAllUserCourses = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan userCourse by id
 const getUserCourseById = async(req, res) => {
     const id = parseInt(req.params.id);
 
@@ -25,7 +23,6 @@ const getUserCourseById = async(req, res) => {
     }
 }
 
-// Controller untuk membuat userCourse baru
 const createUserCourse = async (req, res) => {
     try {
         const newData = req.body;
@@ -39,7 +36,6 @@ const createUserCourse = async (req, res) => {
     }
 };
 
-// Controller untuk update userCourse by id
 const updateUserCourse = async (req, res) => {
     const user_course_id = parseInt(req.params.id);
 
@@ -54,7 +50,6 @@ const updateUserCourse = async (req, res) => {
     }
 };
 
-// Controller untuk delete userCourse by id
 const deleteUserCourse = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -67,9 +62,6 @@ const deleteUserCourse = async (req, res) => {
         
     }
 };
-
-
-// SPECIAL CONTROLLER
 
 const getUserCourseByUserByCourse = async (req, res) => {
     const userId = parseInt(req.params.userId);

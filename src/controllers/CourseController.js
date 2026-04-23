@@ -3,8 +3,7 @@ const courseService = require('../services/CourseService');
 const userCourseService = require('../services/UserCourseService');
 const badgeService = require('../services/BadgeService');
 
-// Controller untuk mendapatkan daftar course
-const getAllCourses = async (req, res) => {
+const getAllCourses = async (_, res) => {
     try {
         const courses = await courseService.getAllCourses();
         res.status(200).json(courses); 
@@ -15,7 +14,6 @@ const getAllCourses = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan course by id
 const getCourseById = async(req, res) => {
     const id = parseInt(req.params.id);
 
@@ -29,7 +27,6 @@ const getCourseById = async(req, res) => {
     }
 }
 
-// Controller untuk membuat course baru
 const createCourse = async (req, res) => {
     try {
         const newData = req.body;
@@ -42,7 +39,6 @@ const createCourse = async (req, res) => {
     }
 };
 
-// Controller untuk update course by id
 const updateCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);
     const updateData = req.body;
@@ -57,7 +53,6 @@ const updateCourse = async (req, res) => {
     }
 };
 
-// Controller untuk delete course by id
 const deleteCourse = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -77,8 +72,6 @@ const deleteCourse = async (req, res) => {
         console.log(error.message);
     }
 };
-
-// SPECIAL ROUTES
 
 const getChapterByCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);

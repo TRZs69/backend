@@ -12,11 +12,9 @@ const ELO_BADGE_BANDS = [
 ];
 
 function toDateRange(startDate, endDate) {
-    // HARDCODED EVALUATION WINDOW: March 26-29 AND April 8-9, 2026 (Combined)
     const start = startDate ? new Date(startDate) : new Date('2026-03-26T00:00:00.000Z');
     const end = endDate ? new Date(endDate) : new Date('2026-04-09T23:59:59.999Z');
 
-    // Ensure hours are set for custom ranges
     if (endDate && !endDate.includes('T')) {
         end.setHours(23, 59, 59, 999);
     }
@@ -353,22 +351,18 @@ const supabaseSyncQueue = new Map();
 const supabaseSyncTimeouts = new Map();
 
 async function syncSummaryToSupabase(userId) {
-    // Skip sync in production serverless environment to avoid connection pool issues
     if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
         return { ok: true, skipped: true };
     }
 
-    // If there's already a pending sync for this user, don't start another one
     if (supabaseSyncQueue.has(userId)) {
         return { ok: true, queued: true };
     }
 
-    // Clear any existing timeout
     if (supabaseSyncTimeouts.has(userId)) {
         clearTimeout(supabaseSyncTimeouts.get(userId));
     }
 
-    // Debounce: wait 5 seconds before actually syncing
     return new Promise((resolve) => {
         const timeout = setTimeout(async () => {
             supabaseSyncQueue.set(userId, true);
@@ -391,7 +385,7 @@ async function syncSummaryToSupabase(userId) {
             } finally {
                 supabaseSyncQueue.delete(userId);
             }
-        }, 5000); // 5 second debounce
+        }, 5000);
 
         supabaseSyncTimeouts.set(userId, timeout);
     });

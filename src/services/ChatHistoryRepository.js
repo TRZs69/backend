@@ -1,7 +1,6 @@
 const supabase = require('../../supabase/supabase');
 const NodeCache = require('node-cache');
 
-// Initialize cache with a 10 minute TTL
 const chatCache = new NodeCache({ stdTTL: 600, checkperiod: 620 });
 
 const TABLE_SESSIONS = 'chat_sessions';
@@ -75,7 +74,6 @@ async function findLatestSessionForUser({ userId, chapterId }) {
     const { data, error } = await query.maybeSingle();
 
     if (error) {
-      // PGRST116 = multiple rows, treat as warning but continue.
       if (error.code !== 'PGRST116') {
         logError('findLatestSessionForUser', error);
       }
@@ -108,28 +106,16 @@ async function ensureSession({ sessionId, userId, deviceId, chapterId }) {
         const currentMetadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
         const currentChapterId = normalizeChapterId(currentMetadata.chapterId);
 
-        // Enforce strict context isolation:
-        // - chapter chat can only reuse session with same chapterId
-        // - non-chapter chat can only reuse session without chapterId
         const isSameChapterContext = currentChapterId === normalizedChapterId;
         if (isSameChapterContext) {
           return data.id;
         }
 
-        // Session belongs to another chapter/context, create a new one below.
       }
     } catch (error) {
       logError('ensureSession.lookup', error);
     }
   }
-
-  // Removed auto-resume logic to support "lazy" new chat creation.
-  // if (!sessionId && userId !== undefined && userId !== null) {
-  //   const latestSessionId = await findLatestSessionForUser({ userId });
-  //   if (latestSessionId) {
-  //     return latestSessionId;
-  //   }
-  // }
 
   const payload = {
     user_id: userId ?? null,

@@ -60,13 +60,11 @@ exports.updateChapter = async (id, updateData) => {
 
 exports.deleteChapter = async (id) => {
   try {
-    // Ambil semua assignment terkait dengan chapter yang akan dihapus
     const assignments = await prisma.assignment.findMany({
       where: { chapterId: id },
       select: { fileUrl: true },
     });
 
-    // Hapus file dari Supabase Storage
     for (const assignment of assignments) {
       if (assignment.fileUrl) {
         const fileName = assignment.fileUrl.split('/').pop();
@@ -91,7 +89,6 @@ exports.deleteChapter = async (id) => {
   }
 };
 
-// SPECIAL SERVICES
 exports.getMaterialsByChapter = async (id) => {
   try {
     const chapter = await prisma.chapter.findUnique({
@@ -141,29 +138,24 @@ exports.getAssessmentsByChapter = async (id, userId = null) => {
 
     let assessment = chapter.assessments[0];
 
-    // --- Dynamic Matchmaking / Adaptive Testing Logic ---
     if (userId && assessment.questions && assessment.questions.length > 0) {
       const user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
       const userElo = user ? (user.points || 750) : 750;
 
-      // 1. Hitung jarak Elo tiap soal terhadap Elo User
       const sortedQuestions = assessment.questions.sort((a, b) => {
         const diffA = Math.abs((a.elo || 1200) - userElo);
         const diffB = Math.abs((b.elo || 1200) - userElo);
-        return diffA - diffB; // Terdekat (selisih terkecil) jadi prioritas pertama
+        return diffA - diffB;
       });
 
-      // 2. Ambil pool soal (misal ambil 15 terdekat) untuk dimasukkan ke kuis
       const MAX_QUESTIONS_IN_ASSESSMENT = 6;
       const closestQuestions = sortedQuestions.slice(0, MAX_QUESTIONS_IN_ASSESSMENT + 5);
 
-      // 3. Acak (Shuffle) pool soal ini agar tidak selalu sama urutannya kalau mengulang
       for (let i = closestQuestions.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [closestQuestions[i], closestQuestions[j]] = [closestQuestions[j], closestQuestions[i]];
       }
 
-      // 4. Potong hanya 6 soal saja untuk diberikan kepada user
       assessment.questions = closestQuestions.slice(0, MAX_QUESTIONS_IN_ASSESSMENT);
     }
 

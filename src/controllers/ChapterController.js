@@ -1,7 +1,6 @@
 const chapterService = require('../services/ChapterService');
 
-// Controller untuk mendapatkan daftar chapter
-const getAllChapters = async (req, res) => {
+const getAllChapters = async (_, res) => {
     try {
         const chapters = await chapterService.getAllChapters();
         res.status(200).json(chapters);
@@ -12,7 +11,6 @@ const getAllChapters = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan chapter by id
 const getChapterById = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -25,7 +23,6 @@ const getChapterById = async (req, res) => {
     }
 }
 
-// Controller untuk membuat chapter baru
 const createChapter = async (req, res) => {
     try {
         const newData = req.body;
@@ -39,7 +36,6 @@ const createChapter = async (req, res) => {
     }
 };
 
-// Controller untuk update chapter by id
 const updateChapter = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -55,7 +51,6 @@ const updateChapter = async (req, res) => {
     }
 };
 
-// Controller untuk delete chapter by id
 const deleteChapter = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -68,9 +63,6 @@ const deleteChapter = async (req, res) => {
 
     }
 };
-
-
-// SPECIAL CONTROLLER
 
 const getMaterialsByChapter = async (req, res) => {
     const chapterId = parseInt(req.params.id);

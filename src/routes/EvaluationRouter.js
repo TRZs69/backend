@@ -27,7 +27,6 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
             data: { logoutAt, durationSec },
         });
 
-        // Sync to Supabase Live
         await evaluationService.syncSummaryToSupabase(req.user.id);
 
         res.json({ durationSec });
@@ -50,11 +49,9 @@ router.post('/evaluation/session/heartbeat', authMiddleware, async (req, res) =>
     } catch (err) {
         console.error('[EvaluationRouter] heartbeat error:', err.message);
         if (err.code === 'P2028' || err.message.includes('Too many connections')) {
-            // Connection pool exhausted, try to reconnect
             try {
                 await prisma.$disconnect();
                 await prisma.$connect();
-                // Retry the operation
                 await prisma.userSession.update({
                     where: { id: Number(sessionId) },
                     data: { lastActiveAt: new Date() },
@@ -129,8 +126,6 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
             .from('student_summaries')
             .select('*');
 
-        // Only return from Supabase if we have data for all students and no specific date range was requested
-        // that might differ from what's stored. 
         if (storedSummaries && storedSummaries.length === students.length && !req.query.startDate && !req.query.endDate) {
             return res.json({ source: 'supabase', summaries: storedSummaries });
         }
@@ -180,7 +175,6 @@ router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
             },
         });
 
-        // Sync to Supabase Live
         await evaluationService.syncSummaryToSupabase(userId);
 
         res.status(201).json({ id: record.id, submittedAt: record.submittedAt });

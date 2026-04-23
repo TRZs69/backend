@@ -1,6 +1,6 @@
 const prisma = require('../prismaClient');
 
-const BADGE_BASE_URL = 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/';
+const BADGE_BASE_URL = process.env.SUPABASE_URL + '/storage/v1/object/public/badges/';
 const ELO_BADGE_BANDS = [
     { name: 'Beginner', fileName: 'beginner.png', type: 'BEGINNER' },
     { name: 'Basic Understanding', fileName: 'basic_understanding.png', type: 'BEGINNER' },
@@ -133,8 +133,6 @@ exports.deleteBadge = async(id) => {
     }
 }
 
-
-// SPECIAL SERVICES
 
 exports.getBadgesByCourse = async(courseId) => {
     try {

@@ -22,12 +22,9 @@ const userTradeRoutes = require("./routes/UserTradeRouter.js");
 const evaluationRoutes = require("./routes/EvaluationRouter.js");
 const cors = require("cors");
 
-// Express Settings
 const app = express();
 app.use(express.json());
 
-// app.use(multer({storage: fileStorage, fileFilter: fileFilter}).single('image'));
-// Allow listed hosts and any localhost/127.0.0.1 origin (mobile/web dev serve random ports)
 const allowedOrigins = [
   "http://31.97.67.152:7700",
   "http://localhost:5173",

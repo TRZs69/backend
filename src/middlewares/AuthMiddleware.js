@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const prisma = require('../prismaClient');
 
 async function authMiddleware(req, res, next) {
     const token = req.headers['authorization']?.split(' ')[1];
@@ -25,7 +24,5 @@ async function authMiddleware(req, res, next) {
         });
     }
 }
-
-module.exports = authMiddleware;
 
 module.exports = authMiddleware;

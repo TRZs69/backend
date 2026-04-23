@@ -120,8 +120,6 @@ exports.deleteUserCourse = async (id) => {
   }
 };
 
-// SPECIAL SERVICES
-
 exports.getUsersByCourse = async (courseId) => {
   try {
     const usersInCourse = await prisma.userCourse.findMany({
@@ -133,10 +131,8 @@ exports.getUsersByCourse = async (courseId) => {
       },
     });
 
-    // Empty enrollment is a valid state; return [] instead of bubbling a 500.
     return usersInCourse.map((item) => item.user);
   } catch (error) {
-    // Backward compatibility for deployments where user_courses.elo is missing.
     if (isMissingColumnError(error, '`graphci.user_courses.elo`') || isMissingColumnError(error, '`elo`')) {
       const usersInCourse = await prisma.userCourse.findMany({
         where: {

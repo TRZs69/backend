@@ -125,9 +125,6 @@ exports.deleteUserBadge = async(id) => {
     }
 }
 
-
-// SPECIAL SERVICES
-
 exports.getBadgesByUser = async (userId) => {
     try {
         const normalizedUserId = parseInt(userId);

@@ -99,8 +99,6 @@ exports.deleteCourse = async (id) => {
     }
 }
 
-// Special Services
-
 exports.getChapterByCourse = async (id) => {
     try {
         const chapters = await prisma.chapter.findMany({

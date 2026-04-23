@@ -20,7 +20,6 @@ exports.getAllUsers = async (role) => {
     if (role) {
       users = await prisma.user.findMany({
         where: { role: role.toUpperCase() },
-        // Jika role STUDENT, urutkan berdasarkan Elo tertinggi
         orderBy: isStudent ? { elo: 'desc' } : { createdAt: 'asc' },
       });
     } else {

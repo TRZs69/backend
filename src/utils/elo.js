@@ -25,19 +25,19 @@ const clampElo = (value) => {
 const determineUserKFactor = (targetElo) => {
     const elo = clampElo(targetElo);
     
-    // Pemula (750-1000)
+    // Beginner
     if (elo < 1000) return 40;
-    // Basic (1000-1200)
+    // Basic Understanding
     if (elo < 1200) return 30;
-    // Developing (1200-1400)
+    // Developing Learner
     if (elo < 1400) return 20;
-    // Intermediate (1400-1600)
+    // Intermediate
     if (elo < 1600) return 15;
-    // Proficient (1600-1800)
+    // Proficient
     if (elo < 1800) return 12;
-    // Advanced (1800-2000)
+    // Advanced
     if (elo < 2000) return 10;
-    // Mastery (2000+)
+    // Master
     return 8;
 };
 
@@ -50,19 +50,19 @@ const determineUserKFactor = (targetElo) => {
 const determineQuestionKFactor = (targetElo) => {
     const elo = clampElo(targetElo);
     
-    // Pemula (750-1000)
+    // Beginner
     if (elo < 1000) return 30;
-    // Basic (1000-1200)
+    // Basic Understanding
     if (elo < 1200) return 24;
-    // Developing (1200-1400)
+    // Developing Learner
     if (elo < 1400) return 20;
-    // Intermediate (1400-1600)
+    // Intermediate
     if (elo < 1600) return 15;
-    // Proficient (1600-1800)
+    // Proficient
     if (elo < 1800) return 12;
-    // Advanced (1800-2000)
+    // Advanced
     if (elo < 2000) return 10;
-    // Mastery (2000+)
+    // Master
     return 8;
 };
 
@@ -87,16 +87,11 @@ const calculateQuestionDuelElo = ({
     const K_USER = determineUserKFactor(currentUserElo);
     const K_QUESTION = determineQuestionKFactor(currentQuestionElo);
 
-    // Sesuai rumus gambar: P_s,i = 1 / (1 + 10^(-(R_s - D_i) / 400))
     const expectedUser = 1 / (1 + Math.pow(10, -(currentUserElo - currentQuestionElo) / 400));
-    
-    // S (Skor mahasiswa): Benar = 1, Salah = 0
     const actualUserScore = isCorrect ? 1 : 0;
-
-    // Formula 3. Update Rating Mahasiswa: R_s^baru = R_s + K_s(S - P_s,i)
+ 
     const userDeltaRaw = K_USER * (actualUserScore - expectedUser);
-    
-    // Formula 3. Update Rating Soal: D_i^baru = D_i + K_i(P_s,i - S)
+
     const questionDeltaRaw = K_QUESTION * (expectedUser - actualUserScore);
 
     const nextUserElo = Math.max(MIN_ELO, Math.round(currentUserElo + userDeltaRaw));

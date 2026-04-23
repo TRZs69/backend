@@ -1,6 +1,3 @@
--- Chatbot response rating storage for Levely
--- Run this script inside the Supabase SQL editor.
-
 create table if not exists public.chatbot_ratings (
   id uuid primary key default gen_random_uuid(),
   user_id bigint not null,

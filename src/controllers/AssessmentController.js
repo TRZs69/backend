@@ -1,7 +1,6 @@
 const assessmentService = require('../services/AssessmentService');
 
-// Controller untuk mendapatkan daftar assessment
-const getAllAssessments = async (req, res) => {
+const getAllAssessments = async (_, res) => {
     try {
         const assessments = await assessmentService.getAllAssessments();
         res.status(200).json(assessments);
@@ -12,7 +11,6 @@ const getAllAssessments = async (req, res) => {
     }
 };
 
-// Controller untuk mendapatkan assessment by id
 const getAssessmentById = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -26,7 +24,6 @@ const getAssessmentById = async (req, res) => {
     }
 }
 
-// Controller untuk membuat assessment baru
 const createAssessment = async (req, res) => {
     try {
         const newData = req.body;
@@ -40,7 +37,6 @@ const createAssessment = async (req, res) => {
     }
 };
 
-// Controller untuk update assessment by id
 const updateAssessment = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -56,7 +52,6 @@ const updateAssessment = async (req, res) => {
     }
 };
 
-// Controller untuk delete assessment by id
 const deleteAssessment = async (req, res) => {
     const id = parseInt(req.params.id);
 
@@ -70,7 +65,6 @@ const deleteAssessment = async (req, res) => {
     }
 };
 
-// Controller untuk submit assessment
 const submitAssessment = async (req, res) => {
     try {
         const { userId, chapterId, answers, attemptId } = req.body;
