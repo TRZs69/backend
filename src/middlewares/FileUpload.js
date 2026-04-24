@@ -15,16 +15,16 @@ if (!fs.existsSync(pdfsDir)) {
 }
 
 const imageStorage = multer.diskStorage({
-    destination: (_, _, cb) => {
+    destination: (req, file, cb) => {
         cb(null, imagesDir);
     },
-    filename: (_, file, cb) => {
+    filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
-const imageFilter = (_, file, cb) => {
+const imageFilter = (req, file, cb) => {
     const allowedMimes = ['image/png', 'image/jpg', 'image/jpeg', 'image/gif'];
     if (allowedMimes.includes(file.mimetype)) {
         cb(null, true);
@@ -40,16 +40,16 @@ const uploadImage = multer({
 }).single('image');
 
 const pdfStorage = multer.diskStorage({
-    destination: (_, _, cb) => {
+    destination: (req, file, cb) => {
         cb(null, pdfsDir); 
     },
-    filename: (_, file, cb) => {
+    filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
 });
 
-const pdfFilter = (_, file, cb) => {
+const pdfFilter = (req, file, cb) => {
     if (file.mimetype === 'application/pdf') {
         cb(null, true);
     } else {
