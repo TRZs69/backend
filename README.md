@@ -106,7 +106,7 @@ This backend application serves as the core logic for a gamified learning platfo
 
 ## Production migrations
 
-Do not run Prisma migrations as part of the Vercel build step. This repository keeps Vercel builds limited to Prisma client generation so deployments are not blocked by existing database migration state.
+Do not run Prisma migrations as part of the Render build step. This repository keeps Render builds limited to Prisma client generation so deployments are not blocked by existing database migration state.
 
 Apply production schema changes separately with direct database access:
 

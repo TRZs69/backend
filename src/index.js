@@ -42,9 +42,9 @@ app.use(
         (origin.startsWith("http://localhost") ||
           origin.startsWith("http://127.0.0.1"));
 
-      const isVercel = origin && origin.endsWith(".vercel.app");
+      const isRender = origin && origin.endsWith(".onrender.com");
 
-      if (!origin || allowedOrigins.includes(origin) || isLocalhost || isVercel) {
+      if (!origin || allowedOrigins.includes(origin) || isLocalhost || isRender) {
         return callback(null, true);
       }
       return callback(new Error("Not allowed by CORS"));
@@ -83,9 +83,8 @@ app.get('/', (req, res) => {
 });
 
 const PORT = process.env.PORT || 7000;
-if (process.env.VERCEL !== "1")
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 module.exports = app;

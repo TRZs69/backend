@@ -12,7 +12,7 @@
     "db:generate": "prisma generate",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
-    "vercel-build": "npm run db:generate",
+    "render-build": "npm install && npm run db:generate",
     "fix:badge-urls": "node scripts/fix_badge_image_urls.js",
     "sync:student-only-elo": "node scripts/sync_student_only_elo.js",
     "chat:backfill-chapter:dry": "node scripts/backfill_chat_session_chapter_ids.js",

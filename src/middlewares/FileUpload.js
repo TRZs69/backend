@@ -2,7 +2,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-const storageRoot = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..');
+const storageRoot = process.env.RENDER ? '/tmp' : path.join(__dirname, '..', '..');
 const imagesDir = path.join(storageRoot, 'images');
 const pdfsDir = path.join(storageRoot, 'pdfs');
 

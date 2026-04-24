@@ -351,7 +351,7 @@ const supabaseSyncQueue = new Map();
 const supabaseSyncTimeouts = new Map();
 
 async function syncSummaryToSupabase(userId) {
-    if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    if (process.env.RENDER === 'true' || process.env.NODE_ENV === 'production') {
         return { ok: true, skipped: true };
     }
 
