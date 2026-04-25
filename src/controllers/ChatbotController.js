@@ -23,6 +23,8 @@ const SSE_HEADERS = {
   'Cache-Control': 'no-cache, no-transform',
   Connection: 'keep-alive',
   'X-Accel-Buffering': 'no',
+  'Content-Encoding': 'identity',
+  'X-Content-Type-Options': 'nosniff',
 };
 
 const detachListener = (emitter, event, handler) => {
@@ -85,11 +87,6 @@ exports.streamMessage = async (req, res) => {
     if (!delta) {
       return;
     }
-    if (typeof delta === 'string') {
-      console.log(`[ChatbotController] Chunk emitted: ${delta.length} chars`);
-    } else {
-      console.log(`[ChatbotController] Object emitted: ${JSON.stringify(delta).slice(0, 50)}...`);
-    }
 
     if (typeof delta === 'object') {
       sendEvent(delta);
@@ -109,7 +106,7 @@ exports.streamMessage = async (req, res) => {
       res.write(': heartbeat\n\n');
       if (typeof res.flush === 'function') res.flush();
     }
-  }, 3000);
+  }, 1000);
 
   try {
     const result = await chatbotService.streamMessage({

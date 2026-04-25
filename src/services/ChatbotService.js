@@ -875,7 +875,6 @@ exports.streamMessage = async ({
 	const contextMs = Date.now() - contextStartedAt;
 	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
 	const highRiskAssessmentRequest = hasAssessmentContext;
-    console.log(`[ChatbotStream] sessionId=${persistedSessionId} highRisk=${highRiskAssessmentRequest} mode=${responseSettings.mode}`);
 
 	try {
 		const shouldGenerateLiveTitle =
@@ -902,12 +901,7 @@ exports.streamMessage = async ({
 					}
 					if (!highRiskAssessmentRequest) {
 						emitChunk(chunk);
-					} else {
-                        // Intentional buffering to prevent answer leaking in graded chapters
-                        if (messages.length === 1) { // Log once
-                             console.log(`[ChatbotStream] Buffering active for sessionId=${persistedSessionId} (Grader Safety)`);
-                        }
-                    }
+					}
 				},
 				abortSignal,
 				generationConfig: responseSettings.generationConfig,
