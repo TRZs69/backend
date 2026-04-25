@@ -34,7 +34,6 @@ const mapRowToMessage = (row = {}) => ({
 const mapRowToSession = (row = {}) => ({
   id: row.id,
   userId: row.user_id,
-  deviceId: row.device_id,
   title: row.title,
   lastMessagePreview: row.last_message_preview,
   metadata: row.metadata || {},
@@ -87,7 +86,7 @@ async function findLatestSessionForUser({ userId, chapterId }) {
   }
 }
 
-async function ensureSession({ sessionId, userId, deviceId, chapterId }) {
+async function ensureSession({ sessionId, userId, chapterId }) {
   if (!isEnabled) {
     return null;
   }
@@ -119,7 +118,6 @@ async function ensureSession({ sessionId, userId, deviceId, chapterId }) {
 
   const payload = {
     user_id: userId ?? null,
-    device_id: deviceId ?? null,
     metadata: normalizedChapterId !== null ? { chapterId: normalizedChapterId } : {},
   };
 
@@ -141,7 +139,7 @@ async function ensureSession({ sessionId, userId, deviceId, chapterId }) {
   return data.id;
 }
 
-async function createSession({ userId, deviceId, title, metadata = {}, chapterId }) {
+async function createSession({ userId, title, metadata = {}, chapterId }) {
   if (!isEnabled) {
     throw new Error('Chat history tidak aktif');
   }
@@ -154,7 +152,6 @@ async function createSession({ userId, deviceId, title, metadata = {}, chapterId
 
   const payload = {
     user_id: userId ?? null,
-    device_id: deviceId ?? null,
     title: title ? title.toString().trim().slice(0, 120) : null,
     metadata: normalizedMetadata,
   };
@@ -182,7 +179,7 @@ async function listSessions({ userId, chapterId, limit = 20, offset = 0 }) {
 
   let query = supabase
     .from(TABLE_SESSIONS)
-    .select('id, user_id, device_id, title, last_message_preview, metadata, created_at, updated_at')
+    .select('id, user_id, title, last_message_preview, metadata, created_at, updated_at')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
     .range(offset, offset + limit - 1);
@@ -288,7 +285,7 @@ async function renameSession({ sessionId, title }) {
     .from(TABLE_SESSIONS)
     .update({ title: normalizedTitle })
     .eq('id', sessionId)
-    .select('id, user_id, device_id, title, last_message_preview, metadata, created_at, updated_at')
+    .select('id, user_id, title, last_message_preview, metadata, created_at, updated_at')
     .single();
 
   if (error) {

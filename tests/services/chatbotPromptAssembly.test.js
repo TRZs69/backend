@@ -445,6 +445,7 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
+		process.env.LEVELY_CHAT_SHORT_CONTINUATION_CUES = '';
 
 		const completeMock = jest.fn().mockResolvedValue('Lanjut pembahasan HCI.');
 		jest.doMock('../../src/misc/emojies.js', () => ({

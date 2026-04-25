@@ -716,7 +716,7 @@ const scheduleWarmup = () => {
 
 scheduleWarmup();
 
-const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, materialId, chapterId }) => {
+const buildChatContext = async ({ history, sessionId, userId, prompt, materialId, chapterId }) => {
 	let persistedSessionId = sessionId;
 	let persistedConversation = [];
 	const useProvidedHistory = Array.isArray(history) && history.length > 0;
@@ -887,7 +887,6 @@ const buildChatContext = async ({ history, sessionId, deviceId, userId, prompt, 
 			persistedSessionId = await chatHistoryStore.ensureSession({
 				sessionId,
 				userId,
-				deviceId,
 				chapterId: resolvedChapterId,
 			});
 			if (!useProvidedHistory && persistedSessionId) {
@@ -956,14 +955,13 @@ const normalizeHistory = (history = []) => {
 		.slice(-Math.max(1, MAX_HISTORY_MESSAGES));
 };
 
-exports.createChatSession = async ({ userId, deviceId, title, metadata, chapterId }) => {
+exports.createChatSession = async ({ userId, title, metadata, chapterId }) => {
 	if (!chatHistoryStore.isEnabled) {
 		throw new Error('Chat history belum diaktifkan');
 	}
 
 	const session = await chatHistoryStore.createSession({
 		userId,
-		deviceId,
 		title,
 		metadata,
 		chapterId: normalizeChapterId(chapterId),
@@ -989,7 +987,7 @@ exports.renameChatSession = async ({ sessionId, title }) => {
 	return chatHistoryStore.renameSession({ sessionId, title });
 };
 
-exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userId, materialId, chapterId }) => {
+exports.sendMessage = async ({ message, history = [], sessionId, userId, materialId, chapterId }) => {
 	const prompt = sanitizePromptText(message, { limit: MAX_USER_PROMPT_CHARS });
 	if (!prompt) {
 		throw new Error('Message is required');
@@ -1010,7 +1008,6 @@ exports.sendMessage = async ({ message, history = [], sessionId, deviceId, userI
 	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } = await buildChatContext({
 		history,
 		sessionId,
-		deviceId,
 		userId,
 		prompt,
 		materialId,
@@ -1089,7 +1086,6 @@ exports.streamMessage = async ({
 	message,
 	history = [],
 	sessionId,
-	deviceId,
 	userId,
 	materialId,
 	chapterId,
@@ -1131,7 +1127,6 @@ exports.streamMessage = async ({
 	} = await buildChatContext({
 		history,
 		sessionId,
-		deviceId,
 		userId,
 		prompt,
 		materialId,

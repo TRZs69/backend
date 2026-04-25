@@ -38,7 +38,7 @@ const detachListener = (emitter, event, handler) => {
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { message, history, sessionId, deviceId, userId, materialId, chapterId } = req.body || {};
+    const { message, history, sessionId, userId, materialId, chapterId } = req.body || {};
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ message: 'Message is required' });
     }
@@ -47,7 +47,6 @@ exports.sendMessage = async (req, res) => {
       message,
       history,
       sessionId,
-      deviceId,
       userId,
       materialId,
       chapterId,
@@ -60,7 +59,7 @@ exports.sendMessage = async (req, res) => {
 };
 
 exports.streamMessage = async (req, res) => {
-  const { message, history, sessionId, deviceId, userId, materialId, chapterId } = req.body || {};
+  const { message, history, sessionId, userId, materialId, chapterId } = req.body || {};
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ message: 'Message is required' });
   }
@@ -111,7 +110,6 @@ exports.streamMessage = async (req, res) => {
       message,
       history,
       sessionId,
-      deviceId,
       userId,
       materialId,
       chapterId,
@@ -134,13 +132,12 @@ exports.streamMessage = async (req, res) => {
 
 exports.createSession = async (req, res) => {
   try {
-    const { userId, deviceId, title, metadata, chapterId } = req.body || {};
+    const { userId, title, metadata, chapterId } = req.body || {};
     if (userId === undefined || userId === null) {
       return res.status(400).json({ message: 'UserId is required' });
     }
     const result = await chatbotService.createChatSession({
       userId,
-      deviceId,
       title,
       metadata,
       chapterId,

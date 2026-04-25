@@ -67,6 +67,61 @@ class SamplingService {
   }
 
   async getStratifiedSample() {
+    const chapters = await prisma.chapter.findMany({
+      select: { id: true, name: true }
+    });
+
+    const N = await this.getTotalPopulationCount();
+    const n = this.calculateSampleSize(N);
+
+    if (N === 0) {
+      return { totalPopulation: 0, totalRequiredSample: 0, strata: [] };
+    }
+
+    const strata = [];
+    let totalAllocated = 0;
+
+    for (const chapter of chapters) {
+      const { count, error } = await supabase
+        .from('chat_messages')
+        .select('id, chat_sessions!inner(metadata)', { count: 'exact', head: true })
+        .eq('role', 'assistant')
+        .eq('chat_sessions.metadata->>chapterId', chapter.id.toString());
+
+      if (error) {
+        console.error(`Error counting messages for chapter ${chapter.id}:`, error.message);
+        continue;
+      }
+
+      const Ni = count || 0;
+      if (Ni === 0) continue;
+
+      const ni = Math.round((Ni / N) * n);
+      
+      strata.push({
+        chapterId: chapter.id,
+        chapterName: chapter.name,
+        populationSize: Ni,
+        sampleSize: ni,
+        proportion: Ni / N
+      });
+      
+      totalAllocated += ni;
+    }
+
+    if (strata.length > 0 && totalAllocated !== n) {
+      const diff = n - totalAllocated;
+      const largestStrata = strata.reduce((prev, current) => 
+        (prev.populationSize > current.populationSize) ? prev : current
+      );
+      largestStrata.sampleSize += diff;
+    }
+
+    return {
+      totalPopulation: N,
+      totalRequiredSample: n,
+      strata: strata
+    };
   }
 
   async getMessagesForRating(userId) {
@@ -74,21 +129,55 @@ class SamplingService {
     const resultMessages = [];
 
     for (const stratum of samplingPlan.strata) {
-      const sessions = await prisma.chatSession.findMany({
-        where: { 
-          chapterId: stratum.chapterId,
-        },
-        take: stratum.sampleSize,
-        orderBy: { createdAt: 'desc' }, 
-        include: {
+      if (stratum.sampleSize <= 0) continue;
+
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`
+          id,
+          content,
+          role,
+          created_at,
+          session_id,
+          chat_sessions!inner(user_id, metadata)
+        `)
+        .eq('role', 'assistant')
+        .eq('chat_sessions.metadata->>chapterId', stratum.chapterId.toString())
+        .limit(stratum.sampleSize);
+
+      if (error) {
+        console.error(`Error fetching messages for chapter ${stratum.chapterId}:`, error.message);
+        continue;
+      }
+
+      if (data) {
+        for (const msg of data) {
+          const { data: prevMessages, error: prevError } = await supabase
+            .from('chat_messages')
+            .select('content')
+            .eq('session_id', msg.session_id)
+            .lt('created_at', msg.created_at)
+            .eq('role', 'user')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (!prevError && prevMessages && prevMessages.length > 0) {
+            resultMessages.push({
+              messageId: msg.id,
+              userRequest: prevMessages[0].content,
+              botResponse: msg.content,
+              chapterId: stratum.chapterId,
+              chapterName: stratum.chapterName,
+              createdAt: msg.created_at
+            });
+          }
         }
-      });
-      resultMessages.push(...sessions);
+      }
     }
 
     return {
       plan: samplingPlan,
-      sessions: resultMessages
+      messages: resultMessages
     };
   }
 }
