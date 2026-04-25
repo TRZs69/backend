@@ -85,6 +85,12 @@ exports.streamMessage = async (req, res) => {
     if (!delta) {
       return;
     }
+    if (typeof delta === 'string') {
+      console.log(`[ChatbotController] Chunk emitted: ${delta.length} chars`);
+    } else {
+      console.log(`[ChatbotController] Object emitted: ${JSON.stringify(delta).slice(0, 50)}...`);
+    }
+
     if (typeof delta === 'object') {
       sendEvent(delta);
     } else {

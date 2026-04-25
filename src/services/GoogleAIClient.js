@@ -225,9 +225,12 @@ class GoogleAIClient {
 						if (parsed?.usageMetadata) {
 							metadata = { ...metadata, ...parsed.usageMetadata };
 						}
-						emitChunk(this._extractTextFromCandidates(parsed));
+						const text = this._extractTextFromCandidates(parsed);
+						if (text) {
+							emitChunk(text);
+						}
 					} catch (error) {
-						console.error('Data error: ', error);
+						// Keep buffering, JSON might be incomplete
 					}
 				};
 
@@ -239,11 +242,17 @@ class GoogleAIClient {
 					}
 					if (trimmedLine.startsWith('data:')) {
 						const payloadPart = trimmedLine.slice(5).trim();
-						eventBuffer += (eventBuffer ? '\n' : '') + payloadPart;
-						tryProcessEvent();
-						return;
+						// If we already have something in eventBuffer, try to process it first
+						if (eventBuffer.trim()) {
+							tryProcessEvent();
+						}
+						eventBuffer = payloadPart;
+					} else {
+						eventBuffer += (eventBuffer ? '\n' : '') + trimmedLine;
 					}
-					eventBuffer += (eventBuffer ? '\n' : '') + trimmedLine;
+					
+					// Most LLM APIs send one object per line, so we can try to process immediately
+					// but we don't clear eventBuffer on failure, so multi-line still works.
 					tryProcessEvent();
 				};
 
@@ -278,9 +287,12 @@ class GoogleAIClient {
 						if (parsed?.usageMetadata) {
 							metadata = { ...metadata, ...parsed.usageMetadata };
 						}
-						emitChunk(this._extractTextFromCandidates(parsed));
+						const text = this._extractTextFromCandidates(parsed);
+						if (text) {
+							emitChunk(text);
+						}
 					} catch (error) {
-						console.error('Data error: ', error);
+						// Error in JSON array parsing, wait for more data
 					}
 				};
 
@@ -429,7 +441,11 @@ class GoogleAIClient {
 			return `${this.baseUrl}/${this.model}:${action}`;
 		}
 		const encodedKey = encodeURIComponent(this.apiKey);
-		return `${this.baseUrl}/${this.model}:${action}?key=${encodedKey}`;
+		let url = `${this.baseUrl}/${this.model}:${action}?key=${encodedKey}`;
+		if (stream) {
+			url += '&alt=sse';
+		}
+		return url;
 	}
 
 	_assertMessages(messages) {
