@@ -68,6 +68,8 @@ async function findLatestSessionForUser({ userId, chapterId }) {
 
     if (normalizedChapterId !== null) {
       query = query.filter('metadata->>chapterId', 'eq', String(normalizedChapterId));
+    } else {
+      query = query.filter('metadata->chapterId', 'is', null);
     }
 
     const { data, error } = await query.maybeSingle();
@@ -105,11 +107,21 @@ async function ensureSession({ sessionId, userId, chapterId }) {
         const currentMetadata = data.metadata && typeof data.metadata === 'object' ? data.metadata : {};
         const currentChapterId = normalizeChapterId(currentMetadata.chapterId);
 
-        const isSameChapterContext = currentChapterId === normalizedChapterId;
-        if (isSameChapterContext) {
+        if (currentChapterId === normalizedChapterId) {
           return data.id;
         }
 
+        // Context changed (different chapter), update the existing session's metadata
+        const updatedMetadata = { ...currentMetadata, chapterId: normalizedChapterId };
+        const { error: updateError } = await supabase
+          .from(TABLE_SESSIONS)
+          .update({ metadata: updatedMetadata, updated_at: new Date().toISOString() })
+          .eq('id', sessionId);
+
+        if (!updateError) {
+          return sessionId;
+        }
+        logError('ensureSession.updateContext', updateError);
       }
     } catch (error) {
       logError('ensureSession.lookup', error);
@@ -121,19 +133,20 @@ async function ensureSession({ sessionId, userId, chapterId }) {
     metadata: normalizedChapterId !== null ? { chapterId: normalizedChapterId } : {},
   };
 
+  // If sessionId was provided but not found, we can try to use it
   if (sessionId) {
     payload.id = sessionId;
   }
 
   const { data, error } = await supabase
     .from(TABLE_SESSIONS)
-    .insert(payload)
+    .upsert(payload, { onConflict: 'id' })
     .select('id')
     .single();
 
   if (error) {
-    logError('ensureSession.insert', error);
-    throw new Error('Gagal membuat sesi chat baru');
+    logError('ensureSession.upsert', error);
+    throw new Error('Gagal mengamankan sesi chat');
   }
 
   return data.id;
@@ -186,6 +199,8 @@ async function listSessions({ userId, chapterId, limit = 20, offset = 0 }) {
 
   if (normalizedChapterId !== null) {
     query = query.filter('metadata->>chapterId', 'eq', String(normalizedChapterId));
+  } else {
+    query = query.filter('metadata->chapterId', 'is', null);
   }
 
   const { data, error } = await query;
