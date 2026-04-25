@@ -1310,7 +1310,7 @@ ${conversationText}
 	`.trim();
 
 	try {
-		const title = await llmClient.complete({
+		const { text: title } = await llmClient.complete({
 			messages: [{ role: 'user', content: titlePrompt }],
 		});
 
@@ -1340,16 +1340,18 @@ ${conversationText}
 	try {
 		let finalTitle = '';
 		if (typeof llmClient.streamComplete === 'function') {
-			finalTitle = await llmClient.streamComplete({
+			const streamResult = await llmClient.streamComplete({
 				messages: [{ role: 'user', content: titlePrompt }],
 				onChunk: (chunk) => {
 					emitChunk({ titleDelta: chunk });
 				}
 			});
+			finalTitle = streamResult.text;
 		} else {
-			finalTitle = await llmClient.complete({
+			const completeResult = await llmClient.complete({
 				messages: [{ role: 'user', content: titlePrompt }],
 			});
+			finalTitle = completeResult.text;
 			if (finalTitle) {
 				emitChunk({ titleDelta: finalTitle });
 			}
