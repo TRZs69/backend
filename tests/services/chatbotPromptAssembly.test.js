@@ -12,7 +12,7 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
-		const completeMock = jest.fn().mockResolvedValue('jawaban levely');
+		const completeMock = jest.fn().mockResolvedValue({ text: 'jawaban levely', metadata: {} });
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
@@ -87,7 +87,7 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
-		const completeMock = jest.fn().mockResolvedValue('lanjutan jawaban');
+		const completeMock = jest.fn().mockResolvedValue({ text: 'lanjutan jawaban', metadata: {} });
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
@@ -123,7 +123,7 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
-		const completeMock = jest.fn().mockResolvedValue('jawaban berbasis materi');
+		const completeMock = jest.fn().mockResolvedValue({ text: 'jawaban berbasis materi', metadata: {} });
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
@@ -253,7 +253,7 @@ describe('ChatbotService prompt assembly', () => {
 		const streamCompleteMock = jest.fn().mockImplementation(async ({ onChunk }) => {
 			onChunk('1. A\n');
 			onChunk('2. B');
-			return '1. A\n2. B';
+			return { text: '1. A\n2. B', metadata: {} };
 		});
 
 		jest.doMock('../../src/misc/emojies.js', () => ({
@@ -315,7 +315,7 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
-		const completeMock = jest.fn().mockResolvedValue('1. A\n2. B');
+		const completeMock = jest.fn().mockResolvedValue({ text: '1. A\n2. B', metadata: {} });
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
@@ -373,12 +373,15 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
-		const completeMock = jest.fn().mockResolvedValue([
-			'Secara sederhana, HCI fokus pada:',
-			'1. Perancangan: merancang sistem yang mudah digunakan.',
-			'2. Evaluasi: menguji efektivitas dan efisiensi.',
-			'3.',
-		].join('\n'));
+		const completeMock = jest.fn().mockResolvedValue({
+			text: [
+				'Secara sederhana, HCI fokus pada:',
+				'1. Perancangan: merancang sistem yang mudah digunakan.',
+				'2. Evaluasi: menguji efektivitas dan efisiensi.',
+				'3.',
+			].join('\n'),
+			metadata: {},
+		});
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
@@ -409,10 +412,13 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
-		const completeMock = jest.fn().mockResolvedValue([
-			'Mari kita bahas lebih detail masing-masing elemen tersebut:',
-			'1. **Man',
-		].join('\n'));
+		const completeMock = jest.fn().mockResolvedValue({
+			text: [
+				'Mari kita bahas lebih detail masing-masing elemen tersebut:',
+				'1. **Man',
+			].join('\n'),
+			metadata: {},
+		});
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));
@@ -447,7 +453,7 @@ describe('ChatbotService prompt assembly', () => {
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 		process.env.LEVELY_CHAT_SHORT_CONTINUATION_CUES = '';
 
-		const completeMock = jest.fn().mockResolvedValue('Lanjut pembahasan HCI.');
+		const completeMock = jest.fn().mockResolvedValue({ text: 'Lanjut pembahasan HCI.', metadata: {} });
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },
 		}));

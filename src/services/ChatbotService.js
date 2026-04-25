@@ -1023,7 +1023,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 
 	try {
 		const llmStartedAt = Date.now();
-		const rawReply = await llmClient.complete({
+		const { text: rawReply, metadata: llmMetadata } = await llmClient.complete({
 			system: effectiveSystemPrompt,
 			messages,
 			generationConfig: responseSettings.generationConfig,
@@ -1054,7 +1054,15 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 				sessionId: persistedSessionId,
 				messages: [
 					{ role: 'user', content: prompt },
-					{ role: 'assistant', content: reply },
+					{
+						role: 'assistant',
+						content: reply,
+						tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount,
+						metadata: {
+							route: assistantRoute,
+							mode: responseSettings.mode,
+						},
+					},
 				],
 			});
 			await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
@@ -1153,10 +1161,11 @@ exports.streamMessage = async ({
 		}
 
 		let reply = '';
+		let llmMetadata = {};
 		if (typeof llmClient.streamComplete === 'function') {
 			const llmStartedAt = Date.now();
 			let firstTokenMs;
-			reply = await llmClient.streamComplete({
+			const streamResult = await llmClient.streamComplete({
 				system: effectiveSystemPrompt,
 				messages,
 				onChunk: (chunk) => {
@@ -1170,6 +1179,8 @@ exports.streamMessage = async ({
 				abortSignal,
 				generationConfig: responseSettings.generationConfig,
 			});
+			reply = streamResult.text;
+			llmMetadata = streamResult.metadata;
 			const llmMs = Date.now() - llmStartedAt;
 			const totalMs = Date.now() - startedAt;
 			logChatPerformance({
@@ -1183,11 +1194,13 @@ exports.streamMessage = async ({
 			});
 		} else {
 			const llmStartedAt = Date.now();
-			reply = await llmClient.complete({
+			const completeResult = await llmClient.complete({
 				system: effectiveSystemPrompt,
 				messages,
 				generationConfig: responseSettings.generationConfig,
 			});
+			reply = completeResult.text;
+			llmMetadata = completeResult.metadata;
 			emitChunk(reply);
 			const llmMs = Date.now() - llmStartedAt;
 			const totalMs = Date.now() - startedAt;
@@ -1223,7 +1236,15 @@ exports.streamMessage = async ({
 				sessionId: persistedSessionId,
 				messages: [
 					{ role: 'user', content: prompt },
-					{ role: 'assistant', content: reply },
+					{
+						role: 'assistant',
+						content: reply,
+						tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount,
+						metadata: {
+							route: assistantRoute,
+							mode: responseSettings.mode,
+						},
+					},
 				],
 			});
 			if (shouldGenerateLiveTitle) {

@@ -5,7 +5,10 @@
 
 describe('ChatbotService adversarial robustness', () => {
 	const createMockServices = (config = {}) => {
-		const completeMock = jest.fn().mockResolvedValue(config.llmResponse || 'llm response');
+		const completeMock = jest.fn().mockResolvedValue({
+			text: config.llmResponse || 'llm response',
+			metadata: {},
+		});
 
 		jest.doMock('../../src/misc/emojies.js', () => ({
 			EMOJI: { warm_smile: ':)' },

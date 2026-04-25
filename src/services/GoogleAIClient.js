@@ -116,7 +116,10 @@ class GoogleAIClient {
 			})
 		);
 
-		return this._extractTextFromCandidates(response?.data)?.trim() || '';
+		return {
+			text: this._extractTextFromCandidates(response?.data)?.trim() || '',
+			metadata: response?.data?.usageMetadata || {},
+		};
 	}
 
 	async streamComplete({
@@ -153,6 +156,7 @@ class GoogleAIClient {
 
 		return new Promise((resolve, reject) => {
 			let aggregated = '';
+			let metadata = {};
 			let settled = false;
 
 			const emitChunk = (text) => {
@@ -171,7 +175,7 @@ class GoogleAIClient {
 				}
 				settled = true;
 				cleanup();
-				resolve(aggregated.trim());
+				resolve({ text: aggregated.trim(), metadata });
 			};
 
 			const fail = (error) => {
@@ -218,6 +222,9 @@ class GoogleAIClient {
 					try {
 						const parsed = JSON.parse(trimmed);
 						eventBuffer = '';
+						if (parsed?.usageMetadata) {
+							metadata = { ...metadata, ...parsed.usageMetadata };
+						}
 						emitChunk(this._extractTextFromCandidates(parsed));
 					} catch (error) {
 						console.error('Data error: ', error);
@@ -268,6 +275,9 @@ class GoogleAIClient {
 					}
 					try {
 						const parsed = JSON.parse(trimmed);
+						if (parsed?.usageMetadata) {
+							metadata = { ...metadata, ...parsed.usageMetadata };
+						}
 						emitChunk(this._extractTextFromCandidates(parsed));
 					} catch (error) {
 						console.error('Data error: ', error);
