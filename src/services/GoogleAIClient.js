@@ -226,12 +226,19 @@ class GoogleAIClient {
 						if (parsed?.usageMetadata) {
 							metadata = { ...metadata, ...parsed.usageMetadata };
 						}
-						const text = this._extractTextFromCandidates(parsed);
-						if (text) {
-							emitChunk(text);
+						
+						// Extract and emit immediately
+						const candidates = parsed?.candidates || [];
+						if (candidates.length > 0) {
+							const parts = candidates[0]?.content?.parts || [];
+							for (const part of parts) {
+								if (part.text) {
+									emitChunk(part.text);
+								}
+							}
 						}
 					} catch (error) {
-						// Keep buffering, JSON might be incomplete
+						// Keep buffering for multi-line JSON
 					}
 				};
 

@@ -93,7 +93,7 @@ exports.streamMessage = async (req, res) => {
     } else {
       sendEvent({ delta });
     }
-
+    
     if (typeof res.flush === 'function') res.flush();
   };
   const handleClose = () => {
