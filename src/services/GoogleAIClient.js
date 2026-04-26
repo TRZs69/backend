@@ -151,9 +151,6 @@ class GoogleAIClient {
 			})
 		);
 
-		const contentType = String(response.headers?.['content-type'] || '').toLowerCase();
-		const useEventStream = contentType.includes('text/event-stream');
-
 		return new Promise((resolve, reject) => {
 			let aggregated = '';
 			let metadata = {};
@@ -175,7 +172,6 @@ class GoogleAIClient {
 				}
 				settled = true;
 				cleanup();
-				// Resolve with the full text at the end for logging/history
 				resolve({ text: aggregated, metadata });
 			};
 
@@ -206,160 +202,43 @@ class GoogleAIClient {
 				fail(new Error('Stream aborted'));
 			};
 
-			const createSseHandler = () => {
-				const decoder = new StringDecoder('utf8');
-				let buffer = '';
-				let eventBuffer = '';
+			const decoder = new StringDecoder('utf8');
+			let buffer = '';
 
-				const tryProcessEvent = () => {
-					const trimmed = eventBuffer.trim();
-					if (!trimmed) {
-						return;
-					}
-					if (trimmed === '[DONE]') {
-						eventBuffer = '';
-						return;
-					}
-					try {
-						const parsed = JSON.parse(trimmed);
-						eventBuffer = '';
-						if (parsed?.usageMetadata) {
-							metadata = { ...metadata, ...parsed.usageMetadata };
-						}
-						
-						// Extract and emit immediately
-						const candidates = parsed?.candidates || [];
-						if (candidates.length > 0) {
-							const parts = candidates[0]?.content?.parts || [];
-							for (const part of parts) {
-								if (part.text) {
-									emitChunk(part.text);
+			const onData = (chunk) => {
+				buffer += decoder.write(chunk);
+				
+				// Standard SSE handling
+				let newlineIndex = buffer.indexOf('\n');
+				while (newlineIndex !== -1) {
+					const line = buffer.slice(0, newlineIndex).trim();
+					buffer = buffer.slice(newlineIndex + 1);
+
+					if (line.startsWith('data:')) {
+						const jsonStr = line.slice(5).trim();
+						if (jsonStr !== '[DONE]') {
+							try {
+								const parsed = JSON.parse(jsonStr);
+								if (parsed?.usageMetadata) {
+									metadata = { ...metadata, ...parsed.usageMetadata };
 								}
+								const candidates = parsed?.candidates || [];
+								if (candidates.length > 0) {
+									const parts = candidates[0]?.content?.parts || [];
+									for (const part of parts) {
+										if (part.text) {
+											emitChunk(part.text);
+										}
+									}
+								}
+							} catch (e) {
+								// Partial JSON, will retry with more data
 							}
 						}
-					} catch (error) {
-						// Keep buffering for multi-line JSON
 					}
-				};
-
-				const handleLine = (line) => {
-					const trimmedLine = line.replace(/\r$/, '');
-					if (!trimmedLine) {
-						tryProcessEvent();
-						return;
-					}
-					if (trimmedLine.startsWith('data:')) {
-						const payloadPart = trimmedLine.slice(5).trim();
-						// If we already have something in eventBuffer, try to process it first
-						if (eventBuffer.trim()) {
-							tryProcessEvent();
-						}
-						eventBuffer = payloadPart;
-					} else {
-						eventBuffer += (eventBuffer ? '\n' : '') + trimmedLine;
-					}
-					
-					// Most LLM APIs send one object per line, so we can try to process immediately
-					// but we don't clear eventBuffer on failure, so multi-line still works.
-					tryProcessEvent();
-				};
-
-				const onDataChunk = (chunk) => {
-					buffer += decoder.write(chunk);
-					let newlineIndex = buffer.indexOf('\n');
-					while (newlineIndex !== -1) {
-						const line = buffer.slice(0, newlineIndex);
-						buffer = buffer.slice(newlineIndex + 1);
-						handleLine(line);
-						newlineIndex = buffer.indexOf('\n');
-					}
-				};
-
-				return onDataChunk;
+					newlineIndex = buffer.indexOf('\n');
+				}
 			};
-
-			const createJsonArrayHandler = () => {
-				const decoder = new StringDecoder('utf8');
-				let depth = 0;
-				let inString = false;
-				let escape = false;
-				let current = '';
-
-				const tryEmitObject = () => {
-					const trimmed = current.trim();
-					if (!trimmed) {
-						return;
-					}
-					try {
-						const parsed = JSON.parse(trimmed);
-						if (parsed?.usageMetadata) {
-							metadata = { ...metadata, ...parsed.usageMetadata };
-						}
-						const text = this._extractTextFromCandidates(parsed);
-						if (text) {
-							emitChunk(text);
-						}
-					} catch (error) {
-						// Error in JSON array parsing, wait for more data
-					}
-				};
-
-				const onDataChunk = (chunk) => {
-					const text = decoder.write(chunk);
-					for (let i = 0; i < text.length; i += 1) {
-						const char = text[i];
-
-						if (depth === 0) {
-							if (char === '{') {
-								depth = 1;
-								current = '{';
-								inString = false;
-								escape = false;
-							}
-							continue;
-						}
-
-						current += char;
-
-						if (inString) {
-							if (escape) {
-								escape = false;
-								continue;
-							}
-							if (char === '\\') {
-								escape = true;
-								continue;
-							}
-							if (char === '"') {
-								inString = false;
-							}
-							continue;
-						}
-
-						if (char === '"') {
-							inString = true;
-							continue;
-						}
-
-						if (char === '{') {
-							depth += 1;
-							continue;
-						}
-
-						if (char === '}') {
-							depth -= 1;
-							if (depth === 0) {
-								tryEmitObject();
-								current = '';
-							}
-						}
-					}
-				};
-
-				return onDataChunk;
-			};
-
-			const onData = useEventStream ? createSseHandler() : createJsonArrayHandler();
 
 			if (abortSignal && typeof abortSignal.addEventListener === 'function') {
 				abortSignal.addEventListener('abort', onAbort);
