@@ -896,12 +896,10 @@ exports.streamMessage = async ({
 				system: effectiveSystemPrompt,
 				messages,
 				onChunk: (chunk) => {
-					if (!highRiskAssessmentRequest && typeof firstTokenMs !== 'number' && chunk && String(chunk).trim()) {
+					if (typeof firstTokenMs !== 'number' && chunk && String(chunk).trim()) {
 						firstTokenMs = Date.now() - startedAt;
 					}
-					if (!highRiskAssessmentRequest) {
-						emitChunk(chunk);
-					}
+					emitChunk(chunk);
 				},
 				abortSignal,
 				generationConfig: responseSettings.generationConfig,
@@ -952,10 +950,6 @@ exports.streamMessage = async ({
 		if (!reply) {
 			emitChunk(FALLBACK_REPLY);
 			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
-		}
-
-		if (highRiskAssessmentRequest) {
-			emitChunk(reply);
 		}
 
 		if (chatHistoryStore.isEnabled && persistedSessionId) {
