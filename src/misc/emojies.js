@@ -1,4 +1,4 @@
-export const EMOJI = {
+const EMOJI = {
   smile: "🙂",
   sad: "🙁",
   warm_smile: "😊",
@@ -9,3 +9,4 @@ export const EMOJI = {
   warning: "⚠️",
   heart: "❤️"
 };
+module.exports = { EMOJI };

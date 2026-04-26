@@ -48,14 +48,14 @@ class GoogleAIClient {
 
 				res.on('data', (chunk) => {
 					buffer += decoder.write(chunk);
-					let newlineIndex = buffer.indexOf('\n');
+					let blockIndex = buffer.indexOf('\n\n');
 					
-					while (newlineIndex !== -1) {
-						const line = buffer.slice(0, newlineIndex).trim();
-						buffer = buffer.slice(newlineIndex + 1);
+					while (blockIndex !== -1) {
+						const block = buffer.slice(0, blockIndex).trim();
+						buffer = buffer.slice(blockIndex + 2);
 
-						if (line.startsWith('data:')) {
-							const jsonStr = line.slice(5).trim();
+						if (block.startsWith('data:')) {
+							const jsonStr = block.slice(5).trim();
 							if (jsonStr !== '[DONE]') {
 								try {
 									const parsed = JSON.parse(jsonStr);
@@ -66,10 +66,12 @@ class GoogleAIClient {
 										aggregatedText += text;
 										if (onChunk) onChunk(text);
 									}
-								} catch (e) { /* partial JSON */ }
+								} catch (e) {
+									// Ignore invalid JSON blocks
+								}
 							}
 						}
-						newlineIndex = buffer.indexOf('\n');
+						blockIndex = buffer.indexOf('\n\n');
 					}
 				});
 
