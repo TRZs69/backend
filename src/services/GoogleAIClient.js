@@ -1,6 +1,11 @@
+const axios = require('axios');
+const { GoogleAuth } = require('google-auth-library');
+const http = require('http');
 const https = require('https');
 const { StringDecoder } = require('string_decoder');
-const { GoogleAuth } = require('google-auth-library');
+
+const standardHttpAgent = new http.Agent({ keepAlive: false });
+const standardHttpsAgent = new https.Agent({ keepAlive: false });
 
 class GoogleAIClient {
 	constructor({
@@ -39,50 +44,94 @@ class GoogleAIClient {
 			Object.assign(headers, authHeaders);
 		}
 
+		const response = await this._doRequestWithRetry(() =>
+			axios.post(url, payload, {
+				headers,
+				responseType: 'stream',
+				signal: abortSignal,
+				httpAgent: standardHttpAgent,
+				httpsAgent: standardHttpsAgent,
+			})
+		);
+
 		return new Promise((resolve, reject) => {
-			const req = https.request(url, { method: 'POST', headers, signal: abortSignal }, (res) => {
-				const decoder = new StringDecoder('utf8');
-				let buffer = '';
-				let aggregatedText = '';
-				let metadata = {};
+			const decoder = new StringDecoder('utf8');
+			let buffer = '';
+			let aggregatedText = '';
+			let metadata = {};
+			let settled = false;
 
-				res.on('data', (chunk) => {
-					buffer += decoder.write(chunk);
-					let blockIndex = buffer.indexOf('\n\n');
-					
-					while (blockIndex !== -1) {
-						const block = buffer.slice(0, blockIndex).trim();
-						buffer = buffer.slice(blockIndex + 2);
+			const finalize = () => {
+				if (settled) return;
+				settled = true;
+				resolve({ text: aggregatedText, metadata });
+			};
 
-						if (block.startsWith('data:')) {
-							const jsonStr = block.slice(5).trim();
-							if (jsonStr !== '[DONE]') {
-								try {
-									const parsed = JSON.parse(jsonStr);
-									if (parsed?.usageMetadata) metadata = { ...metadata, ...parsed.usageMetadata };
-									
-									const text = this._extractTextFromParsed(parsed);
-									if (text) {
-										aggregatedText += text;
-										if (onChunk) onChunk(text);
-									}
-								} catch (e) {
-									// Ignore invalid JSON blocks
+			const fail = (err) => {
+				if (settled) return;
+				settled = true;
+				reject(err);
+			};
+
+			response.data.on('data', (chunk) => {
+				buffer += decoder.write(chunk);
+				let newlineIndex = buffer.indexOf('\n');
+				
+				while (newlineIndex !== -1) {
+					const line = buffer.slice(0, newlineIndex).trim();
+					buffer = buffer.slice(newlineIndex + 1);
+
+					if (line.startsWith('data:')) {
+						const jsonStr = line.slice(5).trim();
+						if (jsonStr !== '[DONE]') {
+							try {
+								const parsed = JSON.parse(jsonStr);
+								if (parsed?.usageMetadata) metadata = { ...metadata, ...parsed.usageMetadata };
+								
+								const text = this._extractTextFromParsed(parsed);
+								if (text) {
+									aggregatedText += text;
+									if (onChunk) onChunk(text);
 								}
+							} catch (e) {
+								// Ignore invalid JSON blocks
 							}
 						}
-						blockIndex = buffer.indexOf('\n\n');
 					}
-				});
-
-				res.on('end', () => resolve({ text: aggregatedText, metadata }));
-				res.on('error', (err) => reject(err));
+					newlineIndex = buffer.indexOf('\n');
+				}
 			});
 
-			req.on('error', (err) => reject(err));
-			req.write(JSON.stringify(payload));
-			req.end();
+			response.data.on('end', finalize);
+			response.data.on('error', fail);
+			if (abortSignal) {
+				abortSignal.addEventListener('abort', () => {
+					response.data.destroy();
+					fail(new Error('Aborted'));
+				});
+			}
 		});
+	}
+
+	async _doRequestWithRetry(requestFn, maxRetries = 2) {
+		let lastError;
+		for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+			try {
+				return await requestFn();
+			} catch (error) {
+				lastError = error;
+				const status = error?.response?.status;
+				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
+
+				if (attempt < maxRetries && isRetryable) {
+					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+					await new Promise((resolve) => setTimeout(resolve, delay));
+					continue;
+				}
+				throw error;
+			}
+		}
+		throw lastError;
 	}
 
 	_extractTextFromParsed(payload) {
@@ -113,10 +162,27 @@ class GoogleAIClient {
 		return `${this.baseUrl}/${this.model}:${action}?key=${this.apiKey}${stream ? '&alt=sse' : ''}`;
 	}
 
-	async complete(args) {
-		// Minimal implementation for warmup
-		const res = await this.streamComplete({ ...args, onChunk: null });
-		return res;
+	async complete({ messages = [], system = null, generationConfig = null }) {
+		const payload = this._buildRequestPayload({ messages, system, generationConfig });
+		const url = this._buildUrl();
+		const headers = { 'Content-Type': 'application/json' };
+		if (this.isVertex) {
+			const authHeaders = await this.authClient.getRequestHeaders();
+			Object.assign(headers, authHeaders);
+		}
+
+		const response = await this._doRequestWithRetry(() =>
+			axios.post(url, payload, {
+				headers,
+				httpAgent: standardHttpAgent,
+				httpsAgent: standardHttpsAgent,
+			})
+		);
+
+		return {
+			text: this._extractTextFromParsed(response?.data) || '',
+			metadata: response?.data?.usageMetadata || {},
+		};
 	}
 }
 
