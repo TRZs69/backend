@@ -175,7 +175,8 @@ class GoogleAIClient {
 				}
 				settled = true;
 				cleanup();
-				resolve({ text: aggregated.trim(), metadata });
+				// Resolve with the full text at the end for logging/history
+				resolve({ text: aggregated, metadata });
 			};
 
 			const fail = (error) => {
