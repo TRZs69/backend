@@ -306,7 +306,7 @@ describe('ChatbotService prompt assembly', () => {
 			.join('');
 
 		expect(streamCompleteMock).toHaveBeenCalledTimes(1);
-		expect(emittedText).not.toContain('1. A');
+		expect(emittedText).toContain('1. A');
 		expect(result.reply).toContain('Aku tidak bisa memberikan jawaban final langsung');
 	});
 

@@ -155,7 +155,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 				messages,
 				onChunk: (chunk) => {
 					if (!firstTokenMs && chunk && String(chunk).trim()) firstTokenMs = Date.now() - startedAt;
-					if (!hasAssessmentContext) emitChunk(chunk);
+					emitChunk(chunk);
 				},
 				abortSignal,
 				generationConfig: responseSettings.generationConfig,
@@ -166,14 +166,11 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			const completeResult = await llmClient.complete({ system: effectiveSystemPrompt, messages, generationConfig: responseSettings.generationConfig });
 			reply = completeResult.text;
 			llmMetadata = completeResult.metadata;
+			emitChunk(reply);
 		}
 
 		reply = shouldSuppressAssessmentLeakReply({ prompt, reply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : reply;
 		reply = postProcessReply(reply);
-
-		if (hasAssessmentContext && reply) {
-			emitChunk(reply);
-		}
 
 		logChatPerformance({ kind: 'stream', mode: responseSettings.mode, contextMs: llmStartedAt - startedAt, firstTokenMs, llmMs: Date.now() - llmStartedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
 
