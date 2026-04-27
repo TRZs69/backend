@@ -237,7 +237,6 @@ const isValidTrueFalseStem = (text) => {
     }
 
     const lower = stem.toLowerCase();
-    // Validate with word boundaries to avoid false positives on substrings (e.g. "bagaimana", "keamanan").
     const interrogativePatterns = [
         /\bsiapa\b/,
         /\bkapan\b/,
@@ -281,7 +280,6 @@ const matchOptionCaseInsensitive = (options = [], answer = '') => {
 
 const isStudentRole = (role) => String(role || '').toUpperCase() === 'STUDENT';
 
-// Seeded PRNG (Mulberry32)
 const createSeededRandom = (seed) => {
     let s = seed + 1831565813;
     return () => {
