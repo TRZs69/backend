@@ -149,27 +149,55 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 		let reply = '', llmMetadata = {}, firstTokenMs;
 		const llmStartedAt = Date.now();
 
+		let isLeaking = false;
+		let accumulatedText = '';
+		const internalAbortController = new AbortController();
+		if (abortSignal) {
+			abortSignal.addEventListener('abort', () => internalAbortController.abort());
+		}
+
 		if (typeof llmClient.streamComplete === 'function') {
-			const streamResult = await llmClient.streamComplete({
-				system: effectiveSystemPrompt,
-				messages,
-				onChunk: (chunk) => {
-					if (!firstTokenMs && chunk && String(chunk).trim()) firstTokenMs = Date.now() - startedAt;
-					emitChunk(chunk);
-				},
-				abortSignal,
-				generationConfig: responseSettings.generationConfig,
-			});
-			reply = streamResult.text;
-			llmMetadata = streamResult.metadata;
+			try {
+				const streamResult = await llmClient.streamComplete({
+					system: effectiveSystemPrompt,
+					messages,
+					onChunk: (chunk) => {
+						if (isLeaking) return;
+						if (!firstTokenMs && chunk && String(chunk).trim()) firstTokenMs = Date.now() - startedAt;
+						
+						const newAccumulated = accumulatedText + chunk;
+						if (hasAssessmentContext && shouldSuppressAssessmentLeakReply({ prompt, reply: newAccumulated, hasAssessmentContext })) {
+							isLeaking = true;
+							internalAbortController.abort();
+							emitChunk('\n\n' + GUARDED_DIRECT_ANSWER_REPLY);
+						} else {
+							accumulatedText = newAccumulated;
+							emitChunk(chunk);
+						}
+					},
+					abortSignal: internalAbortController.signal,
+					generationConfig: responseSettings.generationConfig,
+				});
+				reply = streamResult.text;
+				llmMetadata = streamResult.metadata;
+			} catch (error) {
+				if (isLeaking) {
+					reply = accumulatedText;
+				} else {
+					throw error;
+				}
+			}
 		} else {
 			const completeResult = await llmClient.complete({ system: effectiveSystemPrompt, messages, generationConfig: responseSettings.generationConfig });
 			reply = completeResult.text;
 			llmMetadata = completeResult.metadata;
-			emitChunk(reply);
+			
+			const safeReply = shouldSuppressAssessmentLeakReply({ prompt, reply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : reply;
+			emitChunk(safeReply);
 		}
 
 		reply = shouldSuppressAssessmentLeakReply({ prompt, reply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : reply;
+		if (isLeaking) reply = GUARDED_DIRECT_ANSWER_REPLY;
 		reply = postProcessReply(reply);
 
 		logChatPerformance({ kind: 'stream', mode: responseSettings.mode, contextMs: llmStartedAt - startedAt, firstTokenMs, llmMs: Date.now() - llmStartedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
