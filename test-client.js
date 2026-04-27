@@ -1,6 +1,6 @@
 const axios = require("axios");
 const { GoogleAIClient } = require("./src/services/GoogleAIClient");
-const client = new GoogleAIClient({ apiKey: 'AIzaSyAQSXTbENi5Q5WZ17FchQZWh2j1b-MTva0' });
+const client = new GoogleAIClient({ apiKey: process.env.LEVELY_GEMINI_API_KEY });
 
 client.streamComplete({
     messages: [{ role: "user", content: "Hitung 1 sampai 5" }],
