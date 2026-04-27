@@ -644,10 +644,15 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 		assessmentContext: assessmentReferenceContext,
 		followUpInstruction,
 	});
+	
+	let finalUserContent = buildUserRequestMessage(prompt);
+	if (referenceMessage) {
+		finalUserContent = `${referenceMessage}\n\n[Pesan Pengguna]:\n${finalUserContent}`;
+	}
+
 	const messages = [
 		...conversation,
-		...(referenceMessage ? [{ role: 'user', content: referenceMessage }] : []),
-		{ role: 'user', content: buildUserRequestMessage(prompt), media: mediaContext.length > 0 ? mediaContext : undefined },
+		{ role: 'user', content: finalUserContent, media: mediaContext.length > 0 ? mediaContext : undefined },
 	];
 
 	return {
