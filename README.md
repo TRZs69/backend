@@ -69,7 +69,7 @@ This backend application serves as the core logic for a gamified learning platfo
 
         - Optional LLM settings for chat behavior:
                 ```
-                LEVELY_GEMINI_MODEL='gemma-3-12b-it'
+                LEVELY_LLM_MODEL='gemma-3-12b-it'
                 LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=auto
                 LEVELY_CHAT_MAX_USER_PROMPT_CHARS=2200
                 ```

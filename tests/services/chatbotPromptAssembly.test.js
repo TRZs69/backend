@@ -8,8 +8,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('separates reference context from the final user request', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue({ text: 'jawaban levely', metadata: {} });
@@ -83,8 +83,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('adds explicit follow-up instruction in reference context for continuation prompts', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue({ text: 'lanjutan jawaban', metadata: {} });
@@ -119,8 +119,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('activates source-bounded instruction when material context exists', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue({ text: 'jawaban berbasis materi', metadata: {} });
@@ -158,8 +158,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('blocks direct graded-answer requests before calling the LLM', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue('aku tidak bisa memberi jawaban final langsung');
@@ -217,8 +217,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('blocks prompt-injection attempts before calling the LLM', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue('should not be called');
@@ -246,8 +246,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('suppresses streamed answer leaks for assessment-context requests', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const streamCompleteMock = jest.fn().mockImplementation(async ({ onChunk }) => {
@@ -311,8 +311,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('suppresses non-stream leaked answer patterns even when prompt omits graded keywords', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue({ text: '1. A\n2. B', metadata: {} });
@@ -369,8 +369,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('removes dangling ordered-list markers from LLM replies', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue({
@@ -408,8 +408,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('removes trailing truncated markdown list item fragments', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		const completeMock = jest.fn().mockResolvedValue({
@@ -448,8 +448,8 @@ describe('ChatbotService prompt assembly', () => {
 	});
 
 	it('uses detailed continuation mode for short cue like boleh', async () => {
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 		process.env.LEVELY_CHAT_SHORT_CONTINUATION_CUES = '';
 

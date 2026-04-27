@@ -1,6 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
-const key = process.env.LEVELY_GEMINI_API_KEY;
+const key = process.env.GOOGLE_AI_API_KEY;
 const url = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-12b-it:streamGenerateContent?alt=sse&key=" + key;
 axios.post(url, {
   contents: [{ role: "user", parts: [{ text: "Ceritakan sedikit" }] }]

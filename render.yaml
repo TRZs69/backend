@@ -16,9 +16,9 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: LEVELY_GEMINI_API_KEY
+      - key: GOOGLE_AI_API_KEY
         sync: false
-      - key: LEVELY_GEMINI_MODEL
+      - key: LEVELY_LLM_MODEL
         sync: false
       - key: LEVELY_GEMINI_TEMPERATURE
         value: "0.3"

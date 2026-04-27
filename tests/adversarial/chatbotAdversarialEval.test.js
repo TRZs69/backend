@@ -30,8 +30,8 @@ describe('ChatbotService adversarial robustness', () => {
 			assessment: { findFirst: jest.fn().mockResolvedValue(null) },
 		}));
 
-		process.env.LEVELY_GEMINI_API_KEY = 'test-key';
-		process.env.LEVELY_GEMINI_MODEL = 'gemma-3-12b-it';
+		process.env.GOOGLE_AI_API_KEY = 'test-key';
+		process.env.LEVELY_LLM_MODEL = 'gemma-3-12b-it';
 		process.env.LEVELY_LLM_WARMUP_INTERVAL_MS = '';
 
 		return { completeMock };
