@@ -2,13 +2,13 @@ const { PrismaClient } = require('@prisma/client');
 
 if (process.env.DATABASE_URL) {
 	if (process.env.DATABASE_URL.includes("connection_limit=")) {
-		process.env.DATABASE_URL = process.env.DATABASE_URL.replace(/connection_limit=\d+/, 'connection_limit=50');
+		process.env.DATABASE_URL = process.env.DATABASE_URL.replace(/connection_limit=\d+/, 'connection_limit=25');
 	} else {
-		process.env.DATABASE_URL += (process.env.DATABASE_URL.includes("?") ? "&" : "?") + "connection_limit=50";
+		process.env.DATABASE_URL += (process.env.DATABASE_URL.includes("?") ? "&" : "?") + "connection_limit=25";
 	}
 
     if (!process.env.DATABASE_URL.includes("pool_timeout=")) {
-        process.env.DATABASE_URL += "&pool_timeout=30";
+        process.env.DATABASE_URL += "&pool_timeout=20";
     }
 }
 
