@@ -192,11 +192,14 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 
 	if (chatHistoryStore.isEnabled) {
 		try {
-			persistedSessionId = await chatHistoryStore.ensureSession({
-				sessionId,
-				userId,
-				chapterId: resolvedChapterId,
-			});
+			if (sessionId) {
+				persistedSessionId = await chatHistoryStore.ensureSession({
+					sessionId,
+					userId,
+					chapterId: resolvedChapterId,
+				});
+			}
+
 			if (!useProvidedHistory && persistedSessionId) {
 				const stored = await chatHistoryStore.fetchMessages({
 					sessionId: persistedSessionId,

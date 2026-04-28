@@ -101,15 +101,21 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 
 		if (!reply) return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
 
-		if (chatHistoryStore.isEnabled && persistedSessionId) {
+		if (chatHistoryStore.isEnabled) {
+			let activeSessionId = persistedSessionId;
+			if (!activeSessionId) {
+				activeSessionId = await chatHistoryStore.ensureSession({ userId, chapterId });
+			}
+
 			await chatHistoryStore.appendMessages({
-				sessionId: persistedSessionId,
+				sessionId: activeSessionId,
 				messages: [
 					{ role: 'user', content: prompt },
 					{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
 				],
 			});
-			await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
+			await maybeUpdateSessionTitle({ sessionId: activeSessionId });
+			return { reply, sessionId: activeSessionId };
 		}
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
@@ -207,19 +213,28 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
 		}
 
-		if (chatHistoryStore.isEnabled && persistedSessionId) {
+		if (chatHistoryStore.isEnabled) {
+			let activeSessionId = persistedSessionId;
+			let isNewSession = false;
+			if (!activeSessionId) {
+				activeSessionId = await chatHistoryStore.ensureSession({ userId, chapterId });
+				emitChunk({ sessionId: activeSessionId });
+				isNewSession = true;
+			}
+
 			await chatHistoryStore.appendMessages({
-				sessionId: persistedSessionId,
+				sessionId: activeSessionId,
 				messages: [
 					{ role: 'user', content: prompt },
 					{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
 				],
 			});
-			if (shouldGenerateLiveTitle) {
-				void generateSessionTitle({ sessionId: persistedSessionId, messages, emitChunk });
+			if (shouldGenerateLiveTitle || (isNewSession && ENABLE_STREAM_TITLE_GENERATION)) {
+				void generateSessionTitle({ sessionId: activeSessionId, messages: await chatHistoryStore.fetchMessages({ sessionId: activeSessionId, limit: 5 }), emitChunk });
 			} else {
-				await maybeUpdateSessionTitle({ sessionId: persistedSessionId });
+				await maybeUpdateSessionTitle({ sessionId: activeSessionId });
 			}
+			return { reply, sessionId: activeSessionId };
 		}
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
