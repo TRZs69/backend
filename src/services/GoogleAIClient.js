@@ -113,7 +113,7 @@ class GoogleAIClient {
 		});
 	}
 
-	async _doRequestWithRetry(requestFn, maxRetries = 2) {
+	async _doRequestWithRetry(requestFn, maxRetries = 5) {
 		let lastError;
 		for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
 			try {
@@ -124,7 +124,8 @@ class GoogleAIClient {
 				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
 
 				if (attempt < maxRetries && isRetryable) {
-					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 2000;
+					console.warn(`[GoogleAIClient] Attempt ${attempt + 1} failed with ${status}. Retrying in ${Math.round(delay)}ms...`);
 					await new Promise((resolve) => setTimeout(resolve, delay));
 					continue;
 				}
