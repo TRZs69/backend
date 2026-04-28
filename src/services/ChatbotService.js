@@ -8,7 +8,7 @@ const {
 	resolveAssistantRoute,
 } = require('./ChatbotGuardrails');
 const {
-	FALLBACK_REPLY,
+	getFallbackReply,
 	MAX_USER_PROMPT_CHARS,
 	ENABLE_STREAM_TITLE_GENERATION,
 } = require('./ChatbotConfig');
@@ -76,7 +76,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 
 	const preLlmSafety = evaluatePreLlmSafetyGate({ prompt });
 	if (preLlmSafety.blocked) return { reply: preLlmSafety.reply, sessionId };
-	if (!llmClient) return { reply: FALLBACK_REPLY, sessionId };
+	if (!llmClient) return { reply: getFallbackReply(), sessionId };
 
 	const startedAt = Date.now();
 	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } = 
@@ -99,7 +99,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 		
 		logChatPerformance({ kind: 'non-stream', mode: responseSettings.mode, contextMs: llmStartedAt - startedAt, llmMs: Date.now() - llmStartedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
 
-		if (!reply) return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+		if (!reply) return { reply: getFallbackReply(), sessionId: persistedSessionId };
 
 		if (chatHistoryStore.isEnabled) {
 			let activeSessionId = persistedSessionId;
@@ -120,7 +120,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
 		console.error('ChatbotService error:', error.message);
-		return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+		return { reply: getFallbackReply(), sessionId: persistedSessionId };
 	}
 };
 
@@ -135,8 +135,8 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 		return { reply: preLlmSafety.reply, sessionId };
 	}
 	if (!llmClient) {
-		emitChunk(FALLBACK_REPLY);
-		return { reply: FALLBACK_REPLY, sessionId };
+		emitChunk(getFallbackReply());
+		return { reply: getFallbackReply(), sessionId };
 	}
 
 	const startedAt = Date.now();
@@ -209,8 +209,8 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 		logChatPerformance({ kind: 'stream', mode: responseSettings.mode, contextMs: llmStartedAt - startedAt, firstTokenMs, llmMs: Date.now() - llmStartedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
 
 		if (!reply) {
-			emitChunk(FALLBACK_REPLY);
-			return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+			emitChunk(getFallbackReply());
+			return { reply: getFallbackReply(), sessionId: persistedSessionId };
 		}
 
 		if (chatHistoryStore.isEnabled) {
@@ -240,8 +240,8 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	} catch (error) {
 		if (abortSignal?.aborted) throw error;
 		console.error('ChatbotService stream error:', error.message);
-		emitChunk(FALLBACK_REPLY);
-		return { reply: FALLBACK_REPLY, sessionId: persistedSessionId };
+		emitChunk(getFallbackReply());
+		return { reply: getFallbackReply(), sessionId: persistedSessionId };
 	}
 }; 
 
