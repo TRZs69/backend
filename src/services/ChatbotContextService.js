@@ -230,13 +230,13 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 	});
 	
 	const messages = [...conversation];
-	if (referenceMessage) {
-		messages.push({ role: 'user', content: referenceMessage });
-	}
+	const finalUserContent = referenceMessage 
+		? `${referenceMessage}\n\n${buildUserRequestMessage(prompt)}`
+		: buildUserRequestMessage(prompt);
 
 	messages.push({
 		role: 'user',
-		content: buildUserRequestMessage(prompt),
+		content: finalUserContent,
 		media: mediaContext.length > 0 ? mediaContext : undefined
 	});
 

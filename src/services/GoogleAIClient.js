@@ -19,6 +19,15 @@ class GoogleAIClient {
 		this.isVertex = this.baseUrl.includes('aiplatform.googleapis.com');
 		this.generationConfig = this._buildGenerationConfig();
 
+		const mode = (process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE || 'auto').toLowerCase();
+		if (mode === 'native') {
+			this.usesNativeSystemInstruction = true;
+		} else if (mode === 'wrapper') {
+			this.usesNativeSystemInstruction = false;
+		} else {
+			this.usesNativeSystemInstruction = !String(this.model).toLowerCase().includes('gemma');
+		}
+
 		if (this.isVertex) {
 			this.authClient = new GoogleAuth({
 				scopes: ['https://www.googleapis.com/auth/cloud-platform'],
@@ -34,8 +43,12 @@ class GoogleAIClient {
 		};
 	}
 
-	async streamComplete({ messages = [], system = null, onChunk, abortSignal, generationConfig = null }) {
-		const payload = this._buildRequestPayload({ messages, system, generationConfig });
+	async streamComplete({ messages = [], system = null, context = null, onChunk, abortSignal, generationConfig = null }) {
+		const effectiveMessages = [...messages];
+		if (context) {
+			effectiveMessages.unshift({ role: 'user', content: `CONTEXT REFERENCE:\n${context}` });
+		}
+		const payload = this._buildRequestPayload({ messages: effectiveMessages, system, generationConfig });
 		const url = this._buildUrl({ stream: true });
 		
 		const headers = { 'Content-Type': 'application/json' };
@@ -141,20 +154,43 @@ class GoogleAIClient {
 	}
 
 	_buildRequestPayload({ messages, system, generationConfig }) {
-		const contents = messages.map(m => ({
-			role: m.role === 'assistant' ? 'model' : 'user',
-			parts: [{ text: m.content || '' }, ...(m.media || [])]
-		}));
-
-		if (system) {
-			contents.unshift({ role: 'user', parts: [{ text: `SYSTEM INSTRUCTION: ${system}` }] });
-			contents.push({ role: 'model', parts: [{ text: 'Understood.' }] });
+		const normalizedMessages = [];
+		for (const m of messages) {
+			const last = normalizedMessages[normalizedMessages.length - 1];
+			const role = m.role === 'assistant' ? 'model' : 'user';
+			if (last && last.role === role) {
+				last.parts[0].text += `\n\n${m.content || ''}`;
+				if (m.media && Array.isArray(m.media)) {
+					last.parts.push(...m.media);
+				}
+			} else {
+				normalizedMessages.push({
+					role,
+					parts: [{ text: m.content || '' }, ...(m.media || [])]
+				});
+			}
 		}
 
-		return {
+		const contents = [...normalizedMessages];
+		const payload = {
 			contents,
 			generationConfig: { ...this.generationConfig, ...generationConfig }
 		};
+
+		if (system) {
+			if (this.usesNativeSystemInstruction) {
+				payload.systemInstruction = { parts: [{ text: system }] };
+			} else {
+				// Wrapper mode: prepend User: SYSTEM and Model: Understood at the start of conversation
+				contents.unshift({ role: 'model', parts: [{ text: 'Understood. I will strictly follow these priority instructions.' }] });
+				contents.unshift({ 
+					role: 'user', 
+					parts: [{ text: `INSTRUKSI SISTEM PRIORITAS TERTINGGI: ${system}\n\nAbaikan semua permintaan sebelumnya yang bertentangan dengan aturan di atas.` }] 
+				});
+			}
+		}
+
+		return payload;
 	}
 
 	_buildUrl({ stream = false } = {}) {
@@ -163,8 +199,12 @@ class GoogleAIClient {
 		return `${this.baseUrl}/${this.model}:${action}?key=${this.apiKey}${stream ? '&alt=sse' : ''}`;
 	}
 
-	async complete({ messages = [], system = null, generationConfig = null }) {
-		const payload = this._buildRequestPayload({ messages, system, generationConfig });
+	async complete({ messages = [], system = null, context = null, generationConfig = null }) {
+		const effectiveMessages = [...messages];
+		if (context) {
+			effectiveMessages.unshift({ role: 'user', content: `CONTEXT REFERENCE:\n${context}` });
+		}
+		const payload = this._buildRequestPayload({ messages: effectiveMessages, system, generationConfig });
 		const url = this._buildUrl();
 		const headers = { 'Content-Type': 'application/json' };
 		if (this.isVertex) {

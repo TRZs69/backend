@@ -6,3 +6,4 @@ secrets/
 .idea/
 output.log
 server.log
+ref/

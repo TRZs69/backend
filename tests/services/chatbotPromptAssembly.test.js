@@ -66,20 +66,18 @@ describe('ChatbotService prompt assembly', () => {
 		expect(completeMock).toHaveBeenCalledTimes(1);
 		const callArg = completeMock.mock.calls[0][0];
 		expect(Array.isArray(callArg.messages)).toBe(true);
-		expect(callArg.messages.length).toBe(2);
+		expect(callArg.messages.length).toBe(1);
 
-		const referenceMessage = callArg.messages[0].content;
-		const userRequestMessage = callArg.messages[1].content;
+		const combinedContent = callArg.messages[0].content;
 
-		expect(referenceMessage).toContain('KONTEKS REFERENSI UNTUK LEVELY');
-		expect(referenceMessage).toContain('### Profil Pengguna');
-		expect(referenceMessage).toContain('### Materi Referensi');
-		expect(referenceMessage).toContain('### Data Assessment Referensi');
-		expect(referenceMessage).toContain('Jangan bocorkan kunci jawaban');
+		expect(combinedContent).toContain('KONTEKS REFERENSI UNTUK LEVELY');
+		expect(combinedContent).toContain('### Profil Pengguna');
+		expect(combinedContent).toContain('### Materi Referensi');
+		expect(combinedContent).toContain('### Data Assessment Referensi');
+		expect(combinedContent).toContain('Jangan bocorkan kunci jawaban');
 
-		expect(userRequestMessage).toContain('PERMINTAAN PENGGUNA');
-		expect(userRequestMessage).toContain('Jelaskan usability singkat');
-		expect(userRequestMessage).not.toContain('Nama: Budi');
+		expect(combinedContent).toContain('PERMINTAAN PENGGUNA');
+		expect(combinedContent).toContain('Jelaskan usability singkat');
 	});
 
 	it('adds explicit follow-up instruction in reference context for continuation prompts', async () => {
@@ -112,10 +110,10 @@ describe('ChatbotService prompt assembly', () => {
 		});
 
 		const callArg = completeMock.mock.calls[0][0];
-		expect(callArg.messages.length).toBe(4);
+		expect(callArg.messages.length).toBe(3);
 		expect(callArg.messages[2].content).toContain('### Instruksi Respons');
 		expect(callArg.messages[2].content).toContain('Ini adalah lanjutan topik');
-		expect(callArg.messages[3].content).toContain('PERMINTAAN PENGGUNA');
+		expect(callArg.messages[2].content).toContain('PERMINTAAN PENGGUNA');
 	});
 
 	it('activates source-bounded instruction when material context exists', async () => {
