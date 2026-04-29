@@ -107,7 +107,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 				activeSessionId = await chatHistoryStore.ensureSession({ userId, chapterId });
 			}
 
-			await chatHistoryStore.appendMessages({
+			const storedMessages = await chatHistoryStore.appendMessages({
 				sessionId: activeSessionId,
 				messages: [
 					{ role: 'user', content: prompt },
@@ -115,7 +115,12 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 				],
 			});
 			await maybeUpdateSessionTitle({ sessionId: activeSessionId });
-			return { reply, sessionId: activeSessionId };
+			return { 
+				reply, 
+				sessionId: activeSessionId,
+				userMessageId: storedMessages.find(m => m.role === 'user')?.id,
+				assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
+			};
 		}
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
@@ -222,7 +227,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 				isNewSession = true;
 			}
 
-			await chatHistoryStore.appendMessages({
+			const storedMessages = await chatHistoryStore.appendMessages({
 				sessionId: activeSessionId,
 				messages: [
 					{ role: 'user', content: prompt },
@@ -234,7 +239,12 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			} else {
 				await maybeUpdateSessionTitle({ sessionId: activeSessionId });
 			}
-			return { reply, sessionId: activeSessionId };
+			return { 
+				reply, 
+				sessionId: activeSessionId,
+				userMessageId: storedMessages.find(m => m.role === 'user')?.id,
+				assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
+			};
 		}
 		return { reply, sessionId: persistedSessionId };
 	} catch (error) {
@@ -349,4 +359,48 @@ exports.saveRating = async ({ userId, userRequest, botResponse, rating, comment 
 	const { data, error } = await supabase.from('chatbot_ratings').insert([{ user_id: userId, user_request: userRequest.trim(), bot_response: botResponse.trim(), rating: Number(rating), comment: comment || null }]).select();
 	if (error) throw new Error('Gagal menyimpan rating chatbot');
 	return data?.[0] || null;
+};
+
+exports.editAndRegenerate = async ({ messageId, newMessage, sessionId, userId, materialId, chapterId }) => {
+	if (!messageId || !newMessage) throw new Error('Message ID and new content are required');
+
+	await chatHistoryStore.truncateAfterMessage({ sessionId, messageId });
+	await chatHistoryStore.updateMessageContent({ messageId, content: newMessage });
+	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext } = 
+		await buildChatContext({ sessionId, userId, prompt: newMessage, materialId, chapterId, history: [] });
+
+	if (messages.length >= 2 && messages[messages.length - 2].role === 'user') {
+		messages.splice(messages.length - 2, 1);
+	}
+
+	const assistantRoute = resolveAssistantRoute({ prompt: newMessage });
+	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext });
+	const responseSettings = pickGenerationSettings(newMessage, { forceDetailed: false });
+
+	const startedAt = Date.now();
+	const { text: rawReply, metadata: llmMetadata } = await llmClient.complete({
+		system: effectiveSystemPrompt,
+		messages,
+		generationConfig: responseSettings.generationConfig,
+	});
+
+	const safeReply = shouldSuppressAssessmentLeakReply({ prompt: newMessage, reply: rawReply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : rawReply;
+	const reply = postProcessReply(safeReply);
+	
+	logChatPerformance({ kind: 'edit-regen', mode: responseSettings.mode, contextMs: 0, llmMs: Date.now() - startedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
+
+	// 3. Store only the assistant response
+	const storedMessages = await chatHistoryStore.appendMessages({
+		sessionId: persistedSessionId,
+		messages: [
+			{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
+		],
+	});
+
+	return {
+		reply,
+		sessionId: persistedSessionId,
+		userMessageId: messageId,
+		assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
+	};
 };

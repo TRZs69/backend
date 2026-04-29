@@ -23,6 +23,8 @@ router.get('/chat/unrated/:userId', ChatbotController.getUnratedPair);
 
 router.post('/chat/rating', ChatbotController.saveRating);
 
+router.post('/chat/edit', ChatbotController.editMessage);
+
 router.get('/chat/sampling/status', ChatbotController.getSamplingStatus);
 
 

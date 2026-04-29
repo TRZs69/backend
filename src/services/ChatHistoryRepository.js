@@ -259,19 +259,20 @@ async function appendMessages({ sessionId, messages = [] }) {
     .filter((row) => row.content);
 
   if (!rows.length) {
-    return;
+    return [];
   }
 
-  const { error } = await supabase.from(TABLE_MESSAGES).insert(rows);
+  const { data, error } = await supabase.from(TABLE_MESSAGES).insert(rows).select();
 
   if (error) {
     logError('appendMessages', error);
+    return [];
   } else {
-    // Invalidate the cache for this session
     const keys = chatCache.keys().filter(key => key.startsWith(`messages_${sessionId}`));
     if (keys.length > 0) {
       chatCache.del(keys);
     }
+    return (data || []).map(mapRowToMessage);
   }
 }
 
@@ -288,6 +289,61 @@ async function deleteSession({ sessionId }) {
   }
 
   return { deleted: true };
+}
+
+async function truncateAfterMessage({ sessionId, messageId }) {
+  if (!isEnabled || !sessionId || !messageId) {
+    return;
+  }
+
+  try {
+    const { data: targetMsg, error: fetchError } = await supabase
+      .from(TABLE_MESSAGES)
+      .select('created_at')
+      .eq('id', messageId)
+      .eq('session_id', sessionId)
+      .single();
+
+    if (fetchError || !targetMsg) {
+      logError('truncateAfterMessage.fetch', fetchError);
+      throw new Error('Pesan asal tidak ditemukan');
+    }
+
+    const { error: deleteError } = await supabase
+      .from(TABLE_MESSAGES)
+      .delete()
+      .eq('session_id', sessionId)
+      .gt('created_at', targetMsg.created_at);
+
+    if (deleteError) {
+      logError('truncateAfterMessage.delete', deleteError);
+      throw new Error('Gagal menghapus riwayat setelah pesan');
+    } else {
+      const keys = chatCache.keys().filter(key => key.startsWith(`messages_${sessionId}`));
+      if (keys.length > 0) {
+        chatCache.del(keys);
+      }
+    }
+  } catch (error) {
+    logError('truncateAfterMessage.catch', error);
+    throw error;
+  }
+}
+
+async function updateMessageContent({ messageId, content }) {
+  if (!isEnabled || !messageId || !content) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from(TABLE_MESSAGES)
+    .update({ content: content.trim() })
+    .eq('id', messageId);
+
+  if (error) {
+    logError('updateMessageContent', error);
+    throw new Error('Gagal memperbarui konten pesan');
+  }
 }
 
 async function renameSession({ sessionId, title }) {
@@ -321,4 +377,6 @@ module.exports = {
   deleteSession,
   renameSession,
   findLatestSessionForUser,
+  truncateAfterMessage,
+  updateMessageContent,
 };

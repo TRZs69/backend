@@ -126,7 +126,13 @@ exports.streamMessage = async (req, res) => {
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
-    sendEvent({ status: 'done', sessionId: result.sessionId, reply: result.reply });
+    sendEvent({ 
+      status: 'done', 
+      sessionId: result.sessionId, 
+      reply: result.reply,
+      userMessageId: result.userMessageId,
+      assistantMessageId: result.assistantMessageId
+    });
   } catch (error) {
     console.error('ChatbotController stream error:', error.message);
     sendEvent({ error: 'Gagal memproses pesan chatbot' });
@@ -266,5 +272,37 @@ exports.saveRating = async (req, res) => {
   } catch (error) {
     console.error('ChatbotController save rating error:', error.message);
     return res.status(400).json({ message: error.message || 'Gagal menyimpan rating chatbot' });
+  }
+};
+
+exports.editMessage = async (req, res) => {
+  try {
+    const { messageId, newMessage, sessionId, userId, materialId, chapterId } = req.body || {};
+    if (!messageId || !newMessage) {
+      return res.status(400).json({ message: 'MessageId and newMessage are required' });
+    }
+
+    console.log(`[ChatbotController.editMessage] sessionId=${sessionId}, messageId=${messageId}`);
+
+    const result = await chatbotService.editAndRegenerate({
+      messageId,
+      newMessage,
+      sessionId,
+      userId,
+      materialId,
+      chapterId,
+    });
+    return res.status(200).json({
+      reply: result.reply,
+      sessionId: result.sessionId,
+      userMessageId: result.userMessageId,
+      assistantMessageId: result.assistantMessageId
+    });
+  } catch (error) {
+    console.error('[ChatbotController.editMessage] Error:', error);
+    return res.status(400).json({ 
+      message: error.message || 'Gagal mengubah pesan',
+      details: error.toString()
+    });
   }
 };
