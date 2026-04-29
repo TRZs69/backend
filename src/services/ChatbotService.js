@@ -232,12 +232,15 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 				isNewSession = true;
 			}
 
+			const messagesToAppend = [];
+			if (!isEdit) {
+				messagesToAppend.push({ role: 'user', content: prompt });
+			}
+			messagesToAppend.push({ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } });
+
 			const storedMessages = await chatHistoryStore.appendMessages({
 				sessionId: activeSessionId,
-				messages: [
-					{ role: 'user', content: prompt },
-					{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
-				],
+				messages: messagesToAppend,
 			});
 			if (shouldGenerateLiveTitle || (isNewSession && ENABLE_STREAM_TITLE_GENERATION)) {
 				void generateSessionTitle({ sessionId: activeSessionId, messages: await chatHistoryStore.fetchMessages({ sessionId: activeSessionId, limit: 5 }), emitChunk });
@@ -247,7 +250,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			return { 
 				reply, 
 				sessionId: activeSessionId,
-				userMessageId: storedMessages.find(m => m.role === 'user')?.id,
+				userMessageId: isEdit ? existingUserMessageId : storedMessages.find(m => m.role === 'user')?.id,
 				assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
 			};
 		}
