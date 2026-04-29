@@ -223,12 +223,6 @@ router.get('/evaluation/questionnaire/all', authMiddleware, async (req, res) => 
             q6Cognitive:   r.q6Cognitive,
             q7Emotional:   r.q7Emotional,
             q8Overall:     r.q8Overall,
-            avgSDT: parseFloat(
-                ((r.q1Autonomy + r.q2Competence1 + r.q3Competence2 + r.q4Relatedness) / 4).toFixed(2)
-            ),
-            avgEngagement: parseFloat(
-                ((r.q5Behavioral + r.q6Cognitive + r.q7Emotional) / 3).toFixed(2)
-            ),
         }));
 
         res.json({ total: result.length, responses: result });
