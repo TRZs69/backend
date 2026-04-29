@@ -245,7 +245,7 @@ async function fetchMessages({ sessionId, limit = 50 }) {
 
 async function appendMessages({ sessionId, messages = [] }) {
   if (!isEnabled || !sessionId || !messages.length) {
-    return;
+    return [];
   }
 
   const rows = messages
@@ -309,7 +309,6 @@ async function truncateAfterMessage({ sessionId, messageId }) {
       throw new Error('Pesan asal tidak ditemukan');
     }
 
-    
     const { error: deleteError } = await supabase
       .from(TABLE_MESSAGES)
       .delete()
