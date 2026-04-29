@@ -297,32 +297,40 @@ async function truncateAfterMessage({ sessionId, messageId }) {
   }
 
   try {
-    const { data: targetMsg, error: fetchError } = await supabase
+    const { data: allMessages, error: fetchError } = await supabase
       .from(TABLE_MESSAGES)
-      .select('created_at')
-      .eq('id', messageId)
+      .select('id')
       .eq('session_id', sessionId)
-      .single();
+      .order('created_at', { ascending: true });
 
-    if (fetchError || !targetMsg) {
+    if (fetchError || !allMessages || allMessages.length === 0) {
       logError('truncateAfterMessage.fetch', fetchError);
+      throw new Error('Gagal mengambil riwayat pesan');
+    }
+
+    const targetIndex = allMessages.findIndex(m => m.id === messageId);
+    if (targetIndex === -1) {
       throw new Error('Pesan asal tidak ditemukan');
     }
 
-    const { error: deleteError } = await supabase
-      .from(TABLE_MESSAGES)
-      .delete()
-      .eq('session_id', sessionId)
-      .gt('created_at', targetMsg.created_at);
+    const idsToDelete = allMessages.slice(targetIndex + 1).map(m => m.id);
 
-    if (deleteError) {
-      logError('truncateAfterMessage.delete', deleteError);
-      throw new Error('Gagal menghapus riwayat setelah pesan');
-    } else {
-      const keys = chatCache.keys().filter(key => key.startsWith(`messages_${sessionId}`));
-      if (keys.length > 0) {
-        chatCache.del(keys);
+    if (idsToDelete.length > 0) {
+      // Supabase `in` filter can handle up to ~1000 items easily
+      const { error: deleteError } = await supabase
+        .from(TABLE_MESSAGES)
+        .delete()
+        .in('id', idsToDelete);
+
+      if (deleteError) {
+        logError('truncateAfterMessage.delete', deleteError);
+        throw new Error('Gagal menghapus riwayat setelah pesan');
       }
+    }
+
+    const keys = chatCache.keys().filter(key => key.startsWith(`messages_${sessionId}`));
+    if (keys.length > 0) {
+      chatCache.del(keys);
     }
   } catch (error) {
     logError('truncateAfterMessage.catch', error);
