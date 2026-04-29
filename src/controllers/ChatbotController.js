@@ -276,14 +276,33 @@ exports.saveRating = async (req, res) => {
 };
 
 exports.editMessage = async (req, res) => {
+  const { messageId, newMessage, sessionId, userId, materialId, chapterId } = req.body || {};
+  if (!messageId || !newMessage) {
+    return res.status(400).json({ message: 'MessageId and newMessage are required' });
+  }
+
+  res.writeHead(200, SSE_HEADERS);
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  
+  const sendEvent = (payload) => {
+    if (res.writableEnded) return;
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    if (typeof res.flush === 'function') res.flush();
+  };
+
+  const abortController = new AbortController();
+  const handleToken = (delta) => {
+    if (!delta) return;
+    if (typeof delta === 'object') sendEvent(delta);
+    else sendEvent({ delta });
+  };
+
+  const handleClose = () => abortController.abort();
+  res.on('close', handleClose);
+  res.write(': ' + ' '.repeat(4096) + '\n\n');
+  sendEvent({ status: 'started' });
+
   try {
-    const { messageId, newMessage, sessionId, userId, materialId, chapterId } = req.body || {};
-    if (!messageId || !newMessage) {
-      return res.status(400).json({ message: 'MessageId and newMessage are required' });
-    }
-
-    console.log(`[ChatbotController.editMessage] sessionId=${sessionId}, messageId=${messageId}`);
-
     const result = await chatbotService.editAndRegenerate({
       messageId,
       newMessage,
@@ -291,18 +310,24 @@ exports.editMessage = async (req, res) => {
       userId,
       materialId,
       chapterId,
+      onToken: handleToken,
+      abortSignal: abortController.signal,
     });
-    return res.status(200).json({
+    sendEvent({ 
+      status: 'done', 
+      sessionId: result.sessionId, 
       reply: result.reply,
-      sessionId: result.sessionId,
       userMessageId: result.userMessageId,
       assistantMessageId: result.assistantMessageId
     });
   } catch (error) {
-    console.error('[ChatbotController.editMessage] Error:', error);
-    return res.status(400).json({ 
-      message: error.message || 'Gagal mengubah pesan',
-      details: error.toString()
-    });
+    console.error('[ChatbotController.editMessage] Stream Error:', error.message);
+    sendEvent({ error: 'Gagal memproses edit pesan chatbot' });
+  } finally {
+    detachListener(res, 'close', handleClose);
+    if (!res.writableEnded) {
+      res.write('data: [DONE]\n\n');
+      res.end();
+    }
   }
 };

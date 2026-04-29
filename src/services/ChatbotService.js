@@ -129,7 +129,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 	}
 };
 
-exports.streamMessage = async ({ message, history = [], sessionId, userId, materialId, chapterId, onToken, abortSignal }) => {
+exports.streamMessage = async ({ message, history = [], sessionId, userId, materialId, chapterId, onToken, abortSignal, isEdit = false, existingUserMessageId = null }) => {
 	const prompt = sanitizePromptText(message, { limit: MAX_USER_PROMPT_CHARS });
 	if (!prompt) throw new Error('Message is required');
 
@@ -147,6 +147,11 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	const startedAt = Date.now();
 	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } = 
 		await buildChatContext({ history, sessionId, userId, prompt, materialId, chapterId });
+
+	// In edit mode, remove duplicate user prompt from history
+	if (isEdit && messages.length >= 2 && messages[messages.length - 2].role === 'user') {
+		messages.splice(messages.length - 2, 1);
+	}
 
 	const assistantRoute = resolveAssistantRoute({ prompt });
 	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext });
@@ -299,6 +304,27 @@ const generateSessionTitle = async ({ sessionId, messages, emitChunk }) => {
 	}
 };
 
+exports.editAndRegenerate = async ({ messageId, newMessage, sessionId, userId, materialId, chapterId, onToken, abortSignal }) => {
+	if (!messageId || !newMessage) throw new Error('Message ID and new content are required');
+
+	// 1. Truncate history and update content
+	await chatHistoryStore.truncateAfterMessage({ sessionId, messageId });
+	await chatHistoryStore.updateMessageContent({ messageId, content: newMessage });
+
+	// 2. Pure streaming response
+	return exports.streamMessage({
+		message: newMessage,
+		sessionId,
+		userId,
+		materialId,
+		chapterId,
+		onToken,
+		abortSignal,
+		isEdit: true,
+		existingUserMessageId: messageId
+	});
+};
+
 exports.createChatSession = async ({ userId, title, metadata, chapterId }) => {
 	if (!chatHistoryStore.isEnabled) throw new Error('Chat history belum diaktifkan');
 	return { session: await chatHistoryStore.createSession({ userId, title, metadata, chapterId: normalizeChapterId(chapterId) }) };
@@ -361,46 +387,3 @@ exports.saveRating = async ({ userId, userRequest, botResponse, rating, comment 
 	return data?.[0] || null;
 };
 
-exports.editAndRegenerate = async ({ messageId, newMessage, sessionId, userId, materialId, chapterId }) => {
-	if (!messageId || !newMessage) throw new Error('Message ID and new content are required');
-
-	await chatHistoryStore.truncateAfterMessage({ sessionId, messageId });
-	await chatHistoryStore.updateMessageContent({ messageId, content: newMessage });
-	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext } = 
-		await buildChatContext({ sessionId, userId, prompt: newMessage, materialId, chapterId, history: [] });
-
-	if (messages.length >= 2 && messages[messages.length - 2].role === 'user') {
-		messages.splice(messages.length - 2, 1);
-	}
-
-	const assistantRoute = resolveAssistantRoute({ prompt: newMessage });
-	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext });
-	const responseSettings = pickGenerationSettings(newMessage, { forceDetailed: false });
-
-	const startedAt = Date.now();
-	const { text: rawReply, metadata: llmMetadata } = await llmClient.complete({
-		system: effectiveSystemPrompt,
-		messages,
-		generationConfig: responseSettings.generationConfig,
-	});
-
-	const safeReply = shouldSuppressAssessmentLeakReply({ prompt: newMessage, reply: rawReply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : rawReply;
-	const reply = postProcessReply(safeReply);
-	
-	logChatPerformance({ kind: 'edit-regen', mode: responseSettings.mode, contextMs: 0, llmMs: Date.now() - startedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
-
-	// 3. Store only the assistant response
-	const storedMessages = await chatHistoryStore.appendMessages({
-		sessionId: persistedSessionId,
-		messages: [
-			{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
-		],
-	});
-
-	return {
-		reply,
-		sessionId: persistedSessionId,
-		userMessageId: messageId,
-		assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
-	};
-};
