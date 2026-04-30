@@ -57,7 +57,7 @@ const buildUserRequestMessage = (prompt) => {
 	].join('\n\n');
 };
 
-const buildSystemPromptForRoute = ({ route, hasMaterialContext }) => {
+const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage = false }) => {
 	const routeInstruction = route === 'coaching_mode'
 		? 'Current route: coaching_mode. Use teaching style: break concepts into short steps, ask one clarifying question when useful, and prioritize conceptual understanding over final answer shortcuts.'
 		: 'Current route: normal_qa. Provide direct, clear answers that stay concise unless the user asks for depth.';
@@ -66,7 +66,11 @@ const buildSystemPromptForRoute = ({ route, hasMaterialContext }) => {
 		? 'Source-bounded mode is active because material reference exists. Ground the answer in provided material context first. If evidence from material is insufficient, explicitly say that and state what additional context is needed.'
 		: 'Source-bounded mode is inactive because no material reference is available.';
 
-	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction}`;
+	const greetingInstruction = isFirstMessage
+		? 'This is the start of the conversation. You may greet the user warmly.'
+		: 'This is a continuation of the conversation. DO NOT greet the user again, do not say "Halo" or "Hi", and do not repeat introductions. Jump straight to the answer or follow-up.';
+
+	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction} ${greetingInstruction}`;
 };
 
 const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {

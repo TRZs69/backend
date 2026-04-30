@@ -83,7 +83,8 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 		await buildChatContext({ history, sessionId, userId, prompt, materialId, chapterId });
 
 	const assistantRoute = resolveAssistantRoute({ prompt });
-	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext });
+	const isFirstMessage = messages.length <= 1;
+	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage });
 	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
 
 	try {
@@ -154,7 +155,8 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	}
 
 	const assistantRoute = resolveAssistantRoute({ prompt });
-	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext });
+	const isFirstMessage = messages.length <= 1;
+	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage });
 	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
 
 	try {
