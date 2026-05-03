@@ -12,9 +12,9 @@ router.get('/user/:id', userController.getUserById);
 
 router.post('/user', uploadImage, userController.createUser);
 
-router.put('/:id', uploadImage, userController.updateUser);
-router.patch('/:id', userController.patchUser);
-router.delete('/:id', userController.deleteUser);
+router.put('/user/:id', uploadImage, userController.updateUser);
+router.patch('/user/:id', userController.patchUser);
+router.delete('/user/:id', userController.deleteUser);
 
 
 router.get('/user/:id/courses', userController.getCoursesByUser);

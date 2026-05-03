@@ -49,18 +49,7 @@ router.post('/evaluation/session/heartbeat', authMiddleware, async (req, res) =>
     } catch (err) {
         console.error('[EvaluationRouter] heartbeat error:', err.message);
         if (err.code === 'P2028' || err.message.includes('Too many connections')) {
-            try {
-                await prisma.$disconnect();
-                await prisma.$connect();
-                await prisma.userSession.update({
-                    where: { id: Number(sessionId) },
-                    data: { lastActiveAt: new Date() },
-                });
-                res.sendStatus(204);
-            } catch (retryErr) {
-                console.error('[EvaluationRouter] heartbeat retry failed:', retryErr.message);
-                res.status(503).json({ message: 'Database temporarily unavailable' });
-            }
+            res.status(503).json({ message: 'Database temporarily unavailable due to high load' });
         } else {
             res.status(500).json({ message: 'Internal server error' });
         }
@@ -140,94 +129,6 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
         res.json({ source: 'computed', period: { start, end }, students: results });
     } catch (err) {
         console.error('[EvaluationRouter] summary/all:', err.message);
-        res.status(503).json({ message: 'Service temporarily unavailable' });
-    }
-});
-
-router.post('/evaluation/questionnaire', authMiddleware, async (req, res) => {
-    const userId = req.user.id;
-    const { q1, q2, q3, q4, q5, q6, q7, q8 } = req.body;
-
-    const values = [q1, q2, q3, q4, q5, q6, q7, q8];
-    if (values.some((v) => !Number.isInteger(Number(v)) || Number(v) < 1 || Number(v) > 5)) {
-        return res.status(400).json({ message: 'Each answer must be an integer 1-5' });
-    }
-
-    try {
-        const existing = await prisma.evaluationQuestionnaire.findFirst({
-            where: { userId },
-        });
-        if (existing) {
-            return res.status(409).json({ message: 'Questionnaire already submitted' });
-        }
-
-        const record = await prisma.evaluationQuestionnaire.create({
-            data: {
-                userId,
-                q1Autonomy:    Number(q1),
-                q2Competence1: Number(q2),
-                q3Competence2: Number(q3),
-                q4Relatedness: Number(q4),
-                q5Behavioral:  Number(q5),
-                q6Cognitive:   Number(q6),
-                q7Emotional:   Number(q7),
-                q8Overall:     Number(q8),
-            },
-        });
-
-        await evaluationService.syncSummaryToSupabase(userId);
-
-        res.status(201).json({ id: record.id, submittedAt: record.submittedAt });
-    } catch (err) {
-        console.error('[EvaluationRouter] questionnaire:', err.message);
-        res.status(503).json({ message: 'Service temporarily unavailable' });
-    }
-});
-
-router.get('/evaluation/questionnaire/status', authMiddleware, async (req, res) => {
-    try {
-        const existing = await prisma.evaluationQuestionnaire.findFirst({
-            where: { userId: req.user.id },
-        });
-
-        return res.json({ hasSubmitted: !!existing });
-    } catch (err) {
-        console.error('[EvaluationRouter] questionnaire/status:', err.message);
-        res.status(503).json({ message: 'Service temporarily unavailable' });
-    }
-});
-
-router.get('/evaluation/questionnaire/all', authMiddleware, async (req, res) => {
-    const { role: callerRole } = req.user;
-    if (callerRole !== 'INSTRUCTOR' && callerRole !== 'ADMIN') {
-        return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    try {
-        const rows = await prisma.evaluationQuestionnaire.findMany({
-            include: { user: { select: { name: true, studentId: true } } },
-            orderBy: { submittedAt: 'asc' },
-        });
-
-        const result = rows.map((r) => ({
-            id: r.id,
-            userId: r.userId,
-            studentId: r.user?.studentId,
-            studentName: r.user?.name,
-            submittedAt: r.submittedAt,
-            q1Autonomy:    r.q1Autonomy,
-            q2Competence1: r.q2Competence1,
-            q3Competence2: r.q3Competence2,
-            q4Relatedness: r.q4Relatedness,
-            q5Behavioral:  r.q5Behavioral,
-            q6Cognitive:   r.q6Cognitive,
-            q7Emotional:   r.q7Emotional,
-            q8Overall:     r.q8Overall,
-        }));
-
-        res.json({ total: result.length, responses: result });
-    } catch (err) {
-        console.error('[EvaluationRouter] questionnaire/all:', err.message);
         res.status(503).json({ message: 'Service temporarily unavailable' });
     }
 });

@@ -25,7 +25,6 @@ model User {
   elo                Int?                      @default(750)
   assessmentAttempts AssessmentAttempt[]
   chatbot_ratings    chatbot_ratings[]
-  questionnaires     EvaluationQuestionnaire[]
   userBadges         UserBadge[]
   chapterProgress    UserChapter[]
   enrolledCourses    UserCourse[]
@@ -322,25 +321,6 @@ model UserSession {
   @@index([userId])
   @@index([loginAt])
   @@map("user_sessions")
-}
-
-model EvaluationQuestionnaire {
-  id            Int      @id @default(autoincrement())
-  userId        Int
-  submittedAt   DateTime @default(now())
-  q1Autonomy    Int
-  q2Competence1 Int
-  q3Competence2 Int
-  q4Relatedness Int
-  q5Behavioral  Int
-  q6Cognitive   Int
-  q7Emotional   Int
-  q8Overall     Int
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([submittedAt])
-  @@map("evaluation_questionnaires")
 }
 
 model chatbot_ratings {

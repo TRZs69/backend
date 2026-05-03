@@ -111,7 +111,6 @@ async function computeSummary(userId, start, end) {
         chaptersRaw,
         user,
         chatStats,
-        questionnairesRaw,
     ] = await Promise.all([
         prisma.userSession.findMany({
             where: { userId, loginAt: { gte: start, lte: end } },
@@ -161,25 +160,6 @@ async function computeSummary(userId, start, end) {
             select: { points: true, badges: true, elo: true, name: true, studentId: true },
         }),
         getChatStats(userId, start, end),
-        prisma.evaluationQuestionnaire.findMany({
-            where: {
-                userId,
-                submittedAt: { gte: start, lte: end },
-            },
-            select: {
-                id: true,
-                submittedAt: true,
-                q1Autonomy: true,
-                q2Competence1: true,
-                q3Competence2: true,
-                q4Relatedness: true,
-                q5Behavioral: true,
-                q6Cognitive: true,
-                q7Emotional: true,
-                q8Overall: true,
-            },
-            orderBy: { submittedAt: 'asc' },
-        }),
     ]);
 
     const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
@@ -199,7 +179,6 @@ async function computeSummary(userId, start, end) {
         assessmentsRaw = assessmentsRaw.filter(a => inWindow(a.submittedAt));
         badgesRaw = badgesRaw.filter(b => inWindow(b.awardedAt));
         chaptersRaw = chaptersRaw.filter(c => inWindow(c.timeFinished));
-        questionnairesRaw = questionnairesRaw.filter(q => inWindow(q.submittedAt));
     }
 
     const completedSessions = sessionsRaw.filter((s) => s.durationSec !== null);
@@ -244,20 +223,6 @@ async function computeSummary(userId, start, end) {
     const sessionsTotal = calculatedSessionsTotal;
     const returnRate = Math.round((activeDays / periodDays) * 100);
 
-    const latestQuestionnaire = questionnairesRaw.length > 0 ? questionnairesRaw[questionnairesRaw.length - 1] : null;
-    const avgQuestionnaire = questionnairesRaw.length > 0
-        ? {
-            q1Autonomy: round2(questionnairesRaw.reduce((acc, r) => acc + r.q1Autonomy, 0) / questionnairesRaw.length),
-            q2Competence1: round2(questionnairesRaw.reduce((acc, r) => acc + r.q2Competence1, 0) / questionnairesRaw.length),
-            q3Competence2: round2(questionnairesRaw.reduce((acc, r) => acc + r.q3Competence2, 0) / questionnairesRaw.length),
-            q4Relatedness: round2(questionnairesRaw.reduce((acc, r) => acc + r.q4Relatedness, 0) / questionnairesRaw.length),
-            q5Behavioral: round2(questionnairesRaw.reduce((acc, r) => acc + r.q5Behavioral, 0) / questionnairesRaw.length),
-            q6Cognitive: round2(questionnairesRaw.reduce((acc, r) => acc + r.q6Cognitive, 0) / questionnairesRaw.length),
-            q7Emotional: round2(questionnairesRaw.reduce((acc, r) => acc + r.q7Emotional, 0) / questionnairesRaw.length),
-            q8Overall: round2(questionnairesRaw.reduce((acc, r) => acc + r.q8Overall, 0) / questionnairesRaw.length),
-        }
-        : null;
-
     const eloBadgeCount = ELO_BADGE_BANDS.filter((band) => (user?.elo || 750) >= band.min).length;
     const totalBadges = Math.max(eloBadgeCount, badgesRaw.length);
 
@@ -282,10 +247,6 @@ async function computeSummary(userId, start, end) {
             totalCompleted: chaptersRaw.length,
         },
         chat: chatStats,
-        questionnaire: {
-            latest: latestQuestionnaire,
-            averages: avgQuestionnaire,
-        },
     };
 }
 
@@ -298,7 +259,6 @@ function toSummaryPayload(userId, summary) {
     const totalPointsEarned = summary?.assessments?.totalPointsEarned || 0;
     const chaptersCompleted = summary?.chapters?.totalCompleted || 0;
     const chatUserMessages = summary?.chat?.userMessages || 0;
-    const qScores = summary?.questionnaire?.latest || null;
 
     const sessionsPerDayPct = clamp(Math.round((sessionsTotal / periodDays) * 100), 0, 100);
     const durationPct = clamp(Math.round((avgDurationSec / 1800) * 100), 0, 100);
@@ -334,14 +294,6 @@ function toSummaryPayload(userId, summary) {
         sdt_autonomy_score: autonomyScore,
         sdt_competence_score: competenceScore,
         sdt_relatedness_score: relatednessScore,
-        sdt_autonomy_likert: qScores?.q1Autonomy ?? null,
-        sdt_competence_1_likert: qScores?.q2Competence1 ?? null,
-        sdt_competence_2_likert: qScores?.q3Competence2 ?? null,
-        sdt_relatedness_likert: qScores?.q4Relatedness ?? null,
-        engagement_behavioral_likert: qScores?.q5Behavioral ?? null,
-        engagement_cognitive_likert: qScores?.q6Cognitive ?? null,
-        engagement_emotional_likert: qScores?.q7Emotional ?? null,
-        global_overall_likert: qScores?.q8Overall ?? null,
         updated_at: new Date().toISOString(),
     };
 }
