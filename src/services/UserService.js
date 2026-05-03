@@ -153,6 +153,18 @@ exports.updateUser = async (id, updateData) => {
   }
 };
 
+exports.patchUser = async (id, updateData) => {
+  try {
+    const user = await prisma.user.update({
+      where: { id },
+      data: updateData,
+    });
+    return formatUser(user);
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
 exports.deleteUser = async (id) => {
   try {
     const existingUser = await prisma.user.findUnique({

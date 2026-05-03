@@ -117,7 +117,8 @@ const updateUser = async (req, res) => {
     const updateData = req.body;
     console.log("DEBUG: Updating user with data:", updateData);
 
-    if(updateData.password) {      const hashedPassword = await bcrypt.hash(updateData.password, 10);
+    if(updateData.password) {
+      const hashedPassword = await bcrypt.hash(updateData.password, 10);
       updateData.password = hashedPassword;
     }
 
@@ -131,7 +132,7 @@ const updateUser = async (req, res) => {
         updateData.badges = parseInt(updateData.badges);
     }
     if (updateData.instructorCourses) {
-        updateData.instructorCourses = parseInt(updateData.instructorCourses) || null; // Handle empty string
+        updateData.instructorCourses = parseInt(updateData.instructorCourses) || null;
     }
     if (updateData.studentId) {
         updateData.studentId = String(updateData.studentId)
@@ -146,7 +147,7 @@ const updateUser = async (req, res) => {
     res
       .status(200)
       .json({
-        message: `Successfully updated ${updateData.name}'s data`,
+        message: `Successfully updated ${updateData.name || 'user'}'s data`,
         user: updateUser,
       });
   } catch (error) {
@@ -157,6 +158,24 @@ const updateUser = async (req, res) => {
     res.status(500).json({ message: error.message });
     console.log(error.message);
   }
+};
+
+const patchUser = async (req, res) => {
+    const id = parseInt(req.params.id);
+    const updateData = req.body;
+
+    console.log("DEBUG: Patching user with data:", updateData);
+
+    if(updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+
+    try {
+        const updatedUser = await userService.patchUser(id, updateData);
+        res.status(200).json({ message: "Successfully patched user", user: updatedUser });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
 };
 
 const deleteUser = async (req, res) => {
@@ -238,10 +257,10 @@ module.exports = {
   getUserById,
   createUser,
   updateUser,
+  patchUser,
   deleteUser,
   getTradesByUser,
   getCoursesByUser,
   getBadgesByUser,
   getLeaderboard,
 };
-
