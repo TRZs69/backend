@@ -48,14 +48,6 @@ router.post('/login', async (req, res) => {
         if (!user) {
             return res.status(404).send({ message: "User not found" }) }
 
-        const allowedNames = ['Ralphael S', 'Ralphael Siahaan', 'Kevin', 'Grace Simanullang', 'ralph1'];
-        const allowedUsernames = ['ralph1', 'ralph2', 'test'];
-        if (!allowedNames.includes(user.name) && !allowedUsernames.includes(user.username)) {
-            return res.status(403).json({
-                message: "Login temporarily disabled for this account. Please try again later."
-            });
-        }
-
         const passwordIsValid = await bcrypt.compareSync(password, user.password)
 
         if (!passwordIsValid) { 
