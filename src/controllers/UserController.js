@@ -115,9 +115,9 @@ const updateUser = async (req, res) => {
     }
     
     const updateData = req.body;
+    console.log("DEBUG: Updating user with data:", updateData);
 
-    if(updateData.password) {
-      const hashedPassword = await bcrypt.hash(updateData.password, 10);
+    if(updateData.password) {      const hashedPassword = await bcrypt.hash(updateData.password, 10);
       updateData.password = hashedPassword;
     }
 
