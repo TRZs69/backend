@@ -174,6 +174,9 @@ const patchUser = async (req, res) => {
         const updatedUser = await userService.patchUser(id, updateData);
         res.status(200).json({ message: "Successfully patched user", user: updatedUser });
     } catch (error) {
+        if (error.message.includes('Unique constraint failed') || error.code === 'P2002') {
+          return res.status(409).json({ message: "Username sudah digunakan oleh pengguna lain." });
+        }
         res.status(500).json({ message: error.message });
     }
 };
