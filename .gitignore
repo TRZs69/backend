@@ -7,3 +7,4 @@ secrets/
 output.log
 server.log
 ref/
+venv/
