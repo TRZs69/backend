@@ -5,11 +5,11 @@ const cacheMiddleware = require('../middlewares/cacheMiddleware');
 
 const router = express.Router();
 
-router.get('/material', materialController.getAllMaterials);
+router.get('/material', cacheMiddleware(300), materialController.getAllMaterials);
 
 router.get('/material/image/*', materialController.getMaterialImage);
 
-router.get('/material/:id', materialController.getMaterialById);
+router.get('/material/:id', cacheMiddleware(300), materialController.getMaterialById);
 
 router.post('/material', materialController.createMaterial);
 

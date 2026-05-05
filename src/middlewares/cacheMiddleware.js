@@ -4,7 +4,7 @@ const cache = new NodeCache({ stdTTL: 300, checkperiod: 320 });
 
 const cacheMiddleware = (duration) => {
     return (req, res, next) => {
-        if (req.method !== 'GET') {
+        if (req.method !== 'GET' || req.query.skipCache === 'true' || req.headers['x-skip-cache'] === 'true') {
             return next();
         }
 
