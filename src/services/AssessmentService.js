@@ -2113,7 +2113,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
 
     const isStudent = isStudentRole(userPreFetch?.role);
 
-    return prisma.$transaction(async (tx) => {
+    const txResult = await prisma.$transaction(async (tx) => {
         // Reload attempt di dalam TX untuk memastikan data konsisten (row lock)
         let attempt = await tx.assessmentAttempt.findFirst({
             where: {
@@ -2284,10 +2284,11 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             };
         }
 
+        const expectedProbUser = isObjective
+            ? 1 / (1 + Math.pow(10, -(courseEloBefore - clampElo(activeQuestion.elo)) / 400))
+            : null;
         let dynamicPointsEarnedThisQuestion = 0;
         if (isObjective && isStudent && isCorrect) {
-            const expectedProbUser = 1 / (1 + Math.pow(10, -(courseEloBefore - clampElo(activeQuestion.elo)) / 400));
-            // Rumus: Poin = B × (1 - P), di mana B = 10 (base poin)
             dynamicPointsEarnedThisQuestion = Math.round(10 * (1 - expectedProbUser));
         }
 
@@ -2299,6 +2300,8 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             eloDeltaQuestion: Number(userDeltaRaw.toFixed(2)),
             courseEloBefore,
             courseEloAfter: updatedAttempt.currentUserElo || MIN_ELO,
+            questionEloBefore: clampElo(activeQuestion.elo),
+            expectedProbability: expectedProbUser,
             targetNextQuestionElo,
             pointsAwardedPreview: dynamicPointsEarnedThisQuestion,
             userEloPreview: updatedAttempt.currentUserElo || MIN_ELO,
@@ -2306,6 +2309,23 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
         };
     }, INTERACTIVE_TX_OPTIONS);
+
+    if (txResult && txResult.completed === false) {
+        await evaluationService.logActivityEvent({
+            userId: normalizedUserId,
+            eventType: evaluationService.EVENT_TYPE.ASSESSMENT,
+            payload: {
+                isCorrect: txResult.isCorrect === true,
+                userEloBefore: txResult.courseEloBefore,
+                userEloAfter: txResult.courseEloAfter,
+                questionElo: txResult.questionEloBefore,
+                expectedProbability: txResult.expectedProbability,
+            },
+        });
+        await evaluationService.syncSummaryToSupabase(normalizedUserId);
+    }
+
+    return txResult;
 };
 
 exports.prefetchAttempt = async (userId, chapterId) => {

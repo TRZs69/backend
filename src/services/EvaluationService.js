@@ -1,350 +1,136 @@
 const prisma = require('../prismaClient');
 const supabase = require('../../supabase/supabase.js');
+const { determineDifficulty } = require('../utils/elo');
 
-const ELO_BADGE_BANDS = [
-    { name: 'Beginner', min: 750 },
-    { name: 'Basic Understanding', min: 1000 },
-    { name: 'Developing Learner', min: 1200 },
-    { name: 'Intermediate', min: 1400 },
-    { name: 'Proficient', min: 1600 },
-    { name: 'Advanced', min: 1800 },
-    { name: 'Mastery', min: 2000 },
-];
+const EVENT_TYPE = { SESSION: 'SESSION', ASSESSMENT: 'ASSESSMENT', CHATBOT: 'CHATBOT' };
+const ACTIVITY_TABLE = 'activity_logs';
+const SUMMARY_TABLE = 'student_analytics_summary';
 
 function toDateRange(startDate, endDate) {
-    const start = startDate ? new Date(startDate) : new Date('2026-03-26T00:00:00.000Z');
-    const end = endDate ? new Date(endDate) : new Date('2026-04-09T23:59:59.999Z');
-
-    if (endDate && !endDate.includes('T')) {
-        end.setHours(23, 59, 59, 999);
-    }
+    const start = startDate ? new Date(startDate) : new Date('2026-01-01T00:00:00.000Z');
+    const end = endDate ? new Date(endDate) : new Date();
+    if (endDate && !String(endDate).includes('T')) end.setHours(23, 59, 59, 999);
     return { start, end };
 }
 
-function groupByDay(rows, dateField) {
-    const map = {};
-    for (const row of rows) {
-        const wibDate = new Date(new Date(row[dateField]).getTime() + 7 * 60 * 60 * 1000);
-        const day = wibDate.toISOString().slice(0, 10);
-        map[day] = (map[day] || 0) + 1;
-    }
-    return Object.entries(map).map(([date, count]) => ({ date, count }));
+const round4 = (v) => Number.isFinite(Number(v)) ? Number(Number(v).toFixed(4)) : 0;
+const eloToLevel = (elo) => determineDifficulty(Number(elo) || 750);
+
+function compareDifficultyLevels(userElo, questionElo) {
+    const userLevel = eloToLevel(userElo);
+    const questionLevel = eloToLevel(questionElo);
+    const gap = Number(userElo) - Number(questionElo);
+    let relation = 'MATCH';
+    if (Number.isFinite(gap) && gap > 100) relation = 'TOO_EASY';
+    if (Number.isFinite(gap) && gap < -100) relation = 'TOO_HARD';
+    return { userLevel, questionLevel, relation };
 }
 
-function round2(value) {
-    if (value === null || value === undefined || Number.isNaN(Number(value))) return null;
-    return parseFloat(Number(value).toFixed(2));
+function normalizeAssessmentPayload(payload = {}) {
+    const userEloBefore = Number(payload.userEloBefore);
+    const questionElo = Number(payload.questionElo);
+    const expectedProbability = Number(payload.expectedProbability);
+    const diff = compareDifficultyLevels(userEloBefore, questionElo);
+    return {
+        isCorrect: Boolean(payload.isCorrect),
+        userEloBefore: Number.isFinite(userEloBefore) ? userEloBefore : 750,
+        userEloAfter: Number.isFinite(Number(payload.userEloAfter)) ? Number(payload.userEloAfter) : (Number.isFinite(userEloBefore) ? userEloBefore : 750),
+        questionElo: Number.isFinite(questionElo) ? questionElo : 1200,
+        expectedProbability: Number.isFinite(expectedProbability)
+            ? expectedProbability
+            : 1 / (1 + Math.pow(10, -(((Number.isFinite(userEloBefore) ? userEloBefore : 750) - (Number.isFinite(questionElo) ? questionElo : 1200)) / 400))),
+        userDifficultyLevel: diff.userLevel,
+        questionDifficultyLevel: diff.questionLevel,
+        difficultyRelation: diff.relation,
+    };
 }
 
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
+async function logActivityEvent({ userId, eventType, payload = {}, createdAt }) {
+    const type = String(eventType || '').toUpperCase();
+    if (!Object.values(EVENT_TYPE).includes(type)) return;
+    const row = {
+        user_id: Number(userId),
+        event_type: type,
+        payload: type === EVENT_TYPE.ASSESSMENT ? normalizeAssessmentPayload(payload) : { ...normalizeAssessmentPayload({}), ...payload },
+    };
+    if (createdAt) row.created_at = new Date(createdAt).toISOString();
+    const { error } = await supabase.from(ACTIVITY_TABLE).insert([row]);
+    if (error) console.error('[EvaluationService] logActivityEvent:', error.message);
 }
 
-async function getChatStats(userId, start, end) {
-    try {
-        const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
-                          end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
-        const inWindow = (dStr) => {
-            if (!dStr) return false;
-            const d = new Date(dStr);
-            const s1 = new Date('2026-03-26T00:00:00.000Z');
-            const e1 = new Date('2026-03-29T23:59:59.999Z');
-            const s2 = new Date('2026-04-08T00:00:00.000Z');
-            const e2 = new Date('2026-04-09T23:59:59.999Z');
-            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
-        };
+let summaryColumnsCache = null;
+async function getSummaryColumns() {
+    if (summaryColumnsCache) return summaryColumnsCache;
+    const { data } = await supabase.from('information_schema.columns')
+        .select('column_name').eq('table_schema', 'public').eq('table_name', SUMMARY_TABLE);
+    summaryColumnsCache = Array.isArray(data) && data.length ? new Set(data.map((d) => d.column_name)) : null;
+    return summaryColumnsCache;
+}
 
-        let { data: sessions, error: sessErr } = await supabase
-            .from('chat_sessions')
-            .select('id, created_at')
-            .eq('user_id', userId)
-            .gte('created_at', start.toISOString())
-            .lte('created_at', end.toISOString());
+function parsePayload(p) { if (!p) return {}; return typeof p === 'object' ? p : (() => { try { return JSON.parse(p); } catch { return {}; } })(); }
 
-        if (sessErr || !sessions || sessions.length === 0) {
-            return { totalSessions: 0, totalMessages: 0, userMessages: 0, perDay: [] };
-        }
+async function updateStudentAnalytics(userId) {
+    const uid = Number(userId);
+    const user = await prisma.user.findUnique({ where: { id: uid }, select: { name: true, studentId: true } });
+    const { data: logs, error } = await supabase.from(ACTIVITY_TABLE)
+        .select('event_type,payload,created_at').eq('user_id', uid).order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    const rows = (logs || []).map((l) => ({ ...l, event_type: String(l.event_type || '').toUpperCase(), payload: parsePayload(l.payload) }));
+    const assessments = rows.filter((r) => r.event_type === EVENT_TYPE.ASSESSMENT);
+    const sessions = rows.filter((r) => r.event_type === EVENT_TYPE.SESSION);
+    const chatbot = rows.filter((r) => r.event_type === EVENT_TYPE.CHATBOT);
 
-        if (isDefault) {
-            sessions = sessions.filter(s => inWindow(s.created_at));
-        }
+    const totalAttempts = assessments.length;
+    const sessionsTotal = sessions.length;
+    const correct = assessments.filter((a) => a.payload?.isCorrect === true).length;
+    const firstElo = totalAttempts ? Number(assessments[0].payload?.userEloBefore) : 0;
+    const lastElo = totalAttempts ? Number(assessments[totalAttempts - 1].payload?.userEloAfter) : 0;
+    const rel = { MATCH: 0, TOO_EASY: 0, TOO_HARD: 0 };
+    assessments.forEach((a) => { const k = String(a.payload?.difficultyRelation || 'MATCH').toUpperCase(); if (rel[k] !== undefined) rel[k] += 1; });
 
-        if (sessions.length === 0) {
-            return { totalSessions: 0, totalMessages: 0, userMessages: 0, perDay: [] };
-        }
+    let chatbotAfterFailure = 0, pendingFailure = false;
+    rows.forEach((r) => {
+        if (r.event_type === EVENT_TYPE.ASSESSMENT) pendingFailure = r.payload?.isCorrect === false;
+        else if (r.event_type === EVENT_TYPE.CHATBOT && pendingFailure) { chatbotAfterFailure += 1; pendingFailure = false; }
+    });
 
-        const sessionIds = sessions.map((s) => s.id);
+    const raw = {
+        user_id: uid,
+        student_id: user?.studentId || null,
+        student_name: user?.name || null,
+        period_start: rows[0]?.created_at || new Date().toISOString(),
+        period_end: rows[rows.length - 1]?.created_at || new Date().toISOString(),
+        sessions_total: sessionsTotal,
+        total_attempts: totalAttempts,
+        completion_rate: round4(sessionsTotal ? totalAttempts / sessionsTotal : 0),
+        accuracy_rate: round4(totalAttempts ? correct / totalAttempts : 0),
+        current_elo: Number.isFinite(lastElo) ? Math.round(lastElo) : 0,
+        elo_gain: Number.isFinite(firstElo) && Number.isFinite(lastElo) ? Math.round(lastElo - firstElo) : 0,
+        difficulty_match_rate: round4(totalAttempts ? rel.MATCH / totalAttempts : 0),
+        too_easy_rate: round4(totalAttempts ? rel.TOO_EASY / totalAttempts : 0),
+        too_hard_rate: round4(totalAttempts ? rel.TOO_HARD / totalAttempts : 0),
+        chatbot_usage_rate: round4(totalAttempts ? chatbot.length / totalAttempts : 0),
+        chatbot_after_failure_rate: round4(totalAttempts ? chatbotAfterFailure / totalAttempts : 0),
+        updated_at: new Date().toISOString(),
+    };
 
-        const { data: messages, error: msgErr } = await supabase
-            .from('chat_messages')
-            .select('id, role, created_at')
-            .in('session_id', sessionIds);
+    const cols = await getSummaryColumns();
+    const payload = cols ? Object.fromEntries(Object.entries(raw).filter(([k]) => cols.has(k))) : raw;
+    const { error: upsertError } = await supabase.from(SUMMARY_TABLE).upsert([payload], { onConflict: 'user_id,period_start,period_end' });
+    if (upsertError) throw new Error(upsertError.message);
+    return payload;
+}
 
-        if (msgErr || !messages) {
-            return { totalSessions: sessions.length, totalMessages: 0, userMessages: 0, perDay: [] };
-        }
-
-        let filteredMessages = messages;
-        if (isDefault) {
-            filteredMessages = messages.filter(m => inWindow(m.created_at));
-        }
-
-        const userMessages = filteredMessages.filter((m) => m.role === 'user');
-        const perDay = groupByDay(userMessages, 'created_at');
-
-        return {
-            totalSessions: sessions.length,
-            totalMessages: filteredMessages.length,
-            userMessages: userMessages.length,
-            perDay,
-        };
-    } catch {
-        return { totalSessions: 0, totalMessages: 0, userMessages: 0, perDay: [] };
-    }
+async function syncSummaryToSupabase(userId) {
+    try { return { ok: true, payload: await updateStudentAnalytics(userId) }; }
+    catch (err) { console.error('[EvaluationService] syncSummaryToSupabase:', err.message); return { ok: false, error: err.message }; }
 }
 
 async function computeSummary(userId, start, end) {
-    let [
-        sessionsRaw,
-        assessmentsRaw,
-        badgesRaw,
-        chaptersRaw,
-        user,
-        chatStats,
-    ] = await Promise.all([
-        prisma.userSession.findMany({
-            where: { userId, loginAt: { gte: start, lte: end } },
-            select: { id: true, loginAt: true, logoutAt: true, durationSec: true, lastActiveAt: true },
-            orderBy: { loginAt: 'asc' },
-        }),
-        prisma.assessmentAttempt.findMany({
-            where: {
-                userId,
-                status: 'SUBMITTED',
-                submittedAt: { gte: start, lte: end },
-            },
-            select: {
-                id: true, submittedAt: true, grade: true,
-                pointsEarned: true, newDifficulty: true,
-                currentUserElo: true, courseEloStart: true, courseEloEnd: true,
-            },
-            orderBy: { submittedAt: 'asc' },
-        }),
-        prisma.userBadge.findMany({
-            where: {
-                userId,
-                isPurchased: false,
-                awardedAt: { gte: start, lte: end },
-            },
-            select: {
-                id: true, awardedAt: true,
-                badge: { select: { name: true, type: true } },
-            },
-            orderBy: { awardedAt: 'asc' },
-        }),
-        prisma.userChapter.findMany({
-            where: {
-                userId,
-                isCompleted: true,
-                timeFinished: { gte: start, lte: end },
-            },
-            select: {
-                id: true, timeFinished: true, currentDifficulty: true,
-                assessmentGrade: true, assessmentPointsEarned: true,
-                chapter: { select: { name: true, level: true } },
-            },
-            orderBy: { timeFinished: 'asc' },
-        }),
-        prisma.user.findUnique({
-            where: { id: userId },
-            select: { points: true, badges: true, elo: true, name: true, studentId: true },
-        }),
-        getChatStats(userId, start, end),
-    ]);
-
-    const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
-                      end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
-
-    if (isDefault) {
-        const inWindow = (dStr) => {
-            if (!dStr) return false;
-            const d = new Date(dStr);
-            const s1 = new Date('2026-03-26T00:00:00.000Z');
-            const e1 = new Date('2026-03-29T23:59:59.999Z');
-            const s2 = new Date('2026-04-08T00:00:00.000Z');
-            const e2 = new Date('2026-04-09T23:59:59.999Z');
-            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
-        };
-        sessionsRaw = sessionsRaw.filter(s => inWindow(s.loginAt));
-        assessmentsRaw = assessmentsRaw.filter(a => inWindow(a.submittedAt));
-        badgesRaw = badgesRaw.filter(b => inWindow(b.awardedAt));
-        chaptersRaw = chaptersRaw.filter(c => inWindow(c.timeFinished));
-    }
-
-    const completedSessions = sessionsRaw.filter((s) => s.durationSec !== null);
-    const avgDuration =
-        completedSessions.length > 0
-            ? Math.round(completedSessions.reduce((acc, s) => acc + s.durationSec, 0) / completedSessions.length)
-            : null;
-
-    const grades = assessmentsRaw.filter((a) => a.grade !== null).map((a) => a.grade);
-    const avgGrade = grades.length > 0 ? Math.round(grades.reduce((a, b) => a + b, 0) / grades.length) : null;
-    const totalPointsEarned = assessmentsRaw.reduce((acc, a) => acc + (a.pointsEarned || 0), 0);
-
-    let periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-    if (isDefault) {
-        periodDays = 6; // March 26-29 (4 days) + April 8-9 (2 days)
-    }
-    const activeDaysSet = new Set();
-    let calculatedSessionsTotal = 0;
-
-    sessionsRaw.forEach((s) => {
-        const sStart = new Date(s.loginAt.getTime() + 7 * 60 * 60 * 1000);
-        const sLast = new Date((s.lastActiveAt || s.loginAt).getTime() + 7 * 60 * 60 * 1000);
-        
-        const startDayStr = sStart.toISOString().slice(0, 10);
-        const lastDayStr = sLast.toISOString().slice(0, 10);
-
-        if (startDayStr === lastDayStr) {
-            calculatedSessionsTotal += 1;
-            activeDaysSet.add(startDayStr);
-        } else {
-            let current = new Date(sStart.toISOString().slice(0, 10));
-            while (current.toISOString().slice(0, 10) <= lastDayStr) {
-                const currentDayStr = current.toISOString().slice(0, 10);
-                activeDaysSet.add(currentDayStr);
-                calculatedSessionsTotal += 1;
-                current.setDate(current.getDate() + 1);
-            }
-        }
-    });
-
-    const activeDays = activeDaysSet.size;
-    const sessionsTotal = calculatedSessionsTotal;
-    const returnRate = Math.round((activeDays / periodDays) * 100);
-
-    const eloBadgeCount = ELO_BADGE_BANDS.filter((band) => (user?.elo || 750) >= band.min).length;
-    const totalBadges = Math.max(eloBadgeCount, badgesRaw.length);
-
-    return {
-        period: { start, end, totalDays: periodDays },
-        user: user || {},
-        sessions: {
-            total: sessionsTotal,
-            activeDays,
-            returnRatePct: returnRate,
-            avgDurationSec: avgDuration,
-        },
-        assessments: {
-            totalSubmitted: assessmentsRaw.length,
-            avgGrade,
-            totalPointsEarned,
-        },
-        badges: {
-            totalEarned: totalBadges,
-        },
-        chapters: {
-            totalCompleted: chaptersRaw.length,
-        },
-        chat: chatStats,
-    };
+    const uid = Number(userId);
+    const { data: logs } = await supabase.from(ACTIVITY_TABLE).select('event_type,payload,created_at')
+        .eq('user_id', uid).gte('created_at', start.toISOString()).lte('created_at', end.toISOString()).order('created_at', { ascending: true });
+    return { userId: uid, period: { start, end }, logs: logs || [], analytics: await updateStudentAnalytics(uid) };
 }
 
-function toSummaryPayload(userId, summary) {
-    const periodDays = summary?.period?.totalDays || 1;
-    const sessionsTotal = summary?.sessions?.total || 0;
-    const returnRatePct = summary?.sessions?.returnRatePct || 0;
-    const avgDurationSec = summary?.sessions?.avgDurationSec || 0;
-    const avgGrade = summary?.assessments?.avgGrade || 0;
-    const totalPointsEarned = summary?.assessments?.totalPointsEarned || 0;
-    const chaptersCompleted = summary?.chapters?.totalCompleted || 0;
-    const chatUserMessages = summary?.chat?.userMessages || 0;
-
-    const sessionsPerDayPct = clamp(Math.round((sessionsTotal / periodDays) * 100), 0, 100);
-    const durationPct = clamp(Math.round((avgDurationSec / 1800) * 100), 0, 100);
-    const autonomyScore = Math.round((returnRatePct + sessionsPerDayPct + durationPct) / 3);
-
-    const chapterPct = clamp(Math.round((chaptersCompleted / periodDays) * 100), 0, 100);
-    const pointsPct = clamp(totalPointsEarned, 0, 100);
-    const competenceScore = Math.round((avgGrade + chapterPct + pointsPct) / 3);
-
-    // Option 3: Composite Score (Chat + Return Rate)
-    // Normalized chat score (0-100) averaged with return rate for a stable relatedness metric
-    const chatPerDayPct = clamp(Math.round((chatUserMessages / periodDays) * 20), 0, 100);
-    const relatednessScore = Math.round((returnRatePct + chatPerDayPct) / 2);
-
-    return {
-        user_id: userId,
-        student_id: summary?.user?.studentId || null,
-        student_name: summary?.user?.name || null,
-        period_start: summary?.period?.start,
-        period_end: summary?.period?.end,
-        sessions_total: sessionsTotal,
-        active_days: summary?.sessions?.activeDays || 0,
-        return_rate_pct: returnRatePct,
-        avg_session_duration_sec: avgDurationSec,
-        assessments_submitted: summary?.assessments?.totalSubmitted || 0,
-        avg_grade: avgGrade,
-        total_points_earned: totalPointsEarned,
-        badges_earned: summary?.badges?.totalEarned || 0,
-        chapters_completed: chaptersCompleted,
-        chat_sessions: summary?.chat?.totalSessions || 0,
-        chat_messages: summary?.chat?.totalMessages || 0,
-        chat_user_messages: chatUserMessages,
-        sdt_autonomy_score: autonomyScore,
-        sdt_competence_score: competenceScore,
-        sdt_relatedness_score: relatednessScore,
-        updated_at: new Date().toISOString(),
-    };
-}
-
-const supabaseSyncQueue = new Map();
-const supabaseSyncTimeouts = new Map();
-
-async function syncSummaryToSupabase(userId) {
-    if (process.env.RENDER === 'true' || process.env.NODE_ENV === 'production') {
-        return { ok: true, skipped: true };
-    }
-
-    if (supabaseSyncQueue.has(userId)) {
-        return { ok: true, queued: true };
-    }
-
-    if (supabaseSyncTimeouts.has(userId)) {
-        clearTimeout(supabaseSyncTimeouts.get(userId));
-    }
-
-    return new Promise((resolve) => {
-        const timeout = setTimeout(async () => {
-            supabaseSyncQueue.set(userId, true);
-            supabaseSyncTimeouts.delete(userId);
-
-            try {
-                const { start, end } = toDateRange();
-                const summary = await computeSummary(userId, start, end);
-                const payload = toSummaryPayload(userId, summary);
-
-                const { error } = await supabase
-                    .from('student_summaries')
-                    .upsert(payload, { onConflict: 'user_id' });
-
-                if (error) throw error;
-                resolve({ ok: true });
-            } catch (err) {
-                console.error('[EvaluationService] syncSummaryToSupabase:', err.message);
-                resolve({ ok: false, error: err.message });
-            } finally {
-                supabaseSyncQueue.delete(userId);
-            }
-        }, 5000);
-
-        supabaseSyncTimeouts.set(userId, timeout);
-    });
-}
-
-module.exports = {
-    toDateRange,
-    computeSummary,
-    toSummaryPayload,
-    syncSummaryToSupabase
-};
+module.exports = { EVENT_TYPE, toDateRange, compareDifficultyLevels, logActivityEvent, updateStudentAnalytics, syncSummaryToSupabase, computeSummary };
