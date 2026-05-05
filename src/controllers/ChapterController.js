@@ -1,4 +1,5 @@
 const chapterService = require('../services/ChapterService');
+const cacheMiddleware = require('../middlewares/cacheMiddleware');
 
 const getAllChapters = async (_, res) => {
     try {
@@ -35,6 +36,7 @@ const createChapter = async (req, res) => {
         const newData = req.body;
 
         const chapter = await chapterService.createChapter(newData);
+        if (cacheMiddleware.cache) cacheMiddleware.cache.flushAll();
         res.status(201).json({ message: `Successfully create new chapter ${newData.name}`, chapter: chapter });
     } catch (error) {
         res.status(500).json({ message: "Failed to create new chapter", detail: error.message });
@@ -55,6 +57,7 @@ const updateChapter = async (req, res) => {
         if (!updatedChapter) {
             return res.status(404).json({ message: `Chapter with id ${id} not found` });
         }
+        if (cacheMiddleware.cache) cacheMiddleware.cache.flushAll();
         res.status(200).json({ message: "Successfully updated chapter", chapter: updatedChapter });
     } catch (error) {
         res.status(500).json({ message: "Failed to update chapter", detail: error.message });
@@ -74,6 +77,7 @@ const deleteChapter = async (req, res) => {
         if (!result) {
             return res.status(404).json({ message: `Chapter with id ${id} not found` });
         }
+        if (cacheMiddleware.cache) cacheMiddleware.cache.flushAll();
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ message: 'Failed to delete chapter', detail: error.message });
