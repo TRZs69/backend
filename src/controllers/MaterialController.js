@@ -17,13 +17,19 @@ const getAllMaterials = async (_, res) => {
 
 const getMaterialById = async (req, res) => {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid material ID" });
+    }
 
     try {
         const material = await materialService.getMaterialById(id);
+        if (!material) {
+            return res.status(404).json({ message: `Material with id ${id} not found` });
+        }
         res.status(200).json(material);
     } catch (error) {
         res.status(500).json({ message: `Failed to get material with id ${id}` })
-        console.log(error.mesage);
+        console.log(error.message);
 
     }
 }
@@ -43,29 +49,38 @@ const createMaterial = async (req, res) => {
 
 const updateMaterial = async (req, res) => {
     const id = parseInt(req.params.id);
-
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid material ID" });
+    }
     const updateData = req.body;
 
     try {
-        const updateMaterial = await materialService.updateMaterial(id, updateData);
-        res.status(200).json({ message: "Successfully updated material", material: updateMaterial });
+        const material = await materialService.updateMaterial(id, updateData);
+        if (!material) {
+            return res.status(404).json({ message: `Material with id ${id} not found` });
+        }
+        res.status(200).json({ message: "Successfully updated material", material: material });
     } catch (error) {
         res.status(500).json({ message: "Failed to update material", detail: error.message });
         console.log(error.message);
-
     }
 };
 
 const deleteMaterial = async (req, res) => {
     const id = parseInt(req.params.id);
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid material ID" });
+    }
 
     try {
-        const deleteMaterial = await materialService.deleteMaterial(id);
-        res.status(200).json(deleteMaterial);
+        const result = await materialService.deleteMaterial(id);
+        if (!result) {
+            return res.status(404).json({ message: `Material with id ${id} not found` });
+        }
+        res.status(200).json({ message: result });
     } catch (error) {
-        res.status(500).json({ message: 'Failed to create material' });
+        res.status(500).json({ message: 'Failed to delete material' });
         console.log(error.message);
-
     }
 };
 

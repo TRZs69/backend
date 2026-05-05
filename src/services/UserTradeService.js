@@ -33,26 +33,32 @@ exports.createUserTrade = async (newData) => {
     }
 };
 
-exports.updateUserTrade = async(id, updateData) => {
+exports.updateUserTrade = async (id, updateData) => {
     try {
         const UserTrade = await prisma.UserTrade.update({
-            where: { id },      
-            data: updateData,     
+            where: { id },
+            data: updateData,
         });
-        return UserTrade;  
+        return UserTrade;
     } catch (error) {
-        throw new Error(error.message);  
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error(error.message);
     }
 }
 
-exports.deleteUserTrade = async(id) => {
+exports.deleteUserTrade = async (id) => {
     try {
         await prisma.UserTrade.delete({
             where: { id },
         });
         return `Successfully deleted UserTrade with id: ${id}`;
     } catch (error) {
-        throw new Error('Error deleting UserTrade: ' + error.message); 
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error('Error deleting UserTrade: ' + error.message);
     }
 }
 

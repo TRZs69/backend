@@ -96,6 +96,9 @@ exports.updateUserCourse = async (id, updateData) => {
     });
     return userCourse;
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     if (isMissingColumnError(error, '`elo`')) {
       const { elo, ...legacyData } = updateData || {};
       const userCourse = await prisma.userCourse.update({
@@ -116,6 +119,9 @@ exports.deleteUserCourse = async (id) => {
     });
     return `Successfully deleted userCourse with id: ${id}`;
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     throw new Error("Error deleting userCourse: " + error.message);
   }
 };

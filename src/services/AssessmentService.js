@@ -2540,6 +2540,9 @@ exports.updateAssessment = async (id, updateData) => {
             include: { questions: true },
         });
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error(error.message);
     }
 };
@@ -2549,6 +2552,9 @@ exports.deleteAssessment = async (id) => {
         await prisma.assessment.delete({ where: { id } });
         return `Successfully deleted assessment with id: ${id}`;
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error(`Error deleting assessment: ${error.message}`);
     }
 };

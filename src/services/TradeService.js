@@ -41,21 +41,15 @@ exports.updateTrade = async(id, updateData) => {
         });
         return trade;  
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error(error.message);  
     }
 }
 
 exports.deleteTrade = async(id) => {
     try {
-        const existingTrade = await prisma.trade.findUnique({
-            where: { id },
-            select: { id: true },
-        });
-
-        if (!existingTrade) {
-            throw new Error(`Trade with id ${id} not found`);
-        }
-
         await prisma.$transaction([
             prisma.userTrade.deleteMany({
                 where: { tradeId: id },
@@ -67,6 +61,9 @@ exports.deleteTrade = async(id) => {
 
         return `Successfully deleted trade with id: ${id}`;
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error('Error deleting trade: ' + error.message); 
     }
 }

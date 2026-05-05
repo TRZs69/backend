@@ -131,7 +131,7 @@ exports.updateUser = async (id, updateData) => {
     });
 
     if (!existingUser) {
-      throw new Error(`User with id ${id} not found`);
+      return null;
     }
 
     const normalizedRole = updateData?.role ? String(updateData.role).toUpperCase() : null;
@@ -149,6 +149,9 @@ exports.updateUser = async (id, updateData) => {
     });
     return formatUser(user);
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     throw new Error(error.message);
   }
 };
@@ -161,26 +164,23 @@ exports.patchUser = async (id, updateData) => {
     });
     return formatUser(user);
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     throw new Error(error.message);
   }
 };
 
 exports.deleteUser = async (id) => {
   try {
-    const existingUser = await prisma.user.findUnique({
-      where: { id },
-      select: { id: true },
-    });
-
-    if (!existingUser) {
-      throw new Error(`User with id ${id} not found`);
-    }
-
     await prisma.user.delete({
       where: { id },
     });
     return `Success deleting user with id ${id}`;
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     throw new Error("Error deleting user: " + error.message);
   }
 };

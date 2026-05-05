@@ -75,26 +75,23 @@ exports.updateCourse = async (id, updateData) => {
         });
         return course;
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error(error.message);
     }
 }
 
 exports.deleteCourse = async (id) => {
     try {
-        const existingCourse = await prisma.course.findUnique({
-            where: { id },
-            select: { id: true },
-        });
-
-        if (!existingCourse) {
-            throw new Error(`Course with id ${id} not found`);
-        }
-
         await prisma.course.delete({
             where: { id },
         });
         return "Success deleting course";
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error('Error deleting course: ' + error.message);
     }
 }

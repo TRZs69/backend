@@ -80,6 +80,9 @@ exports.updateUserChapter = async (id, updateData) => {
         });
         return userChapter;
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         if (isMissingColumnError(error, '`assessmentPointsEarned`')) {
             const { assessmentPointsEarned, ...legacyData } = updateData || {};
             const userChapter = await prisma.userChapter.update({
@@ -100,6 +103,9 @@ exports.deleteUserChapter = async (id) => {
         });
         return `Successfully deleted userChapter with id: ${id}`;
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error('Error deleting userChapter: ' + error.message);
     }
 }
@@ -198,6 +204,10 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
             data: dataToUpdate,
         });
 
+        if (userChapter.count === 0) {
+            return null;
+        }
+
         await evaluationService.syncSummaryToSupabase(userId);
 
         return userChapter;
@@ -211,6 +221,9 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
                 },
                 data: legacyData,
             });
+            if (userChapter.count === 0) {
+                return null;
+            }
             return userChapter;
         }
         throw new Error(error.message);

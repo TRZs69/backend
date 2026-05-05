@@ -99,29 +99,35 @@ exports.createUserBadge = async (newData) => {
     }
 };
 
-exports.updateUserBadge = async(id, updateData) => {
+exports.updateUserBadge = async (id, updateData) => {
     try {
         const UserBadge = await prisma.UserBadge.update({
-            where: { id },      
-            data: updateData, 
+            where: { id },
+            data: updateData,
             include: {
                 badge: true
-            }    
+            }
         });
-        return UserBadge;  
+        return UserBadge;
     } catch (error) {
-        throw new Error(error.message);  
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error(error.message);
     }
 }
 
-exports.deleteUserBadge = async(id) => {
+exports.deleteUserBadge = async (id) => {
     try {
         await prisma.UserBadge.delete({
             where: { id },
         });
         return `Successfully deleted UserBadge with id: ${id}`;
     } catch (error) {
-        throw new Error('Error deleting UserBadge: ' + error.message); 
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error('Error deleting UserBadge: ' + error.message);
     }
 }
 

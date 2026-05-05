@@ -17,13 +17,19 @@ const getAllCourses = async (_, res) => {
 const getCourseById = async(req, res) => {
     const id = parseInt(req.params.id);
 
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid course ID" });
+    }
+
     try {
         const course = await courseService.getCourseById(id);
+        if (!course) {
+            return res.status(404).json({ message: `Course with id ${id} not found` });
+        }
         res.status(200).json(course);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get course with id ${ id }`})
-        console.log(error.mesage);
-        
+        res.status(500).json({ message: `Failed to get course with id ${ id }`, detail: error.message });
+        console.log(error.message);
     }
 }
 
@@ -35,7 +41,6 @@ const createCourse = async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: "Failed to create new course", detail: error.message });
         console.log(error.message);
-        
     }
 };
 
@@ -43,31 +48,36 @@ const updateCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);
     const updateData = req.body;
 
+    if (isNaN(courseId)) {
+        return res.status(400).json({ message: "Invalid course ID" });
+    }
+
     try {
-        const updateCourse = await courseService.updateCourse(courseId, updateData);
-        res.status(200).json({message: "Successfully updated course", course: updateCourse});
+        const updatedCourse = await courseService.updateCourse(courseId, updateData);
+        if (!updatedCourse) {
+            return res.status(404).json({ message: `Course with id ${courseId} not found` });
+        }
+        res.status(200).json({message: "Successfully updated course", course: updatedCourse});
     } catch (error) {
         res.status(500).json({ message: "Failed to update course", detail: error.message });
         console.log(error.message);
-        
     }
 };
 
 const deleteCourse = async (req, res) => {
     const id = parseInt(req.params.id);
 
-    if (!Number.isInteger(id) || id <= 0) {
-        return res.status(400).json({ message: 'Invalid course id' });
+    if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid course ID" });
     }
 
     try {
-        const deleteCourse = await courseService.deleteCourse(id);
-        res.status(200).json(deleteCourse);
-    } catch (error) {
-        if (error.message.includes('not found')) {
-            return res.status(404).json({ message: error.message });
+        const result = await courseService.deleteCourse(id);
+        if (!result) {
+            return res.status(404).json({ message: `Course with id ${id} not found` });
         }
-
+        res.status(200).json(result);
+    } catch (error) {
         res.status(500).json({ message: 'Failed to delete course', detail: error.message });
         console.log(error.message);
     }
@@ -76,11 +86,15 @@ const deleteCourse = async (req, res) => {
 const getChapterByCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);
 
+    if (isNaN(courseId)) {
+        return res.status(400).json({ message: "Invalid course ID" });
+    }
+
     try {
         const chapters = await courseService.getChapterByCourse(courseId);
         res.status(200).json(chapters);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get chapters in course id: ${courseId}`, details: error.message});
+        res.status(500).json({ message: `Failed to get chapters in course id: ${courseId}`, detail: error.message});
         console.log(error.message);
     }
 }
@@ -89,11 +103,15 @@ const getChapterByCourseForUser = async (req, res) => {
     const courseId = parseInt(req.params.id);
     const userId = parseInt(req.params.userId);
 
+    if (isNaN(courseId) || isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid course ID or user ID" });
+    }
+
     try {
         const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
         res.status(200).json(chapters);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get chapters in course id: ${courseId} for user id: ${userId}`, details: error.message});
+        res.status(500).json({ message: `Failed to get chapters in course id: ${courseId} for user id: ${userId}`, detail: error.message});
         console.log(error.message);
     }
 }
@@ -101,12 +119,15 @@ const getChapterByCourseForUser = async (req, res) => {
 const getUsersByCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);
 
+    if (isNaN(courseId)) {
+        return res.status(400).json({ message: "Invalid course ID" });
+    }
+
     try {
         const users = await userCourseService.getUsersByCourse(courseId);
-        
         res.status(200).json(users);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get users in course ${ courseId }`, details: error.message})
+        res.status(500).json({ message: `Failed to get users in course ${ courseId }`, detail: error.message})
         console.log(error.message);
     }
 }
@@ -114,11 +135,15 @@ const getUsersByCourse = async (req, res) => {
 const getBadgesByCourse = async (req, res) => {
     const courseId = parseInt(req.params.id);
 
+    if (isNaN(courseId)) {
+        return res.status(400).json({ message: "Invalid course ID" });
+    }
+
     try {
         const badges = await badgeService.getBadgesByCourse(courseId);
         res.status(200).json(badges);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get badges in course ${ courseId }`, details: error.message})
+        res.status(500).json({ message: `Failed to get badges in course ${ courseId }`, detail: error.message})
         console.log(error.message);
     }
 }

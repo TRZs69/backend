@@ -54,6 +54,9 @@ exports.updateChapter = async (id, updateData) => {
     });
     return chapter;
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     throw new Error(error.message);
   }
 };
@@ -85,6 +88,9 @@ exports.deleteChapter = async (id) => {
     });
     return `Successfully deleted chapter with id: ${id}`;
   } catch (error) {
+    if (error.code === 'P2025') {
+      return null;
+    }
     throw new Error("Error deleting chapter: " + error.message);
   }
 };

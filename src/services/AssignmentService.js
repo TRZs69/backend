@@ -33,25 +33,31 @@ exports.createAssignment = async (newData) => {
     }
 };
 
-exports.updateAssignment = async(id, updateData) => {
+exports.updateAssignment = async (id, updateData) => {
     try {
         const assignment = await prisma.assignment.update({
-            where: { id },      
-            data: updateData,     
+            where: { id },
+            data: updateData,
         });
-        return assignment;  
+        return assignment;
     } catch (error) {
-        throw new Error(error.message);  
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error(error.message);
     }
 }
 
-exports.deleteAssignment = async(id) => {
+exports.deleteAssignment = async (id) => {
     try {
         await prisma.assignment.delete({
             where: { id },
         });
         return `Successfully deleted assignment with id: ${id}`;
     } catch (error) {
-        throw new Error('Error deleting assignment: ' + error.message); 
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error('Error deleting assignment: ' + error.message);
     }
 }

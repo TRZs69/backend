@@ -103,21 +103,15 @@ exports.updateBadge = async(id, updateData) => {
         });
         return badge;  
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error(error.message);  
     }
 }
 
 exports.deleteBadge = async(id) => {
     try {
-        const existingBadge = await prisma.badge.findUnique({
-            where: { id },
-            select: { id: true },
-        });
-
-        if (!existingBadge) {
-            throw new Error(`Badge with id ${id} not found`);
-        }
-
         await prisma.$transaction([
             prisma.userBadge.deleteMany({
                 where: { badgeId: id },
@@ -129,6 +123,9 @@ exports.deleteBadge = async(id) => {
 
         return `Successfully deleted badge with id: ${id}`;
     } catch (error) {
+        if (error.code === 'P2025') {
+            return null;
+        }
         throw new Error('Error deleting badge: ' + error.message); 
     }
 }

@@ -33,25 +33,31 @@ exports.createMaterial = async (newData) => {
     }
 };
 
-exports.updateMaterial = async(id, updateData) => {
+exports.updateMaterial = async (id, updateData) => {
     try {
         const material = await prisma.material.update({
-            where: { id },      
-            data: updateData,     
+            where: { id },
+            data: updateData,
         });
-        return material;  
+        return material;
     } catch (error) {
-        throw new Error(error.message);  
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error(error.message);
     }
 }
 
-exports.deleteMaterial = async(id) => {
+exports.deleteMaterial = async (id) => {
     try {
         await prisma.material.delete({
             where: { id },
         });
         return `Successfully deleted material with id: ${id}`;
     } catch (error) {
-        throw new Error('Error deleting material: ' + error.message); 
+        if (error.code === 'P2025') {
+            return null;
+        }
+        throw new Error('Error deleting material: ' + error.message);
     }
 }
