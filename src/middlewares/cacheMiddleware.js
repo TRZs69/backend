@@ -4,6 +4,18 @@ const cache = new NodeCache({ stdTTL: 300, checkperiod: 320 });
 
 const cacheMiddleware = (duration) => {
     return (req, res, next) => {
+        // If it's a mutation, flush the entire cache
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+            cache.flushAll();
+            console.log(`Cache flushed globally due to ${req.method} request on ${req.originalUrl}`);
+            return next();
+        }
+
+        // If no duration is provided, we just pass through (after checking for mutations above)
+        if (!duration) {
+            return next();
+        }
+
         if (req.method !== 'GET' || req.query.skipCache === 'true' || req.headers['x-skip-cache'] === 'true') {
             return next();
         }

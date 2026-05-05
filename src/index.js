@@ -21,9 +21,11 @@ const tradeRoutes = require("./routes/TradeRouter.js");
 const userTradeRoutes = require("./routes/UserTradeRouter.js");
 const evaluationRoutes = require("./routes/EvaluationRouter.js");
 const cors = require("cors");
+const cacheMiddleware = require("./middlewares/cacheMiddleware.js");
 
 const app = express();
 app.use(express.json());
+app.use(cacheMiddleware()); // Global cache flusher for mutations
 
 const allowedOrigins = [
   "http://31.97.67.152:7700",
