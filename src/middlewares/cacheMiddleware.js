@@ -26,4 +26,6 @@ const cacheMiddleware = (duration) => {
     };
 };
 
+cacheMiddleware.cache = cache;
+
 module.exports = cacheMiddleware;

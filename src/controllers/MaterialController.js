@@ -1,6 +1,7 @@
 const materialService = require('../services/MaterialService');
 const supabase = require('../../supabase/supabase');
 const fs = require('fs');
+const cacheMiddleware = require('../middlewares/cacheMiddleware');
 
 const MATERIAL_IMAGE_FOLDER = 'editor-images';
 
@@ -39,6 +40,7 @@ const createMaterial = async (req, res) => {
         const newData = req.body;
 
         const material = await materialService.createMaterial(newData);
+        if (cacheMiddleware.cache) cacheMiddleware.cache.flushAll();
         res.status(201).json({ message: `Successfully create new material ${newData.name}`, material: material });
     } catch (error) {
         res.status(500).json({ message: "Failed to create new material", data: error.message });
@@ -59,6 +61,7 @@ const updateMaterial = async (req, res) => {
         if (!material) {
             return res.status(404).json({ message: `Material with id ${id} not found` });
         }
+        if (cacheMiddleware.cache) cacheMiddleware.cache.flushAll();
         res.status(200).json({ message: "Successfully updated material", material: material });
     } catch (error) {
         res.status(500).json({ message: "Failed to update material", detail: error.message });
@@ -77,6 +80,7 @@ const deleteMaterial = async (req, res) => {
         if (!result) {
             return res.status(404).json({ message: `Material with id ${id} not found` });
         }
+        if (cacheMiddleware.cache) cacheMiddleware.cache.flushAll();
         res.status(200).json({ message: result });
     } catch (error) {
         res.status(500).json({ message: 'Failed to delete material' });
