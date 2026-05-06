@@ -208,15 +208,7 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
             return null;
         }
 
-        if (isCompleted && (!existing || !existing.isCompleted)) {
-            // Trigger EVENT for chapter completion
-            evaluationService.logActivityEvent({
-                userId,
-                eventType: 'CHAPTER_COMPLETED',
-                payload: { action: 'chapter_completed', chapterId },
-                triggerSync: true
-            });
-        }
+        await evaluationService.syncSummaryToSupabase(userId);
 
         return userChapter;
     } catch (error) {
