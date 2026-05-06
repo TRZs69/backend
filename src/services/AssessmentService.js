@@ -1430,6 +1430,13 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
+    // Log real-time activity event (non-blocking)
+    evaluationService.logActivityEvent({
+        userId,
+        eventType: 'ASSESSMENT',
+        payload: { grade, correctAnswers, totalQuestions, pointsEarned: userPointsEarned },
+    }).catch(() => {});
+
     // Sync to Supabase Live
     await evaluationService.syncSummaryToSupabase(userId);
 
@@ -2052,6 +2059,13 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
     }
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
+
+    // Log real-time activity event (non-blocking)
+    evaluationService.logActivityEvent({
+        userId,
+        eventType: 'ASSESSMENT',
+        payload: { grade, correctAnswers, totalQuestions, pointsEarned: localPointsToRecord },
+    }).catch(() => {});
 
     // Sync to Supabase Live
     await evaluationService.syncSummaryToSupabase(userId);

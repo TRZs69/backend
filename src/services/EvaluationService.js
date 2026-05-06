@@ -446,6 +446,95 @@ function toSummaryPayload(userId, summary) {
     };
 }
 
+// ─── Activity Event Logging ─────────────────────────────────────────────────────
+//
+// Real-time event logger that captures user actions into Supabase `activity_logs`.
+// This runs alongside (not instead of) the existing aggregated student_summaries.
+//
+// Flow:  User Action → logActivityEvent(activity_logs) → syncSummaryToSupabase(student_summaries)
+//
+// Event types:
+//   SESSION    — login / logout
+//   ASSESSMENT — quiz submission with grade, correctness, points
+//   CHATBOT    — chatbot interaction (message sent)
+
+// Valid event types — acts as an allow-list
+const ACTIVITY_EVENT_TYPES = ['SESSION', 'ASSESSMENT', 'CHATBOT'];
+
+// Minimum interval (ms) between duplicate events for the same user + eventType.
+// Prevents log spam from rapid-fire client calls (e.g. double-tap, reconnect loops).
+const EVENT_RATE_LIMIT_MS = 2000;
+
+// In-memory rate-limit tracker: Map<"userId:eventType", lastTimestamp>
+const eventRateLimiter = new Map();
+
+/**
+ * Log a user activity event to Supabase `activity_logs`.
+ *
+ * - Non-blocking: errors are caught and logged, never thrown.
+ * - Rate-limited: duplicate (userId + eventType) within EVENT_RATE_LIMIT_MS are skipped.
+ * - Optionally triggers a debounced summary sync after logging.
+ *
+ * @param {Object}  opts
+ * @param {number}  opts.userId    - Prisma user ID
+ * @param {string}  opts.eventType - One of ACTIVITY_EVENT_TYPES
+ * @param {Object}  opts.payload   - Arbitrary JSON metadata for the event
+ * @param {boolean} [opts.triggerSync=false] - If true, also debounce-sync student_summaries
+ * @returns {Promise<{ok: boolean, skipped?: boolean, error?: string}>}
+ */
+async function logActivityEvent({ userId, eventType, payload = {}, triggerSync = false }) {
+    try {
+        // ── Validation ──────────────────────────────────────────────────────
+        if (!userId || !eventType) {
+            return { ok: false, skipped: true, error: 'Missing userId or eventType' };
+        }
+
+        if (!ACTIVITY_EVENT_TYPES.includes(eventType)) {
+            console.warn(`[EvaluationService] logActivityEvent: unknown eventType "${eventType}"`);
+            return { ok: false, skipped: true, error: `Unknown eventType: ${eventType}` };
+        }
+
+        // ── Rate limiting ───────────────────────────────────────────────────
+        const rateLimitKey = `${userId}:${eventType}`;
+        const now = Date.now();
+        const lastEventTime = eventRateLimiter.get(rateLimitKey) || 0;
+
+        if (now - lastEventTime < EVENT_RATE_LIMIT_MS) {
+            return { ok: true, skipped: true };
+        }
+        eventRateLimiter.set(rateLimitKey, now);
+
+        // ── Insert into activity_logs ────────────────────────────────────────
+        const row = {
+            user_id: userId,
+            event_type: eventType,
+            payload: payload || {},
+            created_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+            .from('activity_logs')
+            .insert(row);
+
+        if (error) {
+            console.error('[EvaluationService] logActivityEvent insert error:', error.message);
+            return { ok: false, error: error.message };
+        }
+
+        // ── Optional: trigger debounced summary sync ────────────────────────
+        if (triggerSync) {
+            // Fire-and-forget — do NOT await; syncSummaryToSupabase already debounces
+            syncSummaryToSupabase(userId).catch(() => {});
+        }
+
+        return { ok: true };
+    } catch (err) {
+        // Fail-safe: never crash the calling code
+        console.error('[EvaluationService] logActivityEvent unexpected error:', err.message);
+        return { ok: false, error: err.message };
+    }
+}
+
 // ─── Supabase Sync (unchanged) ──────────────────────────────────────────────────
 
 const supabaseSyncQueue = new Map();
@@ -497,6 +586,7 @@ module.exports = {
     computeSummary,
     toSummaryPayload,
     syncSummaryToSupabase,
+    logActivityEvent,
     // Exported for testing / reuse
     normalizeTo100,
     safeDivide,

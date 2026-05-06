@@ -26,6 +26,7 @@ const {
 	cleanTitle,
 } = require('./ChatbotMessageBuilder');
 const { buildChatContext } = require('./ChatbotContextService');
+const evaluationService = require('./EvaluationService');
 const supabase = require('../../supabase/supabase');
 
 const ensureGoogleCredentials = () => {
@@ -115,6 +116,17 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 					{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
 				],
 			});
+
+			// Log real-time chatbot activity event (non-blocking, with sync trigger)
+			if (userId) {
+				evaluationService.logActivityEvent({
+					userId,
+					eventType: 'CHATBOT',
+					payload: { messageCount: 1, sessionId: activeSessionId },
+					triggerSync: true,
+				}).catch(() => {});
+			}
+
 			await maybeUpdateSessionTitle({ sessionId: activeSessionId });
 			return { 
 				reply, 
@@ -244,6 +256,17 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 				sessionId: activeSessionId,
 				messages: messagesToAppend,
 			});
+
+			// Log real-time chatbot activity event (non-blocking, with sync trigger)
+			if (userId) {
+				evaluationService.logActivityEvent({
+					userId,
+					eventType: 'CHATBOT',
+					payload: { messageCount: 1, sessionId: activeSessionId },
+					triggerSync: true,
+				}).catch(() => {});
+			}
+
 			if (shouldGenerateLiveTitle || (isNewSession && ENABLE_STREAM_TITLE_GENERATION)) {
 				void generateSessionTitle({ sessionId: activeSessionId, messages: await chatHistoryStore.fetchMessages({ sessionId: activeSessionId, limit: 5 }), emitChunk });
 			} else {
