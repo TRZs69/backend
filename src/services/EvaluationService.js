@@ -497,7 +497,7 @@ async function logActivityEvent({ userId, eventType, payload = {}, triggerSync =
         };
 
         const { error } = await supabase
-            .from('student_summaries_2')
+            .from('activity_logs')
             .insert(row);
 
         if (error) {
