@@ -26,6 +26,7 @@ const {
 	cleanTitle,
 } = require('./ChatbotMessageBuilder');
 const { buildChatContext } = require('./ChatbotContextService');
+const evaluationService = require('./EvaluationService');
 const supabase = require('../../supabase/supabase');
 
 const ensureGoogleCredentials = () => {
@@ -53,7 +54,7 @@ const scheduleWarmup = () => {
 
 	const customPrompts = (process.env.LEVELY_LLM_WARMUP_PROMPTS || '').split('|').map(p => p.trim()).filter(Boolean);
 	const warmupPrompts = customPrompts.length ? customPrompts : ['Apa kabar Levely?', 'Kasih aku fakta sains singkat dong.'];
-	
+
 	const runWarmup = async () => {
 		try {
 			await llmClient.complete({
@@ -79,7 +80,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 	if (!llmClient) return { reply: getFallbackReply(), sessionId };
 
 	const startedAt = Date.now();
-	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } = 
+	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } =
 		await buildChatContext({ history, sessionId, userId, prompt, materialId, chapterId });
 
 	const assistantRoute = resolveAssistantRoute({ prompt });
@@ -97,7 +98,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 
 		const safeReply = shouldSuppressAssessmentLeakReply({ prompt, reply: rawReply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : rawReply;
 		const reply = postProcessReply(safeReply);
-		
+
 		logChatPerformance({ kind: 'non-stream', mode: responseSettings.mode, contextMs: llmStartedAt - startedAt, llmMs: Date.now() - llmStartedAt, totalMs: Date.now() - startedAt, replyChars: reply.length });
 
 		if (!reply) return { reply: getFallbackReply(), sessionId: persistedSessionId };
@@ -116,8 +117,16 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 				],
 			});
 			await maybeUpdateSessionTitle({ sessionId: activeSessionId });
-			return { 
-				reply, 
+
+			evaluationService.logActivityEvent({
+				userId,
+				eventType: 'CHATBOT',
+				payload: { action: 'send_message', sessionId: activeSessionId, chapterId },
+				triggerSync: true
+			});
+
+			return {
+				reply,
 				sessionId: activeSessionId,
 				userMessageId: storedMessages.find(m => m.role === 'user')?.id,
 				assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
@@ -146,7 +155,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	}
 
 	const startedAt = Date.now();
-	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } = 
+	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } =
 		await buildChatContext({ history, sessionId, userId, prompt, materialId, chapterId });
 
 	// In edit mode, remove duplicate user prompt from history
@@ -182,7 +191,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 					onChunk: (chunk) => {
 						if (isLeaking) return;
 						if (!firstTokenMs && chunk && String(chunk).trim()) firstTokenMs = Date.now() - startedAt;
-						
+
 						const newAccumulated = accumulatedText + chunk;
 						if (hasAssessmentContext && shouldSuppressAssessmentLeakReply({ prompt, reply: newAccumulated, hasAssessmentContext })) {
 							isLeaking = true;
@@ -209,7 +218,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			const completeResult = await llmClient.complete({ system: effectiveSystemPrompt, messages, generationConfig: responseSettings.generationConfig });
 			reply = completeResult.text;
 			llmMetadata = completeResult.metadata;
-			
+
 			const safeReply = shouldSuppressAssessmentLeakReply({ prompt, reply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : reply;
 			emitChunk(safeReply);
 		}
@@ -249,8 +258,16 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			} else {
 				await maybeUpdateSessionTitle({ sessionId: activeSessionId });
 			}
-			return { 
-				reply, 
+
+			evaluationService.logActivityEvent({
+				userId,
+				eventType: 'CHATBOT',
+				payload: { action: 'stream_message', sessionId: activeSessionId, chapterId },
+				triggerSync: true
+			});
+
+			return {
+				reply,
 				sessionId: activeSessionId,
 				userMessageId: isEdit ? existingUserMessageId : storedMessages.find(m => m.role === 'user')?.id,
 				assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
@@ -263,7 +280,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 		emitChunk(getFallbackReply());
 		return { reply: getFallbackReply(), sessionId: persistedSessionId };
 	}
-}; 
+};
 
 const maybeUpdateSessionTitle = async ({ sessionId }) => {
 	if (!chatHistoryStore.isEnabled || !llmClient || !sessionId) return;
@@ -335,7 +352,7 @@ exports.createChatSession = async ({ userId, title, metadata, chapterId }) => {
 	return { session: await chatHistoryStore.createSession({ userId, title, metadata, chapterId: normalizeChapterId(chapterId) }) };
 };
 
-exports.listChatSessions = async ({ userId, chapterId, limit = 20, offset = 0 }) => 
+exports.listChatSessions = async ({ userId, chapterId, limit = 20, offset = 0 }) =>
 	chatHistoryStore.isEnabled ? chatHistoryStore.listSessions({ userId, chapterId: normalizeChapterId(chapterId), limit, offset }) : [];
 
 exports.renameChatSession = async ({ sessionId, title }) => {
@@ -377,9 +394,9 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 
 	const unratedPairs = [];
 	for (let i = messages.length - 1; i >= 1; i--) {
-		if (messages[i].role === 'assistant' && messages[i-1].role === 'user') {
-			const pairKey = `${messages[i-1].content.trim().replace(/\s+/g, ' ')}|${messages[i].content.trim().replace(/\s+/g, ' ')}`;
-			if (!ratedPairs.has(pairKey)) unratedPairs.push({ userRequest: messages[i-1].content, botResponse: messages[i].content });
+		if (messages[i].role === 'assistant' && messages[i - 1].role === 'user') {
+			const pairKey = `${messages[i - 1].content.trim().replace(/\s+/g, ' ')}|${messages[i].content.trim().replace(/\s+/g, ' ')}`;
+			if (!ratedPairs.has(pairKey)) unratedPairs.push({ userRequest: messages[i - 1].content, botResponse: messages[i].content });
 		}
 	}
 	if (unratedPairs.length === 0) return { message: 'Terima kasih sudah merating Levely! 😊', allRated: true };

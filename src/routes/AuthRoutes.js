@@ -1,9 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const prisma = require('../prismaClient.js')
+const prisma = require('../prismaClient.js');
+const evaluationService = require('../services/EvaluationService');
 
-const router = express.Router()
+const router = express.Router();
 
 router.post('/register', async (req, res) => {
     const { username, password, name } = req.body
@@ -66,6 +67,14 @@ router.post('/login', async (req, res) => {
 
         const session = await prisma.userSession.create({
             data: { userId: user.id }
+        });
+
+        // Trigger real-time aggregation for SESSION event
+        evaluationService.logActivityEvent({
+            userId: user.id,
+            eventType: 'SESSION',
+            payload: { action: 'login', sessionId: session.id },
+            triggerSync: true
         });
 
         res.json({
