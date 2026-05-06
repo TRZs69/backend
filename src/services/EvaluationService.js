@@ -311,6 +311,7 @@ function toSummaryPayload(userId, summary) {
     const sessionsTotal = summary?.sessions?.total || 0;
     const activeDays = summary?.sessions?.activeDays || 0;
     const returnRatePct = summary?.sessions?.returnRatePct || 0;
+    const avgDurationSec = summary?.sessions?.avgDurationSec || 0;
     const assessmentsSubmitted = summary?.rawAssessments?.submittedAssessments || 0;
     const assessmentAttempts = summary?.rawAssessments?.totalAttempts || 0;
     const retryAttempts = Math.max(0, assessmentAttempts - assessmentsSubmitted);
