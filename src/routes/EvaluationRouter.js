@@ -27,11 +27,6 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
             data: { logoutAt, durationSec },
         });
 
-        await evaluationService.logActivityEvent({
-            userId: req.user.id,
-            eventType: evaluationService.EVENT_TYPE.SESSION,
-            createdAt: logoutAt,
-        });
         await evaluationService.syncSummaryToSupabase(req.user.id);
 
         res.json({ durationSec });
@@ -85,7 +80,7 @@ router.get('/evaluation/summary/me', authMiddleware, async (req, res) => {
     const { start, end } = evaluationService.toDateRange(req.query.startDate, req.query.endDate);
     try {
         const { data: storedSummary } = await supabase
-            .from('student_analytics_summary')
+            .from('student_summaries')
             .select('*')
             .eq('user_id', req.user.id)
             .single();
@@ -117,7 +112,7 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
         });
 
         const { data: storedSummaries } = await supabase
-            .from('student_analytics_summary')
+            .from('student_summaries')
             .select('*');
 
         if (storedSummaries && storedSummaries.length === students.length && !req.query.startDate && !req.query.endDate) {

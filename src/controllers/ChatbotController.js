@@ -1,7 +1,6 @@
 const chatbotService = require('../services/ChatbotService');
 const samplingService = require('../services/SamplingService');
 const prisma = require('../prismaClient');
-const evaluationService = require('../services/EvaluationService');
 
 exports.getSamplingStatus = async (_, res) => {
   try {
@@ -54,13 +53,6 @@ exports.sendMessage = async (req, res) => {
       materialId,
       chapterId,
     });
-    if (userId) {
-      await evaluationService.logActivityEvent({
-        userId: Number(userId),
-        eventType: evaluationService.EVENT_TYPE.CHATBOT,
-      });
-      await evaluationService.syncSummaryToSupabase(Number(userId));
-    }
     return res.status(200).json(result);
   } catch (error) {
     console.error('ChatbotController error:', error.message);
@@ -134,13 +126,6 @@ exports.streamMessage = async (req, res) => {
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
-    if (userId) {
-      await evaluationService.logActivityEvent({
-        userId: Number(userId),
-        eventType: evaluationService.EVENT_TYPE.CHATBOT,
-      });
-      await evaluationService.syncSummaryToSupabase(Number(userId));
-    }
     sendEvent({ 
       status: 'done', 
       sessionId: result.sessionId, 
@@ -328,13 +313,6 @@ exports.editMessage = async (req, res) => {
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
-    if (userId) {
-      await evaluationService.logActivityEvent({
-        userId: Number(userId),
-        eventType: evaluationService.EVENT_TYPE.CHATBOT,
-      });
-      await evaluationService.syncSummaryToSupabase(Number(userId));
-    }
     sendEvent({ 
       status: 'done', 
       sessionId: result.sessionId, 
