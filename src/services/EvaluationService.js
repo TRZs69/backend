@@ -523,12 +523,9 @@ async function logActivityEvent({ userId, eventType, payload = {}, triggerSync =
 
 const supabaseSyncQueue = new Map();
 const supabaseSyncTimeouts = new Map();
+const pendingResolvers = new Map(); // userId -> Array of resolve functions
 
 async function syncSummaryToSupabase(userId) {
-    if (process.env.RENDER === 'true' || process.env.NODE_ENV === 'production') {
-        return { ok: true, skipped: true };
-    }
-
     if (supabaseSyncQueue.has(userId)) {
         return { ok: true, queued: true };
     }
@@ -538,9 +535,17 @@ async function syncSummaryToSupabase(userId) {
     }
 
     return new Promise((resolve) => {
+        if (!pendingResolvers.has(userId)) {
+            pendingResolvers.set(userId, []);
+        }
+        pendingResolvers.get(userId).push(resolve);
+
         const timeout = setTimeout(async () => {
             supabaseSyncQueue.set(userId, true);
             supabaseSyncTimeouts.delete(userId);
+            
+            const resolvers = pendingResolvers.get(userId) || [];
+            pendingResolvers.delete(userId);
 
             try {
                 const { start, end } = toDateRange();
@@ -552,10 +557,11 @@ async function syncSummaryToSupabase(userId) {
                     .upsert(payload, { onConflict: 'user_id, period_start' });
 
                 if (error) throw error;
-                resolve({ ok: true });
+                
+                for (const res of resolvers) res({ ok: true });
             } catch (err) {
                 console.error('[EvaluationService] syncSummaryToSupabase:', err.message);
-                resolve({ ok: false, error: err.message });
+                for (const res of resolvers) res({ ok: false, error: err.message });
             } finally {
                 supabaseSyncQueue.delete(userId);
             }
