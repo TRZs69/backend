@@ -2,7 +2,6 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../prismaClient.js')
-const evaluationService = require('../services/EvaluationService');
 
 const router = express.Router()
 
@@ -13,7 +12,7 @@ router.post('/register', async (req, res) => {
 
     try {
         const user = await prisma.user.create({
-            data: {
+            data : {
                 username,
                 password: hashedPassword,
                 name,
@@ -47,13 +46,12 @@ router.post('/login', async (req, res) => {
         })
 
         if (!user) {
-            return res.status(404).send({ message: "User not found" })
-        }
+            return res.status(404).send({ message: "User not found" }) }
 
         const passwordIsValid = await bcrypt.compareSync(password, user.password)
 
-        if (!passwordIsValid) {
-            return res.status(403).json({ message: "Invalid password" })
+        if (!passwordIsValid) { 
+            return res.status(403).json({ message: "Invalid password" }) 
         }
         console.log(user)
 
@@ -64,18 +62,11 @@ router.post('/login', async (req, res) => {
         }
 
         const expiresIn = 60 * 60 * 24 * 30;
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: expiresIn })
+        const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn: expiresIn})
 
         const session = await prisma.userSession.create({
             data: { userId: user.id }
         });
-
-        // Log real-time activity event (non-blocking)
-        evaluationService.logActivityEvent({
-            userId: user.id,
-            eventType: 'SESSION',
-            payload: { type: 'login', sessionId: session.id },
-        }).catch(() => { });
 
         res.json({
             data: {

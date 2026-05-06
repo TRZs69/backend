@@ -27,13 +27,6 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
             data: { logoutAt, durationSec },
         });
 
-        // Log real-time activity event (non-blocking)
-        evaluationService.logActivityEvent({
-            userId: req.user.id,
-            eventType: 'SESSION',
-            payload: { type: 'logout', sessionId: session.id, durationSec },
-        }).catch(() => {});
-
         await evaluationService.syncSummaryToSupabase(req.user.id);
 
         res.json({ durationSec });
