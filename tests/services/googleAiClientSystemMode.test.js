@@ -9,7 +9,7 @@ describe('GoogleAIClient system instruction mode', () => {
 	it('uses wrapper mode when LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=wrapper', () => {
 		process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE = 'wrapper';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
-		const client = new GoogleAIClient({ apiKey: 'k', model: 'gemma-3-12b-it' });
+		const client = new GoogleAIClient({ apiKey: 'k', model: process.env.LEVELY_LLM_MODEL});
 
 		const payload = client._buildRequestPayload({
 			system: 'SYSTEM RULE',
@@ -25,7 +25,7 @@ describe('GoogleAIClient system instruction mode', () => {
 	it('uses native mode when LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=native', () => {
 		process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE = 'native';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
-		const client = new GoogleAIClient({ apiKey: 'k', model: 'gemma-3-12b-it' });
+		const client = new GoogleAIClient({ apiKey: 'k', model: 'gemini-1.5-flash' });
 
 		const payload = client._buildRequestPayload({
 			system: 'SYSTEM RULE',
@@ -41,7 +41,7 @@ describe('GoogleAIClient system instruction mode', () => {
 		process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE = 'auto';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
 
-		const gemmaClient = new GoogleAIClient({ apiKey: 'k', model: 'gemma-3-12b-it' });
+		const gemmaClient = new GoogleAIClient({ apiKey: 'k', model: 'gemma-2-9b-it' });
 		const gemmaPayload = gemmaClient._buildRequestPayload({
 			system: 'SYSTEM RULE',
 			messages: [{ role: 'user', content: 'Halo' }],
@@ -49,7 +49,7 @@ describe('GoogleAIClient system instruction mode', () => {
 		expect(gemmaPayload.systemInstruction).toBeUndefined();
 		expect(gemmaPayload.contents[0].parts[0].text).toContain('INSTRUKSI SISTEM PRIORITAS TERTINGGI');
 
-		const nativeClient = new GoogleAIClient({ apiKey: 'k', model: 'gemini-2.5-pro' });
+		const nativeClient = new GoogleAIClient({ apiKey: 'k', model: 'gemini-1.5-flash' });
 		const nativePayload = nativeClient._buildRequestPayload({
 			system: 'SYSTEM RULE',
 			messages: [{ role: 'user', content: 'Halo' }],

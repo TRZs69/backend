@@ -4,8 +4,13 @@ const cache = new NodeCache({ stdTTL: 300, checkperiod: 320 });
 
 const cacheMiddleware = (duration) => {
     return (req, res, next) => {
-        // If it's a mutation, flush the entire cache
-        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+        const isExcludedFromFlush = 
+            req.originalUrl.includes('/heartbeat') || 
+            req.originalUrl.includes('/chat/stream') ||
+            req.originalUrl.includes('/chat/edit') ||
+            req.originalUrl.includes('/chat/rating');
+
+        if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method) && !isExcludedFromFlush) {
             cache.flushAll();
             console.log(`Cache flushed globally due to ${req.method} request on ${req.originalUrl}`);
             return next();

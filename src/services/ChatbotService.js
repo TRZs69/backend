@@ -37,7 +37,7 @@ const ensureGoogleCredentials = () => {
 const buildGoogleAIClient = () => {
 	ensureGoogleCredentials();
 	const apiKey = (process.env.GOOGLE_AI_API_KEY || '').trim();
-	const model = process.env.LEVELY_LLM_MODEL || 'gemma-3-12b-it';
+	const model = process.env.LEVELY_LLM_MODEL;
 	const baseUrl = process.env.LEVELY_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models';
 	const isVertex = baseUrl.includes('aiplatform.googleapis.com');
 	if (!apiKey && !isVertex) return null;
