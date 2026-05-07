@@ -12,8 +12,8 @@ const ELO_BADGE_BANDS = [
 ];
 
 function toDateRange(startDate, endDate) {
-    const start = startDate ? new Date(startDate) : new Date('2026-03-26T00:00:00.000Z');
-    const end = endDate ? new Date(endDate) : new Date('2026-04-09T23:59:59.999Z');
+    const start = startDate ? new Date(startDate) : new Date('2026-05-07T00:00:00.000Z');
+    const end = endDate ? new Date(endDate) : new Date('2026-05-14T23:59:59.999Z');
 
     if (endDate && !endDate.includes('T')) {
         end.setHours(23, 59, 59, 999);
@@ -42,16 +42,14 @@ function clamp(value, min, max) {
 
 async function getChatStats(userId, start, end) {
     try {
-        const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
-            end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
+        const isDefault = start.getTime() === new Date('2026-05-07T00:00:00.000Z').getTime() &&
+            end.getTime() === new Date('2026-05-14T23:59:59.999Z').getTime();
         const inWindow = (dStr) => {
             if (!dStr) return false;
             const d = new Date(dStr);
-            const s1 = new Date('2026-03-26T00:00:00.000Z');
-            const e1 = new Date('2026-03-29T23:59:59.999Z');
-            const s2 = new Date('2026-04-08T00:00:00.000Z');
-            const e2 = new Date('2026-04-09T23:59:59.999Z');
-            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
+            const s1 = new Date('2026-05-07T00:00:00.000Z');
+            const e1 = new Date('2026-05-14T23:59:59.999Z');
+            return (d >= s1 && d <= e1);
         };
 
         let { data: sessions, error: sessErr } = await supabase
@@ -162,18 +160,16 @@ async function computeSummary(userId, start, end) {
         getChatStats(userId, start, end),
     ]);
 
-    const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
-        end.getTime() === new Date('2026-04-09T23:59:59.999Z').getTime();
+    const isDefault = start.getTime() === new Date('2026-05-07T00:00:00.000Z').getTime() &&
+        end.getTime() === new Date('2026-05-14T23:59:59.999Z').getTime();
 
     if (isDefault) {
         const inWindow = (dStr) => {
             if (!dStr) return false;
             const d = new Date(dStr);
-            const s1 = new Date('2026-03-26T00:00:00.000Z');
-            const e1 = new Date('2026-03-29T23:59:59.999Z');
-            const s2 = new Date('2026-04-08T00:00:00.000Z');
-            const e2 = new Date('2026-04-09T23:59:59.999Z');
-            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2);
+            const s1 = new Date('2026-05-07T00:00:00.000Z');
+            const e1 = new Date('2026-05-14T23:59:59.999Z');
+            return (d >= s1 && d <= e1);
         };
         sessionsRaw = sessionsRaw.filter(s => inWindow(s.loginAt));
         assessmentsRaw = assessmentsRaw.filter(a => inWindow(a.submittedAt));
