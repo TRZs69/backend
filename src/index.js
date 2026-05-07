@@ -22,7 +22,6 @@ const userTradeRoutes = require("./routes/UserTradeRouter.js");
 const evaluationRoutes = require("./routes/EvaluationRouter.js");
 const cors = require("cors");
 const cacheMiddleware = require("./middlewares/cacheMiddleware.js");
-const { initSummaryCron } = require("./scheduler/summaryCron");
 
 const app = express();
 app.use(express.json());
@@ -88,9 +87,6 @@ app.get('/', (req, res) => {
 const PORT = process.env.PORT || 7000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  
-  // Initialize the background cron scheduler
-  initSummaryCron();
 });
 
 module.exports = app;

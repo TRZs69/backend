@@ -7,7 +7,7 @@ exports.getSamplingStatus = async (_, res) => {
     const status = await samplingService.getStratifiedSample();
 
     const totalRated = await prisma.chatbotRating.count();
-    
+
     return res.status(200).json({
       ...status,
       totalRated
@@ -93,7 +93,7 @@ exports.streamMessage = async (req, res) => {
     } else {
       sendEvent({ delta });
     }
-    
+
     if (typeof res.flush === 'function') res.flush();
   };
   const handleClose = () => {
@@ -101,11 +101,11 @@ exports.streamMessage = async (req, res) => {
   };
 
   res.on('close', handleClose);
-  
+
   // Cloudflare and some proxies buffer until a certain threshold (usually 4KB).
   // We send 4KB of empty space as an SSE comment to force the proxy to flush the stream immediately.
   res.write(': ' + ' '.repeat(4096) + '\n\n');
-  
+
   sendEvent({ status: 'started' });
 
   const heartbeatInterval = setInterval(() => {
@@ -126,9 +126,9 @@ exports.streamMessage = async (req, res) => {
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
-    sendEvent({ 
-      status: 'done', 
-      sessionId: result.sessionId, 
+    sendEvent({
+      status: 'done',
+      sessionId: result.sessionId,
       reply: result.reply,
       userMessageId: result.userMessageId,
       assistantMessageId: result.assistantMessageId
@@ -283,7 +283,7 @@ exports.editMessage = async (req, res) => {
 
   res.writeHead(200, SSE_HEADERS);
   if (typeof res.flushHeaders === 'function') res.flushHeaders();
-  
+
   const sendEvent = (payload) => {
     if (res.writableEnded) return;
     res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -313,9 +313,9 @@ exports.editMessage = async (req, res) => {
       onToken: handleToken,
       abortSignal: abortController.signal,
     });
-    sendEvent({ 
-      status: 'done', 
-      sessionId: result.sessionId, 
+    sendEvent({
+      status: 'done',
+      sessionId: result.sessionId,
       reply: result.reply,
       userMessageId: result.userMessageId,
       assistantMessageId: result.assistantMessageId

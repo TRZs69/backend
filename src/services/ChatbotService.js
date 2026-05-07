@@ -26,7 +26,6 @@ const {
 	cleanTitle,
 } = require('./ChatbotMessageBuilder');
 const { buildChatContext } = require('./ChatbotContextService');
-const evaluationService = require('./EvaluationService');
 const supabase = require('../../supabase/supabase');
 
 const ensureGoogleCredentials = () => {
@@ -117,14 +116,6 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 				],
 			});
 			await maybeUpdateSessionTitle({ sessionId: activeSessionId });
-
-			evaluationService.logActivityEvent({
-				userId,
-				eventType: 'CHATBOT',
-				payload: { action: 'send_message', sessionId: activeSessionId, chapterId },
-				triggerSync: true
-			});
-
 			return {
 				reply,
 				sessionId: activeSessionId,
@@ -258,14 +249,6 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			} else {
 				await maybeUpdateSessionTitle({ sessionId: activeSessionId });
 			}
-
-			evaluationService.logActivityEvent({
-				userId,
-				eventType: 'CHATBOT',
-				payload: { action: 'stream_message', sessionId: activeSessionId, chapterId },
-				triggerSync: true
-			});
-
 			return {
 				reply,
 				sessionId: activeSessionId,

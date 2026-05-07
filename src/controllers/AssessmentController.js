@@ -1,5 +1,4 @@
 const assessmentService = require('../services/AssessmentService');
-const evaluationService = require('../services/EvaluationService');
 
 const getAllAssessments = async (_, res) => {
     try {
@@ -83,14 +82,6 @@ const submitAssessment = async (req, res) => {
         const { userId, chapterId, answers, attemptId } = req.body;
 
         const result = await assessmentService.processSubmission(userId, chapterId, answers, attemptId);
-
-        // Trigger real-time aggregation for ASSESSMENT event
-        evaluationService.logActivityEvent({
-            userId,
-            eventType: 'ASSESSMENT',
-            payload: { action: 'submit_assessment', chapterId, attemptId },
-            triggerSync: true
-        });
 
         res.status(200).json(result);
     } catch (error) {

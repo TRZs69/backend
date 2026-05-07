@@ -66,7 +66,7 @@ router.get('/evaluation/summary', authMiddleware, async (req, res) => {
     if (!targetUserId) return res.status(400).json({ message: 'userId required' });
 
     const { start, end } = evaluationService.toDateRange(req.query.startDate, req.query.endDate);
-    
+
     try {
         const summary = await evaluationService.computeSummary(targetUserId, start, end);
         res.json({ source: 'computed', userId: targetUserId, ...summary });
