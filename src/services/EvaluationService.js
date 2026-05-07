@@ -12,7 +12,7 @@ const ELO_BADGE_BANDS = [
 ];
 
 function toDateRange(startDate, endDate) {
-    const start = startDate ? new Date(startDate) : new Date('2026-05-07T00:00:00.000Z');
+    const start = startDate ? new Date(startDate) : new Date('2026-03-26T00:00:00.000Z');
     const end = endDate ? new Date(endDate) : new Date('2026-05-14T23:59:59.999Z');
 
     if (endDate && !endDate.includes('T')) {
@@ -42,14 +42,18 @@ function clamp(value, min, max) {
 
 async function getChatStats(userId, start, end) {
     try {
-        const isDefault = start.getTime() === new Date('2026-05-07T00:00:00.000Z').getTime() &&
+        const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
             end.getTime() === new Date('2026-05-14T23:59:59.999Z').getTime();
         const inWindow = (dStr) => {
             if (!dStr) return false;
             const d = new Date(dStr);
-            const s1 = new Date('2026-05-07T00:00:00.000Z');
-            const e1 = new Date('2026-05-14T23:59:59.999Z');
-            return (d >= s1 && d <= e1);
+            const s1 = new Date('2026-03-26T00:00:00.000Z');
+            const e1 = new Date('2026-03-29T23:59:59.999Z');
+            const s2 = new Date('2026-04-08T00:00:00.000Z');
+            const e2 = new Date('2026-04-09T23:59:59.999Z');
+            const s3 = new Date('2026-05-07T00:00:00.000Z');
+            const e3 = new Date('2026-05-14T23:59:59.999Z');
+            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2) || (d >= s3 && d <= e3);
         };
 
         let { data: sessions, error: sessErr } = await supabase
@@ -160,16 +164,20 @@ async function computeSummary(userId, start, end) {
         getChatStats(userId, start, end),
     ]);
 
-    const isDefault = start.getTime() === new Date('2026-05-07T00:00:00.000Z').getTime() &&
+    const isDefault = start.getTime() === new Date('2026-03-26T00:00:00.000Z').getTime() &&
         end.getTime() === new Date('2026-05-14T23:59:59.999Z').getTime();
 
     if (isDefault) {
         const inWindow = (dStr) => {
             if (!dStr) return false;
             const d = new Date(dStr);
-            const s1 = new Date('2026-05-07T00:00:00.000Z');
-            const e1 = new Date('2026-05-14T23:59:59.999Z');
-            return (d >= s1 && d <= e1);
+            const s1 = new Date('2026-03-26T00:00:00.000Z');
+            const e1 = new Date('2026-03-29T23:59:59.999Z');
+            const s2 = new Date('2026-04-08T00:00:00.000Z');
+            const e2 = new Date('2026-04-09T23:59:59.999Z');
+            const s3 = new Date('2026-05-07T00:00:00.000Z');
+            const e3 = new Date('2026-05-14T23:59:59.999Z');
+            return (d >= s1 && d <= e1) || (d >= s2 && d <= e2) || (d >= s3 && d <= e3);
         };
         sessionsRaw = sessionsRaw.filter(s => inWindow(s.loginAt));
         assessmentsRaw = assessmentsRaw.filter(a => inWindow(a.submittedAt));
@@ -189,7 +197,7 @@ async function computeSummary(userId, start, end) {
 
     let periodDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
     if (isDefault) {
-        periodDays = 6; // March 26-29 (4 days) + April 8-9 (2 days)
+        periodDays = 14; // March 26-29 (4 days) + April 8-9 (2 days) + May 7-14 (8 days)
     }
     const activeDaysSet = new Set();
     let calculatedSessionsTotal = 0;
