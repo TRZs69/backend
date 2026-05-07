@@ -154,6 +154,7 @@ async function getChatStats(userId, start, end) {
 // ─── Data Aggregation (unchanged) ───────────────────────────────────────────────
 
 async function computeSummary(userId, start, end) {
+    console.log('[DEBUG] computeSummary START:', userId);
     let [
         sessionsRaw,
         assessmentsRaw,
@@ -216,7 +217,12 @@ async function computeSummary(userId, start, end) {
             where: { userId, updatedAt: { gte: start, lte: end } },
             select: { materialDone: true, assignmentDone: true, assessmentDone: true }
         }),
+
     ]);
+
+    console.log('[DEBUG] sessionsRaw:', sessionsRaw.length);
+    console.log('[DEBUG] assessmentsRaw:', assessmentsRaw.length);
+    console.log('[DEBUG] chaptersRaw:', chaptersRaw.length);
 
     // No split-window filtering needed — the Prisma/Supabase queries
     // already filter by the continuous [start, end] range.
@@ -306,6 +312,11 @@ async function computeSummary(userId, start, end) {
 // ─── Payload Builder (REFACTORED — SDT removed, log-based metrics added) ───────
 
 function toSummaryPayload(userId, summary) {
+
+    console.log('[DEBUG] Building payload for user:', userId);
+    console.log('[DEBUG] sessionsTotal:', sessionsTotal);
+    console.log('[DEBUG] chaptersCompleted:', chaptersCompleted);
+
     // ── Extract base metrics from computed summary ──────────────────────────
     const periodDays = summary?.period?.totalDays || 1;
     const sessionsTotal = summary?.sessions?.total || 0;
@@ -469,27 +480,29 @@ const eventRateLimiter = new Map();
  */
 async function logActivityEvent({ userId, eventType, payload = {}, triggerSync = false }) {
     try {
-        // ── Validation ──────────────────────────────────────────────────────
+        console.log('[DEBUG] logActivityEvent called:', { userId, eventType, triggerSync });
+
         if (!userId || !eventType) {
-            return { ok: false, skipped: true, error: 'Missing userId or eventType' };
+            console.log('[DEBUG] Missing userId or eventType');
+            return { ok: false, skipped: true };
         }
 
         if (!ACTIVITY_EVENT_TYPES.includes(eventType)) {
-            console.warn(`[EvaluationService] logActivityEvent: unknown eventType "${eventType}"`);
-            return { ok: false, skipped: true, error: `Unknown eventType: ${eventType}` };
+            console.log('[DEBUG] Invalid eventType:', eventType);
+            return { ok: false, skipped: true };
         }
 
-        // ── Rate limiting ───────────────────────────────────────────────────
         const rateLimitKey = `${userId}:${eventType}`;
         const now = Date.now();
         const lastEventTime = eventRateLimiter.get(rateLimitKey) || 0;
 
         if (now - lastEventTime < EVENT_RATE_LIMIT_MS) {
+            console.log('[DEBUG] Rate limited:', rateLimitKey);
             return { ok: true, skipped: true };
         }
+
         eventRateLimiter.set(rateLimitKey, now);
 
-        // ── Insert into activity_logs ────────────────────────────────────────
         const row = {
             user_id: userId,
             event_type: eventType,
@@ -497,26 +510,30 @@ async function logActivityEvent({ userId, eventType, payload = {}, triggerSync =
             created_at: new Date().toISOString(),
         };
 
-        const { error } = await supabase
-            .from('activity_logs')
-            .insert(row);
+        console.log('[DEBUG] Inserting activity log:', row);
+
+        const { error } = await supabase.from('activity_logs').insert(row);
 
         if (error) {
-            console.error('[EvaluationService] logActivityEvent insert error:', error.message);
-            return { ok: false, error: error.message };
+            console.error('[ERROR] activity_logs insert:', error.message);
+            return { ok: false };
         }
 
-        // ── Optional: trigger debounced summary sync ────────────────────────
+        console.log('[DEBUG] Activity log inserted OK');
+
         if (triggerSync) {
-            // Fire-and-forget — do NOT await; syncSummaryToSupabase already debounces
-            syncSummaryToSupabase(userId).catch(() => { });
+            console.log('[DEBUG] Triggering syncSummaryToSupabase...');
+            syncSummaryToSupabase(userId).catch((e) =>
+                console.error('[ERROR] sync trigger failed:', e.message)
+            );
+        } else {
+            console.log('[DEBUG] triggerSync = false (NO SYNC)');
         }
 
         return { ok: true };
     } catch (err) {
-        // Fail-safe: never crash the calling code
-        console.error('[EvaluationService] logActivityEvent unexpected error:', err.message);
-        return { ok: false, error: err.message };
+        console.error('[ERROR] logActivityEvent:', err.message);
+        return { ok: false };
     }
 }
 
@@ -526,41 +543,60 @@ const supabaseSyncQueue = new Map();
 const supabaseSyncTimeouts = new Map();
 
 async function syncSummaryToSupabase(userId) {
+    console.log('[DEBUG] syncSummaryToSupabase START:', userId);
+
     if (process.env.RENDER === 'true' || process.env.NODE_ENV === 'production') {
+        console.log('[DEBUG] SYNC BLOCKED BY ENV');
         return { ok: true, skipped: true };
     }
 
     if (supabaseSyncQueue.has(userId)) {
+        console.log('[DEBUG] Already in queue:', userId);
         return { ok: true, queued: true };
     }
 
     if (supabaseSyncTimeouts.has(userId)) {
         clearTimeout(supabaseSyncTimeouts.get(userId));
+        console.log('[DEBUG] Cleared existing timeout for:', userId);
     }
 
     return new Promise((resolve) => {
         const timeout = setTimeout(async () => {
+            console.log('[DEBUG] EXECUTING SYNC for user:', userId);
+
             supabaseSyncQueue.set(userId, true);
             supabaseSyncTimeouts.delete(userId);
 
             try {
                 const { start, end } = toDateRange();
+                console.log('[DEBUG] Date range:', start, end);
+
                 const summary = await computeSummary(userId, start, end);
+                console.log('[DEBUG] Summary computed:', summary);
+
                 const payload = toSummaryPayload(userId, summary);
+                console.log('[DEBUG] Payload generated:', payload);
 
                 const { error } = await supabase
                     .from('student_summaries_2')
                     .upsert(payload, { onConflict: 'user_id, period_start' });
 
-                if (error) throw error;
+                if (error) {
+                    console.error('[ERROR] UPSERT FAILED:', error.message);
+                    throw error;
+                }
+
+                console.log('[DEBUG] UPSERT SUCCESS');
                 resolve({ ok: true });
             } catch (err) {
-                console.error('[EvaluationService] syncSummaryToSupabase:', err.message);
-                resolve({ ok: false, error: err.message });
+                console.error('[ERROR] syncSummaryToSupabase:', err.message);
+                resolve({ ok: false });
             } finally {
                 supabaseSyncQueue.delete(userId);
             }
         }, 5000);
+
+        console.log('[DEBUG] Sync scheduled (5s delay)');
 
         supabaseSyncTimeouts.set(userId, timeout);
     });
