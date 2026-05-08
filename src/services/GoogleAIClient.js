@@ -10,7 +10,7 @@ const standardHttpsAgent = new https.Agent({ keepAlive: false });
 class GoogleAIClient {
 	constructor({
 		apiKey,
-		model = 'gemma-3-12b-it',
+		model = process.env.LEVELY_LLM_MODEL,
 		baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models',
 	}) {
 		this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
@@ -142,7 +142,28 @@ class GoogleAIClient {
 			} catch (error) {
 				lastError = error;
 				const status = error?.response?.status;
-				const errorData = error?.response?.data;
+				let errorData = error?.response?.data;
+
+				// If it's a stream (IncomingMessage), we should try to read it to get the actual error message
+				if (errorData && typeof errorData.on === 'function') {
+					try {
+						errorData = await new Promise((resolve) => {
+							let body = '';
+							errorData.on('data', (chunk) => { body += chunk; });
+							errorData.on('end', () => {
+								try {
+									resolve(JSON.parse(body));
+								} catch {
+									resolve(body);
+								}
+							});
+							errorData.on('error', () => resolve('[Error reading error stream]'));
+							setTimeout(() => resolve('[Timeout reading error stream]'), 2000);
+						});
+					} catch (e) {
+						errorData = '[Failed to read error stream]';
+					}
+				}
 
 				// If we get a 400 or other non-retryable error, log the details
 				if (status && status >= 400 && status < 500) {
