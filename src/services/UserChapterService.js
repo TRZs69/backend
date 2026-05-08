@@ -186,6 +186,9 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
         const assessmentDone = updateData.assessmentDone !== undefined ? updateData.assessmentDone : (existing?.assessmentDone || false);
 
         const isCompleted = materialDone && assessmentDone;
+        const didMaterialAccess = updateData.materialDone === true && !existing?.materialDone;
+        const didAssignmentSubmit = updateData.assignmentDone === true && !existing?.assignmentDone;
+        const didChapterComplete = isCompleted && !existing?.isCompleted;
 
         const dataToUpdate = {
             ...updateData,
@@ -208,6 +211,45 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
             return null;
         }
 
+        if (didMaterialAccess) {
+            void evaluationService.recordActivityEvent({
+                userId,
+                eventName: evaluationService.EVENT_NAMES.MATERIAL_ACCESS,
+                chapterId,
+                metadata: { source: 'user_chapter_update' },
+                eventIdempotencyKey: `material_access:${userId}:${chapterId}:${Date.now()}`,
+                triggerRecompute: true,
+            });
+        }
+
+        if (didAssignmentSubmit) {
+            void evaluationService.recordActivityEvent({
+                userId,
+                eventName: evaluationService.EVENT_NAMES.ASSIGNMENT_SUBMIT,
+                chapterId,
+                score: updateData?.assignmentScore ?? null,
+                metadata: {
+                    source: 'user_chapter_update',
+                    hasSubmission: Boolean(updateData?.submission),
+                },
+                eventIdempotencyKey: `assignment_submit:${userId}:${chapterId}:${Date.now()}`,
+                triggerRecompute: true,
+            });
+        }
+
+        if (didChapterComplete) {
+            void evaluationService.recordActivityEvent({
+                userId,
+                eventName: evaluationService.EVENT_NAMES.CHAPTER_COMPLETED,
+                chapterId,
+                score: updateData?.assessmentGrade ?? null,
+                points: updateData?.assessmentPointsEarned ?? null,
+                metadata: { source: 'user_chapter_update' },
+                eventIdempotencyKey: `chapter_completed:${userId}:${chapterId}:${Date.now()}`,
+                triggerRecompute: true,
+            });
+        }
+
         await evaluationService.syncSummaryToSupabase(userId);
 
         return userChapter;
@@ -224,6 +266,7 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
             if (userChapter.count === 0) {
                 return null;
             }
+            await evaluationService.syncSummaryToSupabase(userId);
             return userChapter;
         }
         throw new Error(error.message);

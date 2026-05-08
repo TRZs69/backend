@@ -1,5 +1,6 @@
 const chapterService = require('../services/ChapterService');
 const cacheMiddleware = require('../middlewares/cacheMiddleware');
+const evaluationService = require('../services/EvaluationService');
 
 const getAllChapters = async (_, res) => {
     try {
@@ -94,6 +95,22 @@ const getMaterialsByChapter = async (req, res) => {
 
     try {
         const materials = await chapterService.getMaterialsByChapter(chapterId);
+
+        const userId = Number(req.query.userId);
+        if (Number.isInteger(userId) && userId > 0 && materials) {
+            void evaluationService.recordActivityEvent({
+                userId,
+                eventName: evaluationService.EVENT_NAMES.MATERIAL_ACCESS,
+                chapterId,
+                metadata: {
+                    source: 'chapter_materials_endpoint',
+                    materialCount: Array.isArray(materials) ? materials.length : 1,
+                },
+                eventIdempotencyKey: `material_access:chapter:${userId}:${chapterId}:${Date.now()}`,
+                triggerRecompute: true,
+            });
+        }
+
         res.status(200).json(materials);
     } catch (error) {
         res.status(500).json({ message: `Failed to get material from chapter ${chapterId}`, detail: error.message });

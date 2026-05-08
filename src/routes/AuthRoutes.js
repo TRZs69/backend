@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../prismaClient.js')
+const evaluationService = require('../services/EvaluationService');
 
 const router = express.Router()
 
@@ -68,6 +69,26 @@ router.post('/login', async (req, res) => {
         const session = await prisma.userSession.create({
             data: { userId: user.id }
         });
+
+        // Real-time behavioral events for summary v2.
+        void Promise.allSettled([
+            evaluationService.recordActivityEvent({
+                userId: user.id,
+                eventName: evaluationService.EVENT_NAMES.USER_LOGIN,
+                sessionId: session.id,
+                metadata: { username },
+                eventIdempotencyKey: `user_login:${user.id}:${session.id}`,
+                triggerRecompute: true,
+            }),
+            evaluationService.recordActivityEvent({
+                userId: user.id,
+                eventName: evaluationService.EVENT_NAMES.SESSION_START,
+                sessionId: session.id,
+                metadata: { source: 'login' },
+                eventIdempotencyKey: `session_start:${user.id}:${session.id}`,
+                triggerRecompute: true,
+            }),
+        ]);
 
         res.json({
             data: {

@@ -27,6 +27,7 @@ const {
 } = require('./ChatbotMessageBuilder');
 const { buildChatContext } = require('./ChatbotContextService');
 const supabase = require('../../supabase/supabase');
+const evaluationService = require('./EvaluationService');
 
 const ensureGoogleCredentials = () => {
 	if (process.env.GOOGLE_APPLICATION_CREDENTIALS) return;
@@ -70,6 +71,36 @@ const scheduleWarmup = () => {
 };
 scheduleWarmup();
 
+const logChatbotInteractionEvent = ({ userId, sessionId, storedMessages = [] }) => {
+	const normalizedUserId = Number(userId);
+	if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) return;
+	if (!sessionId) return;
+	if (!Array.isArray(storedMessages) || storedMessages.length === 0) return;
+
+	const userMessages = storedMessages.filter((message) => message?.role === 'user');
+	if (userMessages.length === 0) return;
+
+	const assistantMessages = storedMessages.filter((message) => message?.role === 'assistant');
+	const userMessageId = userMessages[userMessages.length - 1]?.id || null;
+	const assistantMessageId = assistantMessages[assistantMessages.length - 1]?.id || null;
+	const dedupeKey = userMessageId || assistantMessageId || Date.now();
+
+	void evaluationService.recordActivityEvent({
+		userId: normalizedUserId,
+		eventName: evaluationService.EVENT_NAMES.CHATBOT_INTERACTION,
+		chatSessionId: sessionId,
+		metadata: {
+			messages_total: storedMessages.length,
+			user_messages: userMessages.length,
+			assistant_messages: assistantMessages.length,
+			user_message_id: userMessageId,
+			assistant_message_id: assistantMessageId,
+		},
+		eventIdempotencyKey: `chatbot_interaction:${normalizedUserId}:${sessionId}:${dedupeKey}`,
+		triggerRecompute: true,
+	});
+};
+
 exports.sendMessage = async ({ message, history = [], sessionId, userId, materialId, chapterId }) => {
 	const prompt = sanitizePromptText(message, { limit: MAX_USER_PROMPT_CHARS });
 	if (!prompt) throw new Error('Message is required');
@@ -108,16 +139,21 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 				activeSessionId = await chatHistoryStore.ensureSession({ userId, chapterId });
 			}
 
-			const storedMessages = await chatHistoryStore.appendMessages({
-				sessionId: activeSessionId,
-				messages: [
-					{ role: 'user', content: prompt },
-					{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
-				],
-			});
-			await maybeUpdateSessionTitle({ sessionId: activeSessionId });
-			return {
-				reply,
+				const storedMessages = await chatHistoryStore.appendMessages({
+					sessionId: activeSessionId,
+					messages: [
+						{ role: 'user', content: prompt },
+						{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
+					],
+				});
+				logChatbotInteractionEvent({
+					userId,
+					sessionId: activeSessionId,
+					storedMessages,
+				});
+				await maybeUpdateSessionTitle({ sessionId: activeSessionId });
+				return {
+					reply,
 				sessionId: activeSessionId,
 				userMessageId: storedMessages.find(m => m.role === 'user')?.id,
 				assistantMessageId: storedMessages.find(m => m.role === 'assistant')?.id
@@ -240,13 +276,18 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			}
 			messagesToAppend.push({ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } });
 
-			const storedMessages = await chatHistoryStore.appendMessages({
-				sessionId: activeSessionId,
-				messages: messagesToAppend,
-			});
-			if (shouldGenerateLiveTitle || (isNewSession && ENABLE_STREAM_TITLE_GENERATION)) {
-				void generateSessionTitle({ sessionId: activeSessionId, messages: await chatHistoryStore.fetchMessages({ sessionId: activeSessionId, limit: 5 }), emitChunk });
-			} else {
+				const storedMessages = await chatHistoryStore.appendMessages({
+					sessionId: activeSessionId,
+					messages: messagesToAppend,
+				});
+				logChatbotInteractionEvent({
+					userId,
+					sessionId: activeSessionId,
+					storedMessages,
+				});
+				if (shouldGenerateLiveTitle || (isNewSession && ENABLE_STREAM_TITLE_GENERATION)) {
+					void generateSessionTitle({ sessionId: activeSessionId, messages: await chatHistoryStore.fetchMessages({ sessionId: activeSessionId, limit: 5 }), emitChunk });
+				} else {
 				await maybeUpdateSessionTitle({ sessionId: activeSessionId });
 			}
 			return {

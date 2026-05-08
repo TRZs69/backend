@@ -2,6 +2,7 @@ const materialService = require('../services/MaterialService');
 const supabase = require('../../supabase/supabase');
 const fs = require('fs');
 const cacheMiddleware = require('../middlewares/cacheMiddleware');
+const evaluationService = require('../services/EvaluationService');
 
 const MATERIAL_IMAGE_FOLDER = 'editor-images';
 
@@ -27,6 +28,22 @@ const getMaterialById = async (req, res) => {
         if (!material) {
             return res.status(404).json({ message: `Material with id ${id} not found` });
         }
+
+        const userId = Number(req.query.userId);
+        if (Number.isInteger(userId) && userId > 0) {
+            void evaluationService.recordActivityEvent({
+                userId,
+                eventName: evaluationService.EVENT_NAMES.MATERIAL_ACCESS,
+                chapterId: material.chapterId,
+                metadata: {
+                    materialId: material.id,
+                    source: 'material_controller',
+                },
+                eventIdempotencyKey: `material_access:material:${userId}:${material.id}:${Date.now()}`,
+                triggerRecompute: true,
+            });
+        }
+
         res.status(200).json(material);
     } catch (error) {
         res.status(500).json({ message: `Failed to get material with id ${id}` })

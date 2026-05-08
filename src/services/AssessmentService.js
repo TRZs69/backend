@@ -1389,6 +1389,7 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
     });
 
     const isCompleted = userChapter.materialDone === true;
+    const didCompleteNow = isCompleted && !userChapter.isCompleted;
 
     const transactionOperations = [
         prisma.userChapter.update({
@@ -1430,7 +1431,36 @@ const processLegacySubmission = async (userId, chapterId, answers = []) => {
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
-    // Sync to Supabase Live
+    // Behavioral logs + debounced recompute.
+    void evaluationService.recordActivityEvent({
+        userId,
+        eventName: evaluationService.EVENT_NAMES.ASSESSMENT_SUBMIT,
+        chapterId,
+        score: grade,
+        points: userPointsEarned,
+        metadata: {
+            mode: 'legacy',
+            totalQuestions,
+            correctAnswers,
+            newDifficulty: summary.newDifficulty,
+        },
+        eventIdempotencyKey: `assessment_submit:legacy:${userId}:${chapterId}:${Date.now()}`,
+        triggerRecompute: true,
+    });
+
+    if (didCompleteNow) {
+        void evaluationService.recordActivityEvent({
+            userId,
+            eventName: evaluationService.EVENT_NAMES.CHAPTER_COMPLETED,
+            chapterId,
+            score: grade,
+            points: userPointsEarned,
+            metadata: { mode: 'legacy' },
+            eventIdempotencyKey: `chapter_completed:legacy:${userId}:${chapterId}:${Date.now()}`,
+            triggerRecompute: true,
+        });
+    }
+
     await evaluationService.syncSummaryToSupabase(userId);
 
     return {
@@ -1606,6 +1636,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
 
     // A chapter is completed if both material and assessment are done
     const isCompleted = userChapter.materialDone === true;
+    const didCompleteNow = isCompleted && !userChapter.isCompleted;
 
     const updatedChapter = await tx.userChapter.update({
         where: { id: userChapter.id },
@@ -2053,7 +2084,37 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
 
-    // Sync to Supabase Live
+    void evaluationService.recordActivityEvent({
+        userId,
+        eventName: evaluationService.EVENT_NAMES.ASSESSMENT_SUBMIT,
+        chapterId,
+        assessmentAttemptId: attempt.id,
+        score: grade,
+        points: localPointsToRecord,
+        metadata: {
+            mode: 'attempt',
+            totalQuestions,
+            correctAnswers,
+            newDifficulty: summary.newDifficulty,
+        },
+        eventIdempotencyKey: `assessment_submit:attempt:${userId}:${attempt.id}`,
+        triggerRecompute: true,
+    });
+
+    if (didCompleteNow) {
+        void evaluationService.recordActivityEvent({
+            userId,
+            eventName: evaluationService.EVENT_NAMES.CHAPTER_COMPLETED,
+            chapterId,
+            assessmentAttemptId: attempt.id,
+            score: grade,
+            points: localPointsToRecord,
+            metadata: { mode: 'attempt' },
+            eventIdempotencyKey: `chapter_completed:attempt:${userId}:${attempt.id}`,
+            triggerRecompute: true,
+        });
+    }
+
     await evaluationService.syncSummaryToSupabase(userId);
 
     return {

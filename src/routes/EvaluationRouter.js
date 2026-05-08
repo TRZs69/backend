@@ -27,6 +27,17 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
             data: { logoutAt, durationSec },
         });
 
+        // Log session_end event and trigger summary recompute queue.
+        void evaluationService.recordActivityEvent({
+            userId: req.user.id,
+            eventName: evaluationService.EVENT_NAMES.SESSION_END,
+            sessionId: session.id,
+            points: null,
+            metadata: { durationSec },
+            eventIdempotencyKey: `session_end:${req.user.id}:${session.id}`,
+            triggerRecompute: true,
+        });
+
         await evaluationService.syncSummaryToSupabase(req.user.id);
 
         res.json({ durationSec });
@@ -80,10 +91,10 @@ router.get('/evaluation/summary/me', authMiddleware, async (req, res) => {
     const { start, end } = evaluationService.toDateRange(req.query.startDate, req.query.endDate);
     try {
         const { data: storedSummary } = await supabase
-            .from('student_summaries')
+            .from('student_summaries_2')
             .select('*')
             .eq('user_id', req.user.id)
-            .single();
+            .maybeSingle();
 
         if (storedSummary) {
             return res.json({ source: 'supabase', userId: req.user.id, ...storedSummary });
@@ -112,7 +123,7 @@ router.get('/evaluation/summary/all', authMiddleware, async (req, res) => {
         });
 
         const { data: storedSummaries } = await supabase
-            .from('student_summaries')
+            .from('student_summaries_2')
             .select('*');
 
         if (storedSummaries && storedSummaries.length === students.length && !req.query.startDate && !req.query.endDate) {

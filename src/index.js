@@ -20,6 +20,7 @@ const userBadgeRoutes = require("./routes/UserBadgeRouter.js");
 const tradeRoutes = require("./routes/TradeRouter.js");
 const userTradeRoutes = require("./routes/UserTradeRouter.js");
 const evaluationRoutes = require("./routes/EvaluationRouter.js");
+const { startEvaluationScheduler } = require("./services/EvaluationScheduler.js");
 const cors = require("cors");
 const cacheMiddleware = require("./middlewares/cacheMiddleware.js");
 
@@ -86,6 +87,7 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 7000;
 app.listen(PORT, () => {
+  startEvaluationScheduler();
   console.log(`Server is running on port ${PORT}`);
 });
 

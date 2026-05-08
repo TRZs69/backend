@@ -1,4 +1,5 @@
 const prisma = require('../prismaClient');
+const evaluationService = require('./EvaluationService');
 
 const BADGE_BASE_URL = 'https://itarozdimxukkhwxruti.supabase.co/storage/v1/object/public/badges/';
 const ELO_BADGE_BANDS = [
@@ -93,6 +94,18 @@ exports.createUserBadge = async (newData) => {
         const newUserBadge = await prisma.UserBadge.create({
             data: newData
         });
+
+        void evaluationService.recordActivityEvent({
+            userId: newUserBadge.userId,
+            eventName: evaluationService.EVENT_NAMES.BADGE_EARNED,
+            metadata: {
+                badgeId: newUserBadge.badgeId,
+                source: 'user_badge_create',
+            },
+            eventIdempotencyKey: `badge_earned:${newUserBadge.userId}:${newUserBadge.id}`,
+            triggerRecompute: true,
+        });
+
         return newUserBadge;
     } catch (error) {
         throw new Error(error.message);
