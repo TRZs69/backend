@@ -146,7 +146,7 @@ class GoogleAIClient {
 
 				// If we get a 400 or other non-retryable error, log the details
 				if (status && status >= 400 && status < 500) {
-					console.error(`[GoogleAIClient] Request failed with status ${status}:`, JSON.stringify(errorData || error.message));
+					console.error(`[GoogleAIClient] Request failed with status ${status}:`, errorData || error.message);
 				}
 
 				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
