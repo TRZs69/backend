@@ -203,7 +203,7 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 			if (!useProvidedHistory && persistedSessionId) {
 				const stored = await chatHistoryStore.fetchMessages({
 					sessionId: persistedSessionId,
-					limit: 20,
+					limit: MAX_HISTORY_MESSAGES,
 				});
 				persistedConversation = stored.map((entry) => ({
 					role: entry.role,

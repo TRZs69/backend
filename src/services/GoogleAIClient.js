@@ -25,7 +25,15 @@ class GoogleAIClient {
 		} else if (mode === 'wrapper') {
 			this.usesNativeSystemInstruction = false;
 		} else {
-			this.usesNativeSystemInstruction = !String(this.model).toLowerCase().includes('gemma');
+			// Gemma 4+ supports native system instructions, previous versions need wrapper.
+			const modelName = String(this.model).toLowerCase();
+			if (modelName.includes('gemma-4')) {
+				this.usesNativeSystemInstruction = true;
+			} else if (modelName.includes('gemma')) {
+				this.usesNativeSystemInstruction = false;
+			} else {
+				this.usesNativeSystemInstruction = true;
+			}
 		}
 
 		if (this.isVertex) {
@@ -134,10 +142,17 @@ class GoogleAIClient {
 			} catch (error) {
 				lastError = error;
 				const status = error?.response?.status;
+				const errorData = error?.response?.data;
+
+				// If we get a 400 or other non-retryable error, log the details
+				if (status && status >= 400 && status < 500) {
+					console.error(`[GoogleAIClient] Request failed with status ${status}:`, JSON.stringify(errorData || error.message));
+				}
+
 				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
 
 				if (attempt < maxRetries && isRetryable) {
-					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000; // reduced random jitter slightly
+					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
 					console.warn(`[GoogleAIClient] Attempt ${attempt + 1} failed with ${status}. Retrying in ${Math.round(delay)}ms...`);
 					await new Promise((resolve) => setTimeout(resolve, delay));
 					continue;
@@ -169,6 +184,11 @@ class GoogleAIClient {
 					parts: [{ text: m.content || '' }, ...(m.media || [])]
 				});
 			}
+		}
+
+		// Safety check: The first message must be from the 'user' role.
+		while (normalizedMessages.length > 0 && normalizedMessages[0].role === 'model') {
+			normalizedMessages.shift();
 		}
 
 		const contents = [...normalizedMessages];

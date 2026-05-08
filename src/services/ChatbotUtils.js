@@ -163,7 +163,7 @@ const normalizeHistory = (history = []) => {
 		return [];
 	}
 
-	return history
+	const normalized = history
 		.map((entry) => {
 			if (!entry || typeof entry !== 'object') {
 				return null;
@@ -179,6 +179,14 @@ const normalizeHistory = (history = []) => {
 		})
 		.filter(Boolean)
 		.slice(-Math.max(1, MAX_HISTORY_MESSAGES));
+
+	// Google AI API requires the first message to be from the 'user' role.
+	// If slicing results in a leading assistant message, drop it.
+	while (normalized.length > 0 && normalized[0].role === 'assistant') {
+		normalized.shift();
+	}
+
+	return normalized;
 };
 
 const logChatPerformance = ({
