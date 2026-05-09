@@ -131,10 +131,47 @@ const postProcessReply = (reply) => {
 	}
 
 	let normalized = reply.replace(/\r/g, '').trim();
+
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*/gi, '').trim();
 
-	normalized = normalized.replace(/^(\s*•.*?\n?)+/gm, '').trim();
+	const metaKeywords = [
+		'User says',
+		'Context',
+		'Reference Material',
+		'Assessment Data',
+		'System Instructions',
+		'Name:',
+		'Tone:',
+		'Language:',
+		'Pronouns:',
+		'Constraint',
+		'Goal:',
+		'Wait,',
+		'Greeting:',
+		'Thinking:',
+		'Analysis:',
+		'Instruction:',
+		'Route:'
+	].join('|');
+
+	const metaRegex = new RegExp(`^(\\s*[*•\\-\\d.]*\\s*(${metaKeywords}).*?\\n?)+`, 'gim');
+	normalized = normalized.replace(metaRegex, '').trim();
+
+	while (normalized.startsWith('*') || normalized.startsWith('•') || normalized.startsWith('-')) {
+		const firstNewline = normalized.indexOf('\n');
+		const lineToTest = (firstNewline === -1 ? normalized : normalized.slice(0, firstNewline)).toLowerCase();
+		
+		if (metaKeywords.split('|').some(k => lineToTest.includes(k.toLowerCase()))) {
+			if (firstNewline === -1) {
+				normalized = '';
+				break;
+			}
+			normalized = normalized.slice(firstNewline + 1).trim();
+		} else {
+			break;
+		}
+	}
 
 	normalized = stripTrailingEmptyOrderedListItems(normalized);
 	normalized = stripTrailingTruncatedListItems(normalized);
