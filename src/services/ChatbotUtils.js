@@ -143,7 +143,11 @@ const postProcessReply = (reply) => {
 		'Pronouns:', 'Constraint', 'Goal:', 'Wait,', 'Greeting:', 'Thinking:', 
 		'Analysis:', 'Instruction:', 'Route:', 'Persona:', 'Introduction:',
 		'Call to Action:', 'Alignment:', 'Scenario:', 'Recap:', 'Engagement:',
-		'I need to', 'I should', 'I will', 'I must'
+		'I need to', 'I should', 'I will', 'I must', 'Plan:', 'Reflection:',
+		'Role:', 'Behavior:', 'Format:', 'Tone:', 'Identity:', 'Question:',
+		'System Prompt', 'Core Concept:', 'Purpose:', 'Rule:', 'Emoji', 'Criteria',
+		'Checklist', 'Check:', 'Step:', 'Task:', 'Points:', 'Badges:', 'Progress:',
+		'Content:', 'Status:', 'Verification:', 'Validation:'
 	];
 
 	let lines = normalized.split('\n');
@@ -155,29 +159,42 @@ const postProcessReply = (reply) => {
 
 		const lowerLine = line.toLowerCase();
 		const isBullet = line.startsWith('•') || line.startsWith('*') || line.startsWith('-') || /^\d+[).:-]/.test(line);
+		const isHeader = line.startsWith('#');
 		const hasKeyword = metaKeywords.some(k => lowerLine.includes(k.toLowerCase()));
 		
-		const isMeta = (isBullet && hasKeyword) || (hasKeyword && line.includes(':'));
+		// Pattern: "Something? Yes/No/Done"
+		const isVerificationPattern = /^[^*•\-]*\? (yes|no|done|n\/a)/i.test(lowerLine);
+		
+		// General 'Key: Value' pattern detection
+		const isKeyValuePattern = (isBullet || i < 15) && line.includes(':') && line.indexOf(':') < 50;
+
+		const isMeta = (isBullet && hasKeyword) || (hasKeyword && line.includes(':')) || 
+					  (isHeader && hasKeyword) || (isKeyValuePattern && hasKeyword) || 
+					  isVerificationPattern;
+
 		const isReasoning = lowerLine.startsWith('wait,') || 
 						   lowerLine.startsWith('i need to') || 
 						   lowerLine.startsWith('i should') ||
 						   lowerLine.startsWith('i will') ||
 						   lowerLine.startsWith('i must') ||
 						   lowerLine.startsWith('analyzing') ||
-						   lowerLine.startsWith('the user');
+						   lowerLine.startsWith('the user') ||
+						   lowerLine.startsWith('his is the') ||
+						   lowerLine.startsWith('let\'s');
 
-		// Special case: numbered list item without a keyword at the start of response
-		// is often a recap if it's the very first line
-		const isFirstLineRecap = i === 0 && isBullet && lowerLine.length < 100;
+		// Special case: numbered list item or bullet or header without a keyword at the start of response
+		// is often a recap if it's in the first 5 lines and short
+		const isEarlyListRecap = i < 5 && (isBullet || isHeader) && lowerLine.length < 150;
 
 		const hasGreeting = ['halo', 'hai', 'hi', 'selamat', 'aku levely'].some(g => lowerLine.includes(g));
 
-		if (hasGreeting && !hasKeyword) {
+		// Conversation start markers - if we hit one, we stop stripping
+		if (hasGreeting && !hasKeyword && !isBullet && !line.includes(':') && !isVerificationPattern) {
 			firstCleanLineIndex = i;
 			break;
 		}
 
-		if (!isMeta && !isReasoning && !isFirstLineRecap) {
+		if (!isMeta && !isReasoning && !isEarlyListRecap) {
 			firstCleanLineIndex = i;
 			break;
 		}

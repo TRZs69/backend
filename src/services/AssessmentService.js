@@ -41,9 +41,9 @@ const GENERATED_POOL_COMPOSITION = {
 };
 
 const ASSESSMENT_GENERATION_CONFIG = (() => {
-    const maxOutputTokens = Number(process.env.LEVELY_ASSESSMENT_GEMINI_MAX_OUTPUT_TOKENS || 2048);
-    const temperature = Number(process.env.LEVELY_ASSESSMENT_GEMINI_TEMPERATURE || 0.15);
-    const topP = Number(process.env.LEVELY_ASSESSMENT_GEMINI_TOP_P || 0.8);
+    const maxOutputTokens = Number(process.env.LEVELY_ASSESSMENT_LLM_MAX_OUTPUT_TOKENS || 2048);
+    const temperature = Number(process.env.LEVELY_ASSESSMENT_LLM_TEMPERATURE || 0.15);
+    const topP = Number(process.env.LEVELY_ASSESSMENT_LLM_TOP_P || 0.8);
 
     const config = {};
     if (Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
@@ -614,7 +614,7 @@ const buildGoogleAIClient = () => {
     const apiKey = (process.env.GOOGLE_AI_API_KEY || '').trim();
     const model = process.env.LEVELY_LLM_MODEL || 'gemma-3-12b-it';
     const baseUrl =
-        process.env.LEVELY_GEMINI_BASE_URL ||
+        process.env.LEVELY_LLM_BASE_URL ||
         'https://generativelanguage.googleapis.com/v1beta/models';
     const isVertex = baseUrl.includes('aiplatform.googleapis.com');
 

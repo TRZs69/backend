@@ -19,7 +19,7 @@ class GoogleAIClient {
 		this.isVertex = this.baseUrl.includes('aiplatform.googleapis.com');
 		this.generationConfig = this._buildGenerationConfig();
 
-		const mode = (process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE || 'auto').toLowerCase();
+		const mode = (process.env.LEVELY_LLM_SYSTEM_INSTRUCTION_MODE || 'auto').toLowerCase();
 		if (mode === 'native') {
 			this.usesNativeSystemInstruction = true;
 		} else if (mode === 'wrapper') {
@@ -44,9 +44,9 @@ class GoogleAIClient {
 
 	_buildGenerationConfig() {
 		return {
-			temperature: Number(process.env.LEVELY_GEMINI_TEMPERATURE || 0.3),
-			maxOutputTokens: Number(process.env.LEVELY_GEMINI_MAX_OUTPUT_TOKENS || 384),
-			topP: Number(process.env.LEVELY_GEMINI_TOP_P || 0.9),
+			temperature: Number(process.env.LEVELY_LLM_TEMPERATURE || 0.3),
+			maxOutputTokens: Number(process.env.LEVELY_LLM_MAX_OUTPUT_TOKENS || 384),
+			topP: Number(process.env.LEVELY_LLM_TOP_P || 0.9),
 		};
 	}
 

@@ -45,11 +45,12 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 				},
 			});
 			if (user) {
-				const coursesText = user.enrolledCourses
+				const enrolledCourses = user.enrolledCourses || [];
+				const coursesText = enrolledCourses
 					.slice(0, Math.max(0, MAX_USER_CONTEXT_COURSES))
 					.map((uc) => `- ${uc.course.name}: ${uc.progress}%`)
 					.join('\n');
-				const badgesCount = user.userBadges.length;
+				const badgesCount = (user.userBadges || []).length;
 
 				userProfileContext = [
 					'- Gunakan informasi ini hanya jika relevan dengan pertanyaan saat ini.',

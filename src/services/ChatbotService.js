@@ -39,7 +39,7 @@ const buildGoogleAIClient = () => {
 	ensureGoogleCredentials();
 	const apiKey = (process.env.GOOGLE_AI_API_KEY || '').trim();
 	const model = process.env.LEVELY_LLM_MODEL;
-	const baseUrl = process.env.LEVELY_GEMINI_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models';
+	const baseUrl = process.env.LEVELY_LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models';
 	const isVertex = baseUrl.includes('aiplatform.googleapis.com');
 	if (!apiKey && !isVertex) return null;
 	return new GoogleAIClient({ apiKey, model, baseUrl });
@@ -230,11 +230,15 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						const lastThoughtClose = Math.max(lowerAccumulated.lastIndexOf('</thought>'), lowerAccumulated.lastIndexOf('</think>'));
 
 						const metaKeywords = [
-							'user says', 'the user', 'context provided', 'system instructions', 
+							'user says', 'the user', 'user input', 'context provided', 'system instructions', 
 							'reference material', 'assessment data', 'goal:', 
 							'wait,', 'constraint', 'persona:', 'introduction:',
 							'call to action:', 'alignment:', 'scenario:', 'recap:', 'engagement:',
-							'i need to', 'i should', 'i will'
+							'i need to', 'i should', 'i will', 'i must', 'role:', 'behavior:',
+							'format:', 'tone:', 'identity:', 'question:', 'system prompt',
+							'core concept:', 'purpose:', 'rule:', 'emoji', 'criteria', 'checklist',
+							'check:', 'step:', 'task:', 'plan:', 'reflection:', 'points:', 'badges:',
+							'progress:', 'content:', 'status:', 'verification:', 'validation:'
 						];
 
 						const lines = accumulatedText.split('\n');
@@ -242,18 +246,20 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						const secondToLastLine = lines.length >= 2 ? lines[lines.length - 2].toLowerCase() : '';
 						
 						const isBullet = (l) => l.trim().startsWith('•') || l.trim().startsWith('*') || l.trim().startsWith('-') || /^\d+[).:-]/.test(l.trim());
-						const hasGreeting = (l) => ['halo', 'hai', 'hi', 'selamat'].some(g => l.includes(g));
+						const hasGreeting = (l) => ['halo', 'hai', 'hi', 'selamat', 'aku levely'].some(g => l.includes(g));
 						const isMetaBlock = (l) => metaKeywords.some(k => l.includes(k));
 						
-						// A line is meta if it's a bullet OR meta-keyword block, 
-						// BUT we ignore the greeting check here if it ALSO looks like a recap (contains :)
+						// Verification pattern check: "Something? Yes"
+						const isVerification = (l) => /[?]\s*(yes|no|done|n\/a)/i.test(l);
+						
 						const isLineTrulyMeta = (l) => {
 							const trimmed = l.trim();
 							if (!trimmed) return false;
-							return (isBullet(l) || isMetaBlock(l)) && (!hasGreeting(l) || l.includes(':'));
+							return (isBullet(l) || isMetaBlock(l) || isVerification(l)) && 
+								   (!hasGreeting(l) || l.includes(':') || isVerification(l));
 						};
 
-						const isStartOfMessage = lines.length <= 30;
+						const isStartOfMessage = lines.length <= 40;
 						const isMetaPhase = isStartOfMessage && (isLineTrulyMeta(lastLine) || isLineTrulyMeta(secondToLastLine));
 
 						if ((lastThoughtOpen > lastThoughtClose) || isMetaPhase) {
@@ -270,9 +276,9 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 								const firstCleanLineIndex = lines.findIndex((l, idx) => {
 									const trimmed = l.trim().toLowerCase();
 									if (!trimmed) return false;
-									const isM = isBullet(trimmed) || metaKeywords.some(k => trimmed.includes(k));
-									const hasG = ['halo', 'hai', 'hi', 'selamat'].some(g => trimmed.includes(g));
-									return (!isM) || (hasG && !trimmed.includes(':') && !isBullet(trimmed));
+									const isM = isBullet(trimmed) || metaKeywords.some(k => trimmed.includes(k)) || isVerification(trimmed);
+									const hasG = ['halo', 'hai', 'hi', 'selamat', 'aku levely'].some(g => trimmed.includes(g));
+									return (!isM) || (hasG && !trimmed.includes(':') && !isBullet(trimmed) && !isVerification(trimmed));
 								});
 								
 								if (firstCleanLineIndex !== -1) {
