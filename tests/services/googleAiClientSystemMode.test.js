@@ -6,8 +6,8 @@ describe('GoogleAIClient system instruction mode', () => {
 		process.env = { ...originalEnv };
 	});
 
-	it('uses wrapper mode when LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=wrapper', () => {
-		process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE = 'wrapper';
+	it('uses wrapper mode when LEVELY_LLM_SYSTEM_INSTRUCTION_MODE=wrapper', () => {
+		process.env.LEVELY_LLM_SYSTEM_INSTRUCTION_MODE = 'wrapper';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
 		const client = new GoogleAIClient({ apiKey: 'k', model: process.env.LEVELY_LLM_MODEL});
 
@@ -22,8 +22,8 @@ describe('GoogleAIClient system instruction mode', () => {
 		expect(payload.contents[1].role).toBe('model');
 	});
 
-	it('uses native mode when LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=native', () => {
-		process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE = 'native';
+	it('uses native mode when LEVELY_LLM_SYSTEM_INSTRUCTION_MODE=native', () => {
+		process.env.LEVELY_LLM_SYSTEM_INSTRUCTION_MODE = 'native';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
 		const client = new GoogleAIClient({ apiKey: 'k', model: 'gemini-1.5-flash' });
 
@@ -38,7 +38,7 @@ describe('GoogleAIClient system instruction mode', () => {
 	});
 
 	it('auto mode keeps gemma on wrapper and non-gemma on native', () => {
-		process.env.LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE = 'auto';
+		process.env.LEVELY_LLM_SYSTEM_INSTRUCTION_MODE = 'auto';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
 
 		const gemmaClient = new GoogleAIClient({ apiKey: 'k', model: 'gemma-2-9b-it' });

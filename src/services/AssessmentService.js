@@ -41,14 +41,10 @@ const GENERATED_POOL_COMPOSITION = {
 };
 
 const ASSESSMENT_GENERATION_CONFIG = (() => {
-    const maxOutputTokens = Number(process.env.LEVELY_ASSESSMENT_LLM_MAX_OUTPUT_TOKENS || 2048);
-    const temperature = Number(process.env.LEVELY_ASSESSMENT_LLM_TEMPERATURE || 0.15);
-    const topP = Number(process.env.LEVELY_ASSESSMENT_LLM_TOP_P || 0.8);
+    const temperature = Number(process.env.LEVELY_ASSESSMENT_LLM_TEMPERATURE);
+    const topP = Number(process.env.LEVELY_ASSESSMENT_LLM_TOP_P);
 
     const config = {};
-    if (Number.isFinite(maxOutputTokens) && maxOutputTokens > 0) {
-        config.maxOutputTokens = maxOutputTokens;
-    }
     if (Number.isFinite(temperature)) {
         config.temperature = temperature;
     }

@@ -476,7 +476,6 @@ describe('ChatbotService prompt assembly', () => {
 		});
 
 		const callArg = completeMock.mock.calls[0][0];
-		expect(callArg.generationConfig.maxOutputTokens).toBe(900);
 		expect(callArg.messages[2].content).toContain('Ini adalah lanjutan topik');
 	});
 });

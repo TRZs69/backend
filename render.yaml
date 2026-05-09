@@ -20,20 +20,12 @@ services:
         sync: false
       - key: LEVELY_LLM_MODEL
         sync: false
-      - key: LEVELY_GEMINI_TEMPERATURE
+      - key: LEVELY_LLM_TEMPERATURE
         value: "0.3"
-      - key: LEVELY_GEMINI_MAX_OUTPUT_TOKENS
-        value: "384"
-      - key: LEVELY_GEMINI_TOP_P
+      - key: LEVELY_LLM_TOP_P
         value: "0.9"
-      - key: LEVELY_GEMINI_TIMEOUT_MS
+      - key: LEVELY_LLM_TIMEOUT_MS
         value: "30000"
-      - key: LEVELY_CHAT_MAX_MATERIAL_CONTEXT_CHARS
-        value: "3500"
-      - key: LEVELY_CHAT_MAX_HISTORY_CHARS
-        value: "700"
-      - key: LEVELY_CHAT_MAX_HISTORY_MESSAGES
-        value: "8"
       - key: LEVELY_CHAT_IMAGE_DOWNLOAD_TIMEOUT_MS
         value: "1200"
       - key: LEVELY_LLM_WARMUP_INTERVAL_MS

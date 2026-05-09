@@ -31,7 +31,7 @@ const ENABLE_UNLIMITED_HISTORY = parseBooleanEnv(
 	false,
 );
 
-const IMAGE_DOWNLOAD_TIMEOUT_MS = Number(process.env.LEVELY_CHAT_IMAGE_DOWNLOAD_TIMEOUT_MS || 5000);
+const IMAGE_DOWNLOAD_TIMEOUT_MS = Number(process.env.LEVELY_CHAT_IMAGE_DOWNLOAD_TIMEOUT_MS);
 
 const ENABLE_STREAM_TITLE_GENERATION = parseBooleanEnv(
 	process.env.LEVELY_CHAT_STREAM_TITLE_GENERATION,
@@ -42,11 +42,11 @@ const ENABLE_ADAPTIVE_RESPONSE_MODE = parseBooleanEnv(
 	true,
 );
 
-const FAST_TEMPERATURE = Number(process.env.LEVELY_CHAT_FAST_TEMPERATURE || 0.3);
-const FAST_TOP_P = Number(process.env.LEVELY_CHAT_FAST_TOP_P || 0.9);
+const FAST_TEMPERATURE = Number(process.env.LEVELY_CHAT_FAST_TEMPERATURE);
+const FAST_TOP_P = Number(process.env.LEVELY_CHAT_FAST_TOP_P);
 
-const DETAILED_TEMPERATURE = Number(process.env.LEVELY_CHAT_DETAILED_TEMPERATURE || 0.4);
-const DETAILED_TOP_P = Number(process.env.LEVELY_CHAT_DETAILED_TOP_P || 0.95);
+const DETAILED_TEMPERATURE = Number(process.env.LEVELY_CHAT_DETAILED_TEMPERATURE);
+const DETAILED_TOP_P = Number(process.env.LEVELY_CHAT_DETAILED_TOP_P);
 
 const DETAILED_KEYWORDS = (process.env.LEVELY_CHAT_DETAILED_KEYWORDS ||
 	'detail|rinci|step by step|langkah|jelaskan panjang|contoh lengkap|mendalam|komprehensif|analisis')
@@ -66,7 +66,7 @@ const SHORT_CONTINUATION_CUES = (process.env.LEVELY_CHAT_SHORT_CONTINUATION_CUES
 	.map((entry) => String(entry || '').trim().toLowerCase())
 	.filter(Boolean);
 
-const FOLLOW_UP_OVERLAP_THRESHOLD = Number(process.env.LEVELY_CHAT_FOLLOW_UP_OVERLAP_THRESHOLD || 0.5);
+const FOLLOW_UP_OVERLAP_THRESHOLD = Number(process.env.LEVELY_CHAT_FOLLOW_UP_OVERLAP_THRESHOLD);
 
 module.exports = {
 	getFallbackReply,

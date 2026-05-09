@@ -44,9 +44,8 @@ class GoogleAIClient {
 
 	_buildGenerationConfig() {
 		return {
-			temperature: Number(process.env.LEVELY_LLM_TEMPERATURE || 0.3),
-			maxOutputTokens: Number(process.env.LEVELY_LLM_MAX_OUTPUT_TOKENS || 384),
-			topP: Number(process.env.LEVELY_LLM_TOP_P || 0.9),
+			temperature: Number(process.env.LEVELY_LLM_TEMPERATURE),
+			topP: Number(process.env.LEVELY_LLM_TOP_P),
 		};
 	}
 

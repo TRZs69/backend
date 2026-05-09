@@ -69,15 +69,16 @@ This backend application serves as the core logic for a gamified learning platfo
 
         - Optional LLM settings for chat behavior:
                 ```
-                LEVELY_LLM_MODEL='gemma-3-12b-it'
-                LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE=auto
-                LEVELY_CHAT_MAX_USER_PROMPT_CHARS=2200
+                LEVELY_LLM_MODEL='gemma-4-31b'
+                LEVELY_LLM_SYSTEM_INSTRUCTION_MODE=auto
+                LEVELY_CHAT_ENABLE_UNLIMITED_HISTORY=true
                 ```
-            Valid values for `LEVELY_GEMINI_SYSTEM_INSTRUCTION_MODE`:
-            - `auto`: use native `systemInstruction` when model supports it, otherwise use wrapper mode.
+            Valid values for `LEVELY_LLM_SYSTEM_INSTRUCTION_MODE`:
+            - `auto`: use native `systemInstruction` when model supports it (now supports Gemma 4+), otherwise use wrapper mode.
             - `native`: always send native `systemInstruction` payload.
             - `wrapper`: always wrap system prompt as high-priority synthetic turns.
-            Additional chat safety behavior:
+            Additional chat settings:
+            - `LEVELY_CHAT_ENABLE_UNLIMITED_HISTORY`: If set to `true`, the chatbot will maintain a much larger context (default 1000 messages) instead of the standard 10.
             - Prompt-injection attempts (e.g., asking to ignore system rules or reveal internal prompts) are blocked before LLM calls.
             - Direct requests for final graded answers are blocked before LLM calls.
             - High-risk assessment-context streaming requests are buffered and safety-filtered before emission.
