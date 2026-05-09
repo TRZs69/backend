@@ -403,6 +403,9 @@ async function recomputeUserSummary(userId, { source = 'manual', startDate, endD
         });
 
         if (error) {
+            if (error.code === 'PGRST202') {
+                console.error('[EvaluationService] CRITICAL: Database function "recompute_student_summary_v2" not found. Please ensure supabase/student_summary_v2.sql has been executed in the Supabase SQL Editor.');
+            }
             throw new Error(error.message);
         }
 
