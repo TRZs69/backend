@@ -25,7 +25,6 @@ class GoogleAIClient {
 		} else if (mode === 'wrapper') {
 			this.usesNativeSystemInstruction = false;
 		} else {
-			// Gemma 4+ supports native system instructions, previous versions need wrapper.
 			const modelName = String(this.model).toLowerCase();
 			if (modelName.includes('gemma-4')) {
 				this.usesNativeSystemInstruction = true;

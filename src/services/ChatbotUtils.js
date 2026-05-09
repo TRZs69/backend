@@ -131,6 +131,12 @@ const postProcessReply = (reply) => {
 	}
 
 	let normalized = reply.replace(/\r/g, '').trim();
+
+	// Strip out thinking/thought blocks (e.g., <thought>...</thought> or <thought ...>...</thought>)
+	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
+	// Also strip unclosed tags if the LLM was truncated
+	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*/gi, '').trim();
+
 	normalized = stripTrailingEmptyOrderedListItems(normalized);
 	normalized = stripTrailingTruncatedListItems(normalized);
 	normalized = normalized.replace(/\n{3,}/g, '\n\n').trim();

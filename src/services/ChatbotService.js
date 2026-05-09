@@ -212,6 +212,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 
 		if (typeof llmClient.streamComplete === 'function') {
 			try {
+				let isThinking = false;
 				const streamResult = await llmClient.streamComplete({
 					system: effectiveSystemPrompt,
 					messages,
@@ -219,14 +220,36 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						if (isLeaking) return;
 						if (!firstTokenMs && chunk && String(chunk).trim()) firstTokenMs = Date.now() - startedAt;
 
-						const newAccumulated = accumulatedText + chunk;
-						if (hasAssessmentContext && shouldSuppressAssessmentLeakReply({ prompt, reply: newAccumulated, hasAssessmentContext })) {
+						const previousAccumulated = accumulatedText;
+						accumulatedText += chunk;
+
+						// Simple state-based streaming filter for <thought> or <think> tags
+						// This handles cases where tags might be split across chunks
+						let textToEmit = chunk;
+						const lowerAccumulated = accumulatedText.toLowerCase();
+						const lastThoughtOpen = Math.max(lowerAccumulated.lastIndexOf('<thought'), lowerAccumulated.lastIndexOf('<think'));
+						const lastThoughtClose = Math.max(lowerAccumulated.lastIndexOf('</thought>'), lowerAccumulated.lastIndexOf('</think>'));
+
+						if (lastThoughtOpen > lastThoughtClose) {
+							// We are currently inside a thinking block
+							isThinking = true;
+							// If we just entered, emit nothing for this chunk
+							// This isn't perfect for all edge cases but covers the majority of streaming scenarios
+							return;
+						} else if (isThinking && lastThoughtClose >= previousAccumulated.length) {
+							// We just exited a thinking block
+							isThinking = false;
+							// Emit only the part after the closing tag
+							const closeTagLength = lowerAccumulated.endsWith('</thought>') ? 10 : 8;
+							textToEmit = accumulatedText.slice(lastThoughtClose + closeTagLength);
+						}
+
+						if (hasAssessmentContext && shouldSuppressAssessmentLeakReply({ prompt, reply: accumulatedText, hasAssessmentContext })) {
 							isLeaking = true;
 							internalAbortController.abort();
 							emitChunk('\n\n' + GUARDED_DIRECT_ANSWER_REPLY);
-						} else {
-							accumulatedText = newAccumulated;
-							emitChunk(chunk);
+						} else if (!isThinking && textToEmit) {
+							emitChunk(textToEmit);
 						}
 					},
 					abortSignal: internalAbortController.signal,
