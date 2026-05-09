@@ -223,25 +223,41 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						const previousAccumulated = accumulatedText;
 						accumulatedText += chunk;
 
-						// Simple state-based streaming filter for <thought> or <think> tags
-						// This handles cases where tags might be split across chunks
+						// Streaming filter for <thought> tags AND meta-commentary bullets (•)
 						let textToEmit = chunk;
 						const lowerAccumulated = accumulatedText.toLowerCase();
+						
+						// Check for <thought> or <think> tags
 						const lastThoughtOpen = Math.max(lowerAccumulated.lastIndexOf('<thought'), lowerAccumulated.lastIndexOf('<think'));
 						const lastThoughtClose = Math.max(lowerAccumulated.lastIndexOf('</thought>'), lowerAccumulated.lastIndexOf('</think>'));
 
-						if (lastThoughtOpen > lastThoughtClose) {
-							// We are currently inside a thinking block
+						// Check for meta-commentary bullets (e.g., •User says:, •Context:)
+						// If the response starts with '•', we treat it as thinking until we hit a line that doesn't start with it
+						const lines = accumulatedText.split('\n');
+						const currentLineIsMeta = lines[lines.length - 1].trim().startsWith('•');
+						const allPreviousLinesWereMeta = lines.slice(0, -1).every(l => !l.trim() || l.trim().startsWith('•'));
+						const isMetaPhase = accumulatedText.trim().startsWith('•') && allPreviousLinesWereMeta && currentLineIsMeta;
+
+						if ((lastThoughtOpen > lastThoughtClose) || isMetaPhase) {
+							// We are currently inside a thinking block or meta-commentary phase
 							isThinking = true;
-							// If we just entered, emit nothing for this chunk
-							// This isn't perfect for all edge cases but covers the majority of streaming scenarios
 							return;
-						} else if (isThinking && lastThoughtClose >= previousAccumulated.length) {
-							// We just exited a thinking block
+						} else if (isThinking) {
+							// We just exited a thinking/meta block
 							isThinking = false;
-							// Emit only the part after the closing tag
-							const closeTagLength = lowerAccumulated.endsWith('</thought>') ? 10 : 8;
-							textToEmit = accumulatedText.slice(lastThoughtClose + closeTagLength);
+							
+							if (lastThoughtClose >= previousAccumulated.length) {
+								const closeTagLength = lowerAccumulated.endsWith('</thought>') ? 10 : 8;
+								textToEmit = accumulatedText.slice(lastThoughtClose + closeTagLength);
+							} else {
+								// Exited meta-bullet phase: find the first line that doesn't start with '•'
+								const firstCleanLineIndex = lines.findIndex(l => l.trim() && !l.trim().startsWith('•'));
+								if (firstCleanLineIndex !== -1) {
+									textToEmit = lines.slice(firstCleanLineIndex).join('\n');
+								} else {
+									return; // Still haven't found a clean line
+								}
+							}
 						}
 
 						if (hasAssessmentContext && shouldSuppressAssessmentLeakReply({ prompt, reply: accumulatedText, hasAssessmentContext })) {
