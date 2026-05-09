@@ -230,22 +230,22 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						const lastThoughtClose = Math.max(lowerAccumulated.lastIndexOf('</thought>'), lowerAccumulated.lastIndexOf('</think>'));
 
 						const metaKeywords = [
-							'user says',
-							'context provided',
-							'system instructions',
-							'reference material',
-							'assessment data',
-							'goal:',
-							'wait,',
-							'constraint'
+							'user says', 'the user', 'context provided', 'system instructions', 
+							'reference material', 'assessment data', 'goal:', 
+							'wait,', 'constraint', 'persona:', 'introduction:',
+							'call to action:', 'alignment:', 'scenario:', 'recap:', 'engagement:',
+							'i need to', 'i should', 'i will'
 						];
 
 						const lines = accumulatedText.split('\n');
 						const currentLine = lines[lines.length - 1].toLowerCase();
 
 						const isMetaBlock = metaKeywords.some(k => currentLine.includes(k));
-						const isStartOfMessage = lines.length <= 15;
-						const isMetaPhase = isStartOfMessage && (currentLine.trim().startsWith('•') || currentLine.trim().startsWith('*') || currentLine.trim().startsWith('-') || isMetaBlock);
+						const isStartOfMessage = lines.length <= 30;
+						const isBullet = currentLine.trim().startsWith('•') || currentLine.trim().startsWith('*') || currentLine.trim().startsWith('-') || /^\d+\./.test(currentLine.trim());
+						const hasGreeting = ['halo', 'hai', 'hi', 'selamat'].some(g => currentLine.includes(g));
+
+						const isMetaPhase = isStartOfMessage && (isBullet || isMetaBlock) && !hasGreeting;
 
 						if ((lastThoughtOpen > lastThoughtClose) || isMetaPhase) {
 							isThinking = true;
@@ -260,7 +260,9 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 								const firstCleanLineIndex = lines.findIndex((l, idx) => {
 									const trimmed = l.trim().toLowerCase();
 									if (!trimmed) return false;
-									return !trimmed.startsWith('•') && !trimmed.startsWith('*') && !trimmed.startsWith('-') && !metaKeywords.some(k => trimmed.includes(k));
+									const isM = trimmed.startsWith('•') || trimmed.startsWith('*') || trimmed.startsWith('-') || /^\d+\./.test(trimmed) || metaKeywords.some(k => trimmed.includes(k));
+									const hasG = ['halo', 'hai', 'hi', 'selamat'].some(g => trimmed.includes(g));
+									return !isM || hasG;
 								});
 								
 								if (firstCleanLineIndex !== -1) {

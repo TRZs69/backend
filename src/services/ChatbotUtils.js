@@ -132,46 +132,63 @@ const postProcessReply = (reply) => {
 
 	let normalized = reply.replace(/\r/g, '').trim();
 
+	// 1. Strip out thinking/thought blocks (e.g., <thought>...</thought>)
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*/gi, '').trim();
 
+	// 2. Aggressive Keyword-based Line Stripping
 	const metaKeywords = [
-		'User says',
-		'Context',
-		'Reference Material',
-		'Assessment Data',
-		'System Instructions',
-		'Name:',
-		'Tone:',
-		'Language:',
-		'Pronouns:',
-		'Constraint',
-		'Goal:',
-		'Wait,',
-		'Greeting:',
-		'Thinking:',
-		'Analysis:',
-		'Instruction:',
-		'Route:'
-	].join('|');
+		'User says', 'The user', 'Context', 'Reference Material', 'Assessment Data', 
+		'System Instructions', 'Name:', 'Tone:', 'Language:', 'Pronouns:', 
+		'Constraint', 'Goal:', 'Wait,', 'Greeting:', 'Thinking:', 
+		'Analysis:', 'Instruction:', 'Route:', 'Persona:', 'Introduction:',
+		'Call to Action:', 'Alignment:', 'Scenario:', 'Recap:', 'Engagement:'
+	];
 
-	const metaRegex = new RegExp(`^(\\s*[*•\\-\\d.]*\\s*(${metaKeywords}).*?\\n?)+`, 'gim');
-	normalized = normalized.replace(metaRegex, '').trim();
+	const lines = normalized.split('\n');
+	let firstCleanLineIndex = -1;
 
-	while (normalized.startsWith('*') || normalized.startsWith('•') || normalized.startsWith('-')) {
-		const firstNewline = normalized.indexOf('\n');
-		const lineToTest = (firstNewline === -1 ? normalized : normalized.slice(0, firstNewline)).toLowerCase();
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i].trim();
+		if (!line) continue;
+
+		const lowerLine = line.toLowerCase();
+		const isBullet = line.startsWith('•') || line.startsWith('*') || line.startsWith('-') || /^\d+\./.test(line);
+		const hasKeyword = metaKeywords.some(k => lowerLine.includes(k.toLowerCase()));
 		
-		if (metaKeywords.split('|').some(k => lineToTest.includes(k.toLowerCase()))) {
-			if (firstNewline === -1) {
-				normalized = '';
-				break;
-			}
-			normalized = normalized.slice(firstNewline + 1).trim();
-		} else {
+		const isMeta = (isBullet && hasKeyword) || (hasKeyword && line.includes(':'));
+		const isReasoning = lowerLine.startsWith('wait,') || 
+						   lowerLine.startsWith('i need to') || 
+						   lowerLine.startsWith('i should') ||
+						   lowerLine.startsWith('i will');
+
+		// Special case: if it's a bullet but contains a greeting, it's likely NOT meta anymore
+		const hasGreeting = ['halo', 'hai', 'hi', 'selamat'].some(g => lowerLine.includes(g));
+		
+		if ((!isMeta && !isReasoning) || (isBullet && hasGreeting && !hasKeyword)) {
+			firstCleanLineIndex = i;
 			break;
 		}
 	}
+
+	if (firstCleanLineIndex !== -1) {
+		normalized = lines.slice(firstCleanLineIndex).join('\n').trim();
+	} else {
+		// If no clean line found, try splitting at greeting as last resort
+		const splitMarkers = ['Halo', 'Hai', 'Hi', 'Selamat', 'Aku Levely', 'Levely:'];
+		for (const marker of splitMarkers) {
+			const index = normalized.indexOf(marker);
+			if (index !== -1) {
+				normalized = normalized.slice(index).trim();
+				break;
+			}
+		}
+	}
+
+	// 3. Final cleanup of concatenated "•User says: ...•Context: ..." strings
+	const keywordPattern = metaKeywords.map(k => k.replace(':', '')).join('|');
+	const concatenatedRegex = new RegExp(`[•*\\-]\\s*(${keywordPattern})[\\s\\S]*?(?=[•*\\-]|$)`, 'gi');
+	normalized = normalized.replace(concatenatedRegex, '').trim();
 
 	normalized = stripTrailingEmptyOrderedListItems(normalized);
 	normalized = stripTrailingTruncatedListItems(normalized);
