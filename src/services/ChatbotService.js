@@ -9,7 +9,6 @@ const {
 } = require('./ChatbotGuardrails');
 const {
 	getFallbackReply,
-	MAX_USER_PROMPT_CHARS,
 	ENABLE_STREAM_TITLE_GENERATION,
 } = require('./ChatbotConfig');
 const {
@@ -102,7 +101,7 @@ const logChatbotInteractionEvent = ({ userId, sessionId, storedMessages = [] }) 
 };
 
 exports.sendMessage = async ({ message, history = [], sessionId, userId, materialId, chapterId }) => {
-	const prompt = sanitizePromptText(message, { limit: MAX_USER_PROMPT_CHARS });
+	const prompt = sanitizePromptText(message);
 	if (!prompt) throw new Error('Message is required');
 
 	const preLlmSafety = evaluatePreLlmSafetyGate({ prompt });
@@ -167,7 +166,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 };
 
 exports.streamMessage = async ({ message, history = [], sessionId, userId, materialId, chapterId, onToken, abortSignal, isEdit = false, existingUserMessageId = null }) => {
-	const prompt = sanitizePromptText(message, { limit: MAX_USER_PROMPT_CHARS });
+	const prompt = sanitizePromptText(message);
 	if (!prompt) throw new Error('Message is required');
 
 	const emitChunk = (chunk) => onToken?.(chunk);

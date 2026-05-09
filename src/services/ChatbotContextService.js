@@ -7,11 +7,7 @@ const {
 	shouldForceContinuation,
 } = require('./ChatbotGuardrails');
 const {
-	MAX_USER_CONTEXT_COURSES,
-	MAX_MATERIAL_IMAGES,
 	IMAGE_DOWNLOAD_TIMEOUT_MS,
-	MAX_MATERIAL_CONTEXT_CHARS,
-	MAX_ASSESSMENT_CONTEXT_CHARS,
 } = require('./ChatbotConfig');
 const {
 	normalizeChapterId,
@@ -47,7 +43,6 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 			if (user) {
 				const enrolledCourses = user.enrolledCourses || [];
 				const coursesText = enrolledCourses
-					.slice(0, Math.max(0, MAX_USER_CONTEXT_COURSES))
 					.map((uc) => `- ${uc.course.name}: ${uc.progress}%`)
 					.join('\n');
 				const badgesCount = (user.userBadges || []).length;
@@ -82,11 +77,10 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 
 					const includeImageContext = shouldIncludeImageContext(prompt);
 
-					if (includeImageContext && MAX_MATERIAL_IMAGES > 0) {
+					if (includeImageContext) {
 						const imageRegex = /\[Image:\s*([^\]]+)\]/g;
 						let match;
-						let imageCount = 0;
-						while ((match = imageRegex.exec(cleanContent)) !== null && imageCount < MAX_MATERIAL_IMAGES) {
+						while ((match = imageRegex.exec(cleanContent)) !== null) {
 							const imgPath = match[1];
 
 							if (imgPath.startsWith('http')) {
@@ -108,7 +102,6 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 											mimeType,
 										}
 									});
-									imageCount += 1;
 								} catch (downloadError) {
 									console.error('Failed to download image from', imgPath, downloadError.message);
 								}
@@ -129,7 +122,6 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 											mimeType,
 										}
 									});
-									imageCount += 1;
 								}
 							}
 						}
@@ -137,7 +129,6 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 
 					// strip remaining HTML tags
 					cleanContent = cleanContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-					cleanContent = truncateText(cleanContent, MAX_MATERIAL_CONTEXT_CHARS);
 					materialReferenceContext = `Judul: ${material.name}\nIsi Materi: ${cleanContent}`;
 				}
 
@@ -169,10 +160,7 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 
 								assessmentStats += `\nReferensi Soal & Kunci Jawaban Lengkap:\n`;
 								if (assessment.questions) {
-									assessmentStats += truncateText(
-										JSON.stringify(assessment.questions, null, 2),
-										MAX_ASSESSMENT_CONTEXT_CHARS,
-									) + '\n';
+									assessmentStats += JSON.stringify(assessment.questions, null, 2) + '\n';
 								}
 
 								assessmentReferenceContext = [
@@ -204,7 +192,6 @@ const buildChatContext = async ({ history, sessionId, userId, prompt, materialId
 			if (!useProvidedHistory && persistedSessionId) {
 				const stored = await chatHistoryStore.fetchMessages({
 					sessionId: persistedSessionId,
-					limit: MAX_HISTORY_MESSAGES,
 				});
 				persistedConversation = stored.map((entry) => ({
 					role: entry.role,

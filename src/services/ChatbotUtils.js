@@ -1,8 +1,3 @@
-const {
-	MAX_HISTORY_MESSAGES,
-	MAX_HISTORY_CHARS_PER_MESSAGE,
-} = require('./ChatbotConfig');
-
 const normalizeChapterId = (chapterId) => {
 	const parsed = Number(chapterId);
 	if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -259,15 +254,14 @@ const normalizeHistory = (history = []) => {
 			}
 			const role = entry.role === 'assistant' ? 'assistant' : 'user';
 			const content = typeof entry.content === 'string'
-				? truncateText(entry.content, MAX_HISTORY_CHARS_PER_MESSAGE)
+				? entry.content
 				: '';
 			if (!content) {
 				return null;
 			}
 			return { role, content };
 		})
-		.filter(Boolean)
-		.slice(-Math.max(1, MAX_HISTORY_MESSAGES));
+		.filter(Boolean);
 
 	// Google AI API requires the first message to be from the 'user' role.
 	// If slicing results in a leading assistant message, drop it.

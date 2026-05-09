@@ -3,12 +3,9 @@ const {
 	isDetailedPrompt,
 } = require('./ChatbotGuardrails');
 const {
-	MAX_USER_PROMPT_CHARS,
 	ENABLE_ADAPTIVE_RESPONSE_MODE,
-	DETAILED_MAX_OUTPUT_TOKENS,
 	DETAILED_TEMPERATURE,
 	DETAILED_TOP_P,
-	FAST_MAX_OUTPUT_TOKENS,
 	FAST_TEMPERATURE,
 	FAST_TOP_P,
 } = require('./ChatbotConfig');
@@ -50,7 +47,7 @@ const buildReferenceMessage = ({ userProfile, materialContext, assessmentContext
 };
 
 const buildUserRequestMessage = (prompt) => {
-	const sanitizedPrompt = sanitizePromptText(prompt, { limit: MAX_USER_PROMPT_CHARS });
+	const sanitizedPrompt = sanitizePromptText(prompt);
 	return [
 		'PERMINTAAN PENGGUNA',
 		sanitizedPrompt,
@@ -82,9 +79,6 @@ const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {
 	const generationConfig = {};
 
 	if (detailed) {
-		if (isFinitePositive(DETAILED_MAX_OUTPUT_TOKENS)) {
-			generationConfig.maxOutputTokens = DETAILED_MAX_OUTPUT_TOKENS;
-		}
 		if (Number.isFinite(DETAILED_TEMPERATURE)) {
 			generationConfig.temperature = DETAILED_TEMPERATURE;
 		}
@@ -97,9 +91,6 @@ const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {
 		};
 	}
 
-	if (isFinitePositive(FAST_MAX_OUTPUT_TOKENS)) {
-		generationConfig.maxOutputTokens = FAST_MAX_OUTPUT_TOKENS;
-	}
 	if (Number.isFinite(FAST_TEMPERATURE)) {
 		generationConfig.temperature = FAST_TEMPERATURE;
 	}
