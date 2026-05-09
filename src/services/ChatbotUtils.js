@@ -136,16 +136,17 @@ const postProcessReply = (reply) => {
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*/gi, '').trim();
 
-	// 2. Aggressive Keyword-based Line Stripping
+	// 2. Scan and Strip Meta-Commentary (Line by Line)
 	const metaKeywords = [
-		'User says', 'The user', 'Context', 'Reference Material', 'Assessment Data', 
-		'System Instructions', 'Name:', 'Tone:', 'Language:', 'Pronouns:', 
-		'Constraint', 'Goal:', 'Wait,', 'Greeting:', 'Thinking:', 
+		'User says', 'The user', 'User input', 'Context', 'Reference Material', 
+		'Assessment Data', 'System Instructions', 'Name:', 'Tone:', 'Language:', 
+		'Pronouns:', 'Constraint', 'Goal:', 'Wait,', 'Greeting:', 'Thinking:', 
 		'Analysis:', 'Instruction:', 'Route:', 'Persona:', 'Introduction:',
-		'Call to Action:', 'Alignment:', 'Scenario:', 'Recap:', 'Engagement:'
+		'Call to Action:', 'Alignment:', 'Scenario:', 'Recap:', 'Engagement:',
+		'I need to', 'I should', 'I will', 'I must'
 	];
 
-	const lines = normalized.split('\n');
+	let lines = normalized.split('\n');
 	let firstCleanLineIndex = -1;
 
 	for (let i = 0; i < lines.length; i++) {
@@ -153,19 +154,30 @@ const postProcessReply = (reply) => {
 		if (!line) continue;
 
 		const lowerLine = line.toLowerCase();
-		const isBullet = line.startsWith('•') || line.startsWith('*') || line.startsWith('-') || /^\d+\./.test(line);
+		const isBullet = line.startsWith('•') || line.startsWith('*') || line.startsWith('-') || /^\d+[).:-]/.test(line);
 		const hasKeyword = metaKeywords.some(k => lowerLine.includes(k.toLowerCase()));
 		
 		const isMeta = (isBullet && hasKeyword) || (hasKeyword && line.includes(':'));
 		const isReasoning = lowerLine.startsWith('wait,') || 
 						   lowerLine.startsWith('i need to') || 
 						   lowerLine.startsWith('i should') ||
-						   lowerLine.startsWith('i will');
+						   lowerLine.startsWith('i will') ||
+						   lowerLine.startsWith('i must') ||
+						   lowerLine.startsWith('analyzing') ||
+						   lowerLine.startsWith('the user');
 
-		// Special case: if it's a bullet but contains a greeting, it's likely NOT meta anymore
-		const hasGreeting = ['halo', 'hai', 'hi', 'selamat'].some(g => lowerLine.includes(g));
-		
-		if ((!isMeta && !isReasoning) || (isBullet && hasGreeting && !hasKeyword)) {
+		// Special case: numbered list item without a keyword at the start of response
+		// is often a recap if it's the very first line
+		const isFirstLineRecap = i === 0 && isBullet && lowerLine.length < 100;
+
+		const hasGreeting = ['halo', 'hai', 'hi', 'selamat', 'aku levely'].some(g => lowerLine.includes(g));
+
+		if (hasGreeting && !hasKeyword) {
+			firstCleanLineIndex = i;
+			break;
+		}
+
+		if (!isMeta && !isReasoning && !isFirstLineRecap) {
 			firstCleanLineIndex = i;
 			break;
 		}
@@ -173,9 +185,10 @@ const postProcessReply = (reply) => {
 
 	if (firstCleanLineIndex !== -1) {
 		normalized = lines.slice(firstCleanLineIndex).join('\n').trim();
-	} else {
-		// If no clean line found, try splitting at greeting as last resort
-		const splitMarkers = ['Halo', 'Hai', 'Hi', 'Selamat', 'Aku Levely', 'Levely:'];
+	} else if (lines.length > 0) {
+		// If we couldn't find a clean line, it might be a concatenated mess
+		// Try a last-ditch effort to find where Levely actually starts talking
+		const splitMarkers = ['Halo', 'Hai', 'Hi', 'Selamat', 'Aku Levely'];
 		for (const marker of splitMarkers) {
 			const index = normalized.indexOf(marker);
 			if (index !== -1) {
@@ -185,9 +198,9 @@ const postProcessReply = (reply) => {
 		}
 	}
 
-	// 3. Final cleanup of concatenated "•User says: ...•Context: ..." strings
-	const keywordPattern = metaKeywords.map(k => k.replace(':', '')).join('|');
-	const concatenatedRegex = new RegExp(`[•*\\-]\\s*(${keywordPattern})[\\s\\S]*?(?=[•*\\-]|$)`, 'gi');
+	// 3. Cleanup concatenated patterns that survived (e.g. •User: hi•Persona: Levely)
+	const keywordPattern = metaKeywords.map(k => k.replace(/[:]/g, '')).join('|');
+	const concatenatedRegex = new RegExp(`[•*\\-]\\s*(${keywordPattern})[\\s\\S]*?(?=[•*\\-]|Halo|Hai|Hi|Selamat|$)`, 'gi');
 	normalized = normalized.replace(concatenatedRegex, '').trim();
 
 	normalized = stripTrailingEmptyOrderedListItems(normalized);

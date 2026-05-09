@@ -238,14 +238,23 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						];
 
 						const lines = accumulatedText.split('\n');
-						const currentLine = lines[lines.length - 1].toLowerCase();
+						const lastLine = lines[lines.length - 1].toLowerCase();
+						const secondToLastLine = lines.length >= 2 ? lines[lines.length - 2].toLowerCase() : '';
+						
+						const isBullet = (l) => l.trim().startsWith('•') || l.trim().startsWith('*') || l.trim().startsWith('-') || /^\d+[).:-]/.test(l.trim());
+						const hasGreeting = (l) => ['halo', 'hai', 'hi', 'selamat'].some(g => l.includes(g));
+						const isMetaBlock = (l) => metaKeywords.some(k => l.includes(k));
+						
+						// A line is meta if it's a bullet OR meta-keyword block, 
+						// BUT we ignore the greeting check here if it ALSO looks like a recap (contains :)
+						const isLineTrulyMeta = (l) => {
+							const trimmed = l.trim();
+							if (!trimmed) return false;
+							return (isBullet(l) || isMetaBlock(l)) && (!hasGreeting(l) || l.includes(':'));
+						};
 
-						const isMetaBlock = metaKeywords.some(k => currentLine.includes(k));
 						const isStartOfMessage = lines.length <= 30;
-						const isBullet = currentLine.trim().startsWith('•') || currentLine.trim().startsWith('*') || currentLine.trim().startsWith('-') || /^\d+\./.test(currentLine.trim());
-						const hasGreeting = ['halo', 'hai', 'hi', 'selamat'].some(g => currentLine.includes(g));
-
-						const isMetaPhase = isStartOfMessage && (isBullet || isMetaBlock) && !hasGreeting;
+						const isMetaPhase = isStartOfMessage && (isLineTrulyMeta(lastLine) || isLineTrulyMeta(secondToLastLine));
 
 						if ((lastThoughtOpen > lastThoughtClose) || isMetaPhase) {
 							isThinking = true;
@@ -257,12 +266,13 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 								const closeTagLength = lowerAccumulated.endsWith('</thought>') ? 10 : 8;
 								textToEmit = accumulatedText.slice(lastThoughtClose + closeTagLength);
 							} else {
+								// Exited meta-block phase: find the first line that doesn't look like meta-commentary
 								const firstCleanLineIndex = lines.findIndex((l, idx) => {
 									const trimmed = l.trim().toLowerCase();
 									if (!trimmed) return false;
-									const isM = trimmed.startsWith('•') || trimmed.startsWith('*') || trimmed.startsWith('-') || /^\d+\./.test(trimmed) || metaKeywords.some(k => trimmed.includes(k));
+									const isM = isBullet(trimmed) || metaKeywords.some(k => trimmed.includes(k));
 									const hasG = ['halo', 'hai', 'hi', 'selamat'].some(g => trimmed.includes(g));
-									return !isM || hasG;
+									return (!isM) || (hasG && !trimmed.includes(':') && !isBullet(trimmed));
 								});
 								
 								if (firstCleanLineIndex !== -1) {
