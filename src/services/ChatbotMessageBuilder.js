@@ -64,7 +64,7 @@ const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage =
 		: 'Source-bounded mode is inactive because no material reference is available.';
 
 	const greetingInstruction = isFirstMessage
-		? 'This is the start of the conversation. You may greet the user warmly.'
+		? 'This is the start of the conversation. If the conversation has zero previous messages, you may greet the user warmly.'
 		: 'This is a continuation of the conversation. DO NOT greet the user again, do not say "Halo" or "Hi", and do not repeat introductions. Jump straight to the answer or follow-up.';
 
 	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction} ${greetingInstruction}`;
