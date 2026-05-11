@@ -25,14 +25,7 @@ class GoogleAIClient {
 		} else if (mode === 'wrapper') {
 			this.usesNativeSystemInstruction = false;
 		} else {
-			const modelName = String(this.model).toLowerCase();
-			if (modelName.includes('gemma-4')) {
-				this.usesNativeSystemInstruction = true;
-			} else if (modelName.includes('gemma')) {
-				this.usesNativeSystemInstruction = false;
-			} else {
-				this.usesNativeSystemInstruction = true;
-			}
+			this.usesNativeSystemInstruction = true;
 		}
 
 		if (this.isVertex) {
@@ -43,10 +36,19 @@ class GoogleAIClient {
 	}
 
 	_buildGenerationConfig() {
-		return {
+		const config = {
 			temperature: Number(process.env.LEVELY_LLM_TEMPERATURE),
 			topP: Number(process.env.LEVELY_LLM_TOP_P),
 		};
+
+		const modelName = String(this.model || '').toLowerCase();
+		const thinkingEnabled = process.env.LEVELY_LLM_THINKING_ENABLED === 'true';
+
+		if (!thinkingEnabled && modelName.includes('gemma-4')) {
+			config.thinkingConfig = { thinkingLevel: 'MINIMAL' };
+		}
+
+		return config;
 	}
 
 	async streamComplete({ messages = [], system = null, context = null, onChunk, abortSignal, generationConfig = null }) {
