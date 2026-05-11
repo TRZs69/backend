@@ -70,9 +70,14 @@ const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage =
 	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction} ${greetingInstruction}`;
 };
 
-const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {
+const { resolveRequiredTools, resolveTargetModel } = require('./ChatbotTools');
+
+const pickGenerationSettings = (prompt, { forceDetailed = false, route = 'normal_qa', hasMaterialContext = false } = {}) => {
+	const tools = resolveRequiredTools(prompt, { route, hasMaterialContext });
+	const targetModel = resolveTargetModel(prompt, { route });
+	
 	if (!ENABLE_ADAPTIVE_RESPONSE_MODE) {
-		return { mode: 'default', generationConfig: null };
+		return { mode: 'default', generationConfig: null, tools, targetModel };
 	}
 
 	const detailed = forceDetailed || isDetailedPrompt(prompt);
@@ -88,6 +93,8 @@ const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {
 		return {
 			mode: forceDetailed ? 'detailed_continuation' : 'detailed',
 			generationConfig: Object.keys(generationConfig).length ? generationConfig : null,
+			tools,
+			targetModel
 		};
 	}
 
@@ -101,6 +108,8 @@ const pickGenerationSettings = (prompt, { forceDetailed = false } = {}) => {
 	return {
 		mode: 'fast',
 		generationConfig: Object.keys(generationConfig).length ? generationConfig : null,
+		tools,
+		targetModel
 	};
 };
 

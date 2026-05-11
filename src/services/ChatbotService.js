@@ -115,7 +115,11 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 	const assistantRoute = resolveAssistantRoute({ prompt });
 	const isFirstMessage = messages.length <= 1;
 	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage });
-	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
+	const responseSettings = pickGenerationSettings(prompt, { 
+		forceDetailed: isContinuationRequest,
+		route: assistantRoute,
+		hasMaterialContext
+	});
 
 	try {
 		const llmStartedAt = Date.now();
@@ -123,6 +127,8 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 			system: effectiveSystemPrompt,
 			messages,
 			generationConfig: responseSettings.generationConfig,
+			tools: responseSettings.tools,
+			model: responseSettings.targetModel,
 		});
 
 		const safeReply = shouldSuppressAssessmentLeakReply({ prompt, reply: rawReply, hasAssessmentContext }) ? GUARDED_DIRECT_ANSWER_REPLY : rawReply;
@@ -192,7 +198,11 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	const assistantRoute = resolveAssistantRoute({ prompt });
 	const isFirstMessage = messages.length <= 1;
 	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage });
-	const responseSettings = pickGenerationSettings(prompt, { forceDetailed: isContinuationRequest });
+	const responseSettings = pickGenerationSettings(prompt, { 
+		forceDetailed: isContinuationRequest,
+		route: assistantRoute,
+		hasMaterialContext
+	});
 
 	try {
 		const shouldGenerateLiveTitle = ENABLE_STREAM_TITLE_GENERATION && chatHistoryStore.isEnabled && persistedSessionId && messages.length <= 3;
@@ -215,6 +225,8 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 				const streamResult = await llmClient.streamComplete({
 					system: effectiveSystemPrompt,
 					messages,
+					tools: responseSettings.tools,
+					model: responseSettings.targetModel,
 					onChunk: (chunk) => {
 						if (isLeaking) return;
 						if (!firstTokenMs && chunk && String(chunk).trim()) firstTokenMs = Date.now() - startedAt;
@@ -309,7 +321,13 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 				}
 			}
 		} else {
-			const completeResult = await llmClient.complete({ system: effectiveSystemPrompt, messages, generationConfig: responseSettings.generationConfig });
+			const completeResult = await llmClient.complete({ 
+				system: effectiveSystemPrompt, 
+				messages, 
+				generationConfig: responseSettings.generationConfig,
+				tools: responseSettings.tools,
+				model: responseSettings.targetModel
+			});
 			reply = completeResult.text;
 			llmMetadata = completeResult.metadata;
 

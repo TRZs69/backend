@@ -11,10 +11,12 @@ class GoogleAIClient {
 	constructor({
 		apiKey,
 		model = process.env.LEVELY_LLM_MODEL,
+		modelTools = process.env.LEVELY_LLM_MODEL_TOOLS,
 		baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models',
 	}) {
 		this.apiKey = typeof apiKey === 'string' ? apiKey.trim() : apiKey;
 		this.model = model;
+		this.modelTools = modelTools;
 		this.baseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
 		this.isVertex = this.baseUrl.includes('aiplatform.googleapis.com');
 		this.generationConfig = this._buildGenerationConfig();
@@ -51,28 +53,42 @@ class GoogleAIClient {
 		return config;
 	}
 
-	async streamComplete({ messages = [], system = null, context = null, onChunk, abortSignal, generationConfig = null }) {
+	_determineModelName(payload) {
+		if (payload.tools && payload.tools.length > 0) {
+			return this.modelTools;
+		}
+		
+		return this.model;
+	}
+
+	async streamComplete({ messages = [], system = null, context = null, onChunk, abortSignal, generationConfig = null, tools = null, model = null }) {
 		const effectiveMessages = [...messages];
 		if (context) {
 			effectiveMessages.unshift({ role: 'user', content: `CONTEXT REFERENCE:\n${context}` });
 		}
-		const payload = this._buildRequestPayload({ messages: effectiveMessages, system, generationConfig });
-		const url = this._buildUrl({ stream: true });
+		const payload = this._buildRequestPayload({ messages: effectiveMessages, system, generationConfig, tools });
 		
+		const primaryModel = model || this._determineModelName(payload);
+		const fallbackModel = (primaryModel === this.modelTools) ? this.model : this.modelTools;
+
 		const headers = { 'Content-Type': 'application/json' };
 		if (this.isVertex) {
 			const authHeaders = await this.authClient.getRequestHeaders();
 			Object.assign(headers, authHeaders);
 		}
 
-		const response = await this._doRequestWithRetry(() =>
-			axios.post(url, payload, {
-				headers,
-				responseType: 'stream',
-				signal: abortSignal,
-				httpAgent: standardHttpAgent,
-				httpsAgent: standardHttpsAgent,
-			})
+		const response = await this._doRequestWithRetry(
+			(activeModel) => {
+				const url = this._buildUrl({ stream: true, modelOverride: activeModel });
+				return axios.post(url, payload, {
+					headers,
+					responseType: 'stream',
+					signal: abortSignal,
+					httpAgent: standardHttpAgent,
+					httpsAgent: standardHttpsAgent,
+				});
+			},
+			{ primaryModel, fallbackModel }
 		);
 
 		return new Promise((resolve, reject) => {
@@ -134,11 +150,14 @@ class GoogleAIClient {
 		});
 	}
 
-	async _doRequestWithRetry(requestFn, maxRetries = 1) {
+	async _doRequestWithRetry(requestFn, { maxRetries = 1, primaryModel, fallbackModel } = {}) {
 		let lastError;
-		for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+		let currentModel = primaryModel;
+		let hasTriedFallback = false;
+
+		for (let attempt = 0; attempt <= (maxRetries + 1); attempt += 1) {
 			try {
-				return await requestFn();
+				return await requestFn(currentModel);
 			} catch (error) {
 				lastError = error;
 				const status = error?.response?.status;
@@ -166,17 +185,27 @@ class GoogleAIClient {
 				}
 
 				// If we get a 400 or other non-retryable error, log the details
-				if (status && status >= 400 && status < 500) {
+				if (status && status >= 400 && status < 500 && status !== 429) {
 					console.error(`[GoogleAIClient] Request failed with status ${status}:`, errorData || error.message);
 				}
 
 				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
 
-				if (attempt < maxRetries && isRetryable) {
-					const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-					console.warn(`[GoogleAIClient] Attempt ${attempt + 1} failed with ${status}. Retrying in ${Math.round(delay)}ms...`);
-					await new Promise((resolve) => setTimeout(resolve, delay));
-					continue;
+				if (isRetryable) {
+					// Logic: If we hit a rate limit (429) or server error (5xx), try the other model if available
+					if (fallbackModel && !hasTriedFallback) {
+						console.warn(`[GoogleAIClient] Model ${currentModel} failed (${status}). Failing over to ${fallbackModel}...`);
+						currentModel = fallbackModel;
+						hasTriedFallback = true;
+						continue;
+					}
+
+					if (attempt < maxRetries) {
+						const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+						console.warn(`[GoogleAIClient] Attempt ${attempt + 1} failed with ${status}. Retrying in ${Math.round(delay)}ms...`);
+						await new Promise((resolve) => setTimeout(resolve, delay));
+						continue;
+					}
 				}
 				throw error;
 			}
@@ -189,7 +218,7 @@ class GoogleAIClient {
 		return parts.map(p => p.text || '').join('');
 	}
 
-	_buildRequestPayload({ messages, system, generationConfig }) {
+	_buildRequestPayload({ messages, system, generationConfig, tools }) {
 		const normalizedMessages = [];
 		for (const m of messages) {
 			const last = normalizedMessages[normalizedMessages.length - 1];
@@ -207,7 +236,6 @@ class GoogleAIClient {
 			}
 		}
 
-		// Safety check: The first message must be from the 'user' role.
 		while (normalizedMessages.length > 0 && normalizedMessages[0].role === 'model') {
 			normalizedMessages.shift();
 		}
@@ -217,6 +245,10 @@ class GoogleAIClient {
 			contents,
 			generationConfig: { ...this.generationConfig, ...generationConfig }
 		};
+
+		if (tools) {
+			payload.tools = tools;
+		}
 
 		if (system) {
 			if (this.usesNativeSystemInstruction) {
@@ -234,31 +266,39 @@ class GoogleAIClient {
 		return payload;
 	}
 
-	_buildUrl({ stream = false } = {}) {
+	_buildUrl({ stream = false, modelOverride = null } = {}) {
 		const action = stream ? 'streamGenerateContent' : 'generateContent';
-		if (this.isVertex) return `${this.baseUrl}/${this.model}:${action}`;
-		return `${this.baseUrl}/${this.model}:${action}?key=${this.apiKey}${stream ? '&alt=sse' : ''}`;
+		const modelToUse = modelOverride || this.model;
+		if (this.isVertex) return `${this.baseUrl}/${modelToUse}:${action}`;
+		return `${this.baseUrl}/${modelToUse}:${action}?key=${this.apiKey}${stream ? '&alt=sse' : ''}`;
 	}
 
-	async complete({ messages = [], system = null, context = null, generationConfig = null }) {
+	async complete({ messages = [], system = null, context = null, generationConfig = null, tools = null, model = null }) {
 		const effectiveMessages = [...messages];
 		if (context) {
 			effectiveMessages.unshift({ role: 'user', content: `CONTEXT REFERENCE:\n${context}` });
 		}
-		const payload = this._buildRequestPayload({ messages: effectiveMessages, system, generationConfig });
-		const url = this._buildUrl();
+		const payload = this._buildRequestPayload({ messages: effectiveMessages, system, generationConfig, tools });
+
+		const primaryModel = model || this._determineModelName(payload);
+		const fallbackModel = (primaryModel === this.modelTools) ? this.model : this.modelTools;
+
 		const headers = { 'Content-Type': 'application/json' };
 		if (this.isVertex) {
 			const authHeaders = await this.authClient.getRequestHeaders();
 			Object.assign(headers, authHeaders);
 		}
 
-		const response = await this._doRequestWithRetry(() =>
-			axios.post(url, payload, {
-				headers,
-				httpAgent: standardHttpAgent,
-				httpsAgent: standardHttpsAgent,
-			})
+		const response = await this._doRequestWithRetry(
+			(activeModel) => {
+				const url = this._buildUrl({ modelOverride: activeModel });
+				return axios.post(url, payload, {
+					headers,
+					httpAgent: standardHttpAgent,
+					httpsAgent: standardHttpsAgent,
+				});
+			},
+			{ primaryModel, fallbackModel }
 		);
 
 		return {

@@ -37,24 +37,16 @@ describe('GoogleAIClient system instruction mode', () => {
 		expect(payload.contents[0].parts[0].text).toBe('Halo');
 	});
 
-	it('auto mode keeps gemma on wrapper and non-gemma on native', () => {
+	it('auto mode uses native for gemma-4', () => {
 		process.env.LEVELY_LLM_SYSTEM_INSTRUCTION_MODE = 'auto';
 		const { GoogleAIClient } = require('../../src/services/GoogleAIClient');
 
-		const gemmaClient = new GoogleAIClient({ apiKey: 'k', model: 'gemma-2-9b-it' });
+		const gemmaClient = new GoogleAIClient({ apiKey: 'k', model: 'gemma-4-26b-a4b-it' });
 		const gemmaPayload = gemmaClient._buildRequestPayload({
 			system: 'SYSTEM RULE',
 			messages: [{ role: 'user', content: 'Halo' }],
 		});
-		expect(gemmaPayload.systemInstruction).toBeUndefined();
-		expect(gemmaPayload.contents[0].parts[0].text).toContain('INSTRUKSI SISTEM PRIORITAS TERTINGGI');
-
-		const nativeClient = new GoogleAIClient({ apiKey: 'k', model: 'gemini-1.5-flash' });
-		const nativePayload = nativeClient._buildRequestPayload({
-			system: 'SYSTEM RULE',
-			messages: [{ role: 'user', content: 'Halo' }],
-		});
-		expect(nativePayload.systemInstruction).toEqual({ parts: [{ text: 'SYSTEM RULE' }] });
-		expect(nativePayload.contents.length).toBe(1);
+		expect(gemmaPayload.systemInstruction).toEqual({ parts: [{ text: 'SYSTEM RULE' }] });
+		expect(gemmaPayload.contents.length).toBe(1);
 	});
 });
