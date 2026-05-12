@@ -148,7 +148,7 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 					sessionId: activeSessionId,
 					messages: [
 						{ role: 'user', content: prompt },
-						{ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
+						{ role: 'assistant', content: reply, model: llmMetadata?.model || responseSettings.targetModel, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } },
 					],
 				});
 				logChatbotInteractionEvent({
@@ -359,7 +359,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 			if (!isEdit) {
 				messagesToAppend.push({ role: 'user', content: prompt });
 			}
-			messagesToAppend.push({ role: 'assistant', content: reply, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } });
+			messagesToAppend.push({ role: 'assistant', content: reply, model: llmMetadata?.model || responseSettings.targetModel, tokenCount: llmMetadata?.candidatesTokenCount || llmMetadata?.totalTokenCount, metadata: { route: assistantRoute, mode: responseSettings.mode } });
 
 				const storedMessages = await chatHistoryStore.appendMessages({
 					sessionId: activeSessionId,
@@ -496,7 +496,7 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 	const messages = history.messages || [];
 	if (messages.length < 2) return { message: 'Belum ada riwayat chat untuk dinilai.' };
 
-	const { data: existingRatings } = await supabase.from('chatbot_ratings').select('user_request, bot_response').eq('user_id', normalizedUserId);
+	const { data: existingRatings } = await supabase.from('chatbot_ratings_2').select('user_request, bot_response').eq('user_id', normalizedUserId);
 	const ratedPairs = new Set((existingRatings || []).map(r => `${r.user_request.trim().replace(/\s+/g, ' ')}|${r.bot_response.trim().replace(/\s+/g, ' ')}`));
 	const samplePlan = await samplingService.getUserSamplePlan();
 	if (existingRatings?.length >= (samplePlan.samplesPerUser || 1)) return { message: 'Terima kasih sudah merating Levely! 😊', limitReached: true };
@@ -505,15 +505,15 @@ exports.getUnratedPair = async ({ userId, chapterId }) => {
 	for (let i = messages.length - 1; i >= 1; i--) {
 		if (messages[i].role === 'assistant' && messages[i - 1].role === 'user') {
 			const pairKey = `${messages[i - 1].content.trim().replace(/\s+/g, ' ')}|${messages[i].content.trim().replace(/\s+/g, ' ')}`;
-			if (!ratedPairs.has(pairKey)) unratedPairs.push({ userRequest: messages[i - 1].content, botResponse: messages[i].content });
+			if (!ratedPairs.has(pairKey)) unratedPairs.push({ userRequest: messages[i - 1].content, botResponse: messages[i].content, model: messages[i].model || null });
 		}
 	}
 	if (unratedPairs.length === 0) return { message: 'Terima kasih sudah merating Levely! 😊', allRated: true };
 	return { ...unratedPairs[Math.floor(Math.random() * unratedPairs.length)], found: true, userSampleLimit: samplePlan.samplesPerUser || 1, alreadyRated: existingRatings ? existingRatings.length : 0 };
 };
 
-exports.saveRating = async ({ userId, userRequest, botResponse, rating, comment }) => {
-	const { data, error } = await supabase.from('chatbot_ratings').insert([{ user_id: userId, user_request: userRequest.trim(), bot_response: botResponse.trim(), rating: Number(rating), comment: comment || null }]).select();
+exports.saveRating = async ({ userId, userRequest, botResponse, rating, comment, model }) => {
+	const { data, error } = await supabase.from('chatbot_ratings_2').insert([{ user_id: userId, user_request: userRequest.trim(), bot_response: botResponse.trim(), rating: Number(rating), comment: comment || null, model: model || null }]).select();
 	if (error) throw new Error('Gagal menyimpan rating chatbot');
 	return data?.[0] || null;
 };

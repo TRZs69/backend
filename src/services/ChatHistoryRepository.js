@@ -28,6 +28,7 @@ const mapRowToMessage = (row = {}) => ({
   sessionId: row.session_id,
   role: row.role,
   content: row.content,
+  model: row.model,
   createdAt: row.created_at,
 });
 
@@ -227,7 +228,7 @@ async function fetchMessages({ sessionId, limit = 50 }) {
 
   const { data, error } = await supabase
     .from(TABLE_MESSAGES)
-    .select('id, session_id, role, content, created_at')
+    .select('id, session_id, role, content, model, created_at')
     .eq('session_id', sessionId)
     .order('created_at', { ascending: true })
     .limit(limit);
@@ -253,6 +254,7 @@ async function appendMessages({ sessionId, messages = [] }) {
       session_id: sessionId,
       role: sanitizeRole(message.role),
       content: (message.content || '').trim(),
+      model: message.model || null,
       metadata: message.metadata || {},
       token_count: message.tokenCount ?? null,
     }))

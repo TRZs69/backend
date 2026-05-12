@@ -257,7 +257,7 @@ exports.getUnratedPair = async (req, res) => {
 
 exports.saveRating = async (req, res) => {
   try {
-    const { userId, userRequest, botResponse, rating, comment } = req.body || {};
+    const { userId, userRequest, botResponse, rating, comment, model } = req.body || {};
     if (!userId || !userRequest || !botResponse || !rating) {
       return res.status(400).json({ message: 'Missing required fields (userId, userRequest, botResponse, rating)' });
     }
@@ -267,6 +267,7 @@ exports.saveRating = async (req, res) => {
       botResponse,
       rating: Number(rating),
       comment,
+      model,
     });
     return res.status(201).json(result);
   } catch (error) {

@@ -91,11 +91,13 @@ class GoogleAIClient {
 			{ primaryModel, fallbackModel }
 		);
 
+		const actualModel = response.config?.url?.includes(fallbackModel) ? fallbackModel : primaryModel;
+
 		return new Promise((resolve, reject) => {
 			const decoder = new StringDecoder('utf8');
 			let buffer = '';
 			let aggregatedText = '';
-			let metadata = {};
+			let metadata = { model: actualModel };
 			let settled = false;
 
 			const finalize = () => {
@@ -301,9 +303,11 @@ class GoogleAIClient {
 			{ primaryModel, fallbackModel }
 		);
 
+		const actualModel = response.config?.url?.includes(fallbackModel) ? fallbackModel : primaryModel;
+
 		return {
 			text: this._extractTextFromParsed(response?.data) || '',
-			metadata: response?.data?.usageMetadata || {},
+			metadata: { ...(response?.data?.usageMetadata || {}), model: actualModel },
 		};
 	}
 }
