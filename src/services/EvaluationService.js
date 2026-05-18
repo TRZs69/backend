@@ -14,9 +14,9 @@ const SUMMARY_TABLE = 'student_summaries_2';
 const ACTIVITY_TABLE = 'activity_logs';
 
 // Hardcoded aggregation period based on WIB:
-// start: 2026-03-26 00:00:00 WIB, end: 2026-05-14 23:59:59.999 WIB
+// start: 2026-03-26 00:00:00 WIB, end: 2026-05-31 23:59:59.999 WIB
 const DEFAULT_PERIOD_START_ISO = '2026-03-25T17:00:00.000Z';
-const DEFAULT_PERIOD_END_ISO = '2026-05-14T16:59:59.999Z';
+const DEFAULT_PERIOD_END_ISO = '2026-05-31T16:59:59.999Z';
 
 const EVENT_NAMES = {
     USER_LOGIN: 'user_login',
@@ -127,6 +127,9 @@ function legacySummaryFromStoredRow(userId, row, fallbackStart, fallbackEnd) {
             totalSessions: normalizeInteger(row?.chat_sessions) || 0,
             totalMessages: normalizeInteger(row?.chat_messages) || 0,
             userMessages: normalizeInteger(row?.chat_user_messages) || 0,
+        },
+        assignments: {
+            totalSubmitted: normalizeInteger(row?.assignments_submitted) || 0,
         },
     };
 }
@@ -543,6 +546,7 @@ function toSummaryPayload(userId, summary = {}) {
     const chatSessions = normalizeInteger(summary?.chat?.totalSessions) || 0;
     const chatMessages = normalizeInteger(summary?.chat?.totalMessages) || 0;
     const chatUserMessages = normalizeInteger(summary?.chat?.userMessages) || 0;
+    const assignmentsSubmitted = normalizeInteger(summary?.assignments?.totalSubmitted) || 0;
     const retryAttempts = calculateRetryAttempts(
         assessmentsSubmitted,
         normalizeInteger(summary?.assessments?.distinctChapters) || 0,
@@ -572,6 +576,7 @@ function toSummaryPayload(userId, summary = {}) {
         chat_sessions: chatSessions,
         chat_messages: chatMessages,
         chat_user_messages: chatUserMessages,
+        assignments_submitted: assignmentsSubmitted,
         total_activity: totalActivity,
         system_usage_intensity: round2(totalActivity / Math.max(1, periodDays)),
         feature_utilization_score: featureUtilizationScore,

@@ -67,6 +67,7 @@ create table if not exists public.student_summaries_2 (
   return_rate_pct numeric(7,2) not null default 0,
   avg_session_duration_sec numeric(12,2) not null default 0,
   assessments_submitted integer not null default 0,
+  assignments_submitted integer not null default 0,
   avg_grade numeric(7,2) not null default 0,
   total_points_earned numeric(14,2) not null default 0,
   retry_attempts integer not null default 0,
@@ -100,6 +101,7 @@ alter table public.student_summaries_2
   add column if not exists return_rate_pct numeric(7,2) default 0,
   add column if not exists avg_session_duration_sec numeric(12,2) default 0,
   add column if not exists assessments_submitted integer default 0,
+  add column if not exists assignments_submitted integer default 0,
   add column if not exists avg_grade numeric(7,2) default 0,
   add column if not exists total_points_earned numeric(14,2) default 0,
   add column if not exists retry_attempts integer default 0,
@@ -138,7 +140,7 @@ create index if not exists student_summaries_2_updated_at_idx
 create or replace function public.recompute_student_summary_v2(
   p_user_id bigint,
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
-  p_period_end timestamptz default '2026-05-14 23:59:59.999+07',
+  p_period_end timestamptz default '2026-05-31 23:59:59.999+07',
   p_student_id text default null,
   p_student_name text default null,
   p_total_available_chapters integer default null
@@ -198,16 +200,17 @@ begin
   ),
   assessment_metrics as (
     select
-      coalesce(count(*) filter (where event_name = 'assessment_submit'), 0) as assessments_submitted,
-      coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null), 0) as avg_grade,
-      coalesce(sum(points) filter (where event_name = 'assessment_submit'), 0) as total_points_earned,
-      coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null), 0) as distinct_assessment_chapters
+      coalesce(count(*) filter (where event_name = 'assessment_submit' and chapter_id >= 9), 0) as assessments_submitted,
+      coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null and chapter_id >= 9), 0) as avg_grade,
+      coalesce(sum(points) filter (where event_name = 'assessment_submit' and chapter_id >= 9), 0) as total_points_earned,
+      coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null and chapter_id >= 9), 0) as distinct_assessment_chapters
     from filtered_events
   ),
   progress_metrics as (
     select
-      coalesce(count(*) filter (where event_name = 'chapter_completed'), 0) as chapters_completed,
-      coalesce(count(*) filter (where event_name = 'badge_earned'), 0) as badges_earned
+      coalesce(count(*) filter (where event_name = 'chapter_completed' and chapter_id >= 9), 0) as chapters_completed,
+      coalesce(count(*) filter (where event_name = 'badge_earned' and chapter_id >= 9), 0) as badges_earned,
+      coalesce(count(*) filter (where event_name = 'assignment_submit' and chapter_id >= 9), 0) as assignments_submitted
     from filtered_events
   ),
   chat_metrics as (
@@ -237,9 +240,9 @@ begin
     select
       bool_or(event_name = 'user_login') as used_login,
       bool_or(event_name in ('session_start', 'session_end')) as used_session,
-      bool_or(event_name = 'assessment_submit') as used_assessment,
-      bool_or(event_name = 'material_access') as used_material,
-      bool_or(event_name = 'assignment_submit') as used_assignment,
+      bool_or(event_name = 'assessment_submit' and chapter_id >= 9) as used_assessment,
+      bool_or(event_name = 'material_access' and chapter_id >= 9) as used_material,
+      bool_or(event_name = 'assignment_submit' and chapter_id >= 9) as used_assignment,
       bool_or(event_name = 'chatbot_interaction') as used_chatbot
     from filtered_events
   ),
@@ -266,6 +269,7 @@ begin
       greatest(0, least(100, round((sm.active_days::numeric / nullif(v_period_days, 0)) * 100, 2))) as return_rate_pct,
       round(sm.avg_session_duration_sec::numeric, 2) as avg_session_duration_sec,
       am.assessments_submitted,
+      pm.assignments_submitted,
       round(am.avg_grade::numeric, 2) as avg_grade,
       round(am.total_points_earned::numeric, 2) as total_points_earned,
       greatest(0, am.assessments_submitted - am.distinct_assessment_chapters) as retry_attempts,
@@ -307,6 +311,7 @@ begin
     return_rate_pct,
     avg_session_duration_sec,
     assessments_submitted,
+    assignments_submitted,
     avg_grade,
     total_points_earned,
     retry_attempts,
@@ -338,6 +343,7 @@ begin
     t.return_rate_pct,
     t.avg_session_duration_sec,
     t.assessments_submitted,
+    t.assignments_submitted,
     t.avg_grade,
     t.total_points_earned,
     t.retry_attempts,
@@ -396,6 +402,7 @@ begin
     return_rate_pct = excluded.return_rate_pct,
     avg_session_duration_sec = excluded.avg_session_duration_sec,
     assessments_submitted = excluded.assessments_submitted,
+    assignments_submitted = excluded.assignments_submitted,
     avg_grade = excluded.avg_grade,
     total_points_earned = excluded.total_points_earned,
     retry_attempts = excluded.retry_attempts,
@@ -419,7 +426,7 @@ $$;
 
 create or replace function public.recompute_all_student_summaries_v2(
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
-  p_period_end timestamptz default '2026-05-14 23:59:59.999+07'
+  p_period_end timestamptz default '2026-05-31 23:59:59.999+07'
 ) returns integer
 language plpgsql
 security definer
