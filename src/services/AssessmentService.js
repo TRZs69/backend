@@ -687,7 +687,7 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
 
     for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
         try {
-            const raw = await llmClient.complete({
+            const { text: raw } = await llmClient.complete({
                 messages: [{ role: 'user', content: prompt }],
                 generationConfig: ASSESSMENT_GENERATION_CONFIG,
             });
@@ -1299,7 +1299,7 @@ const ensureQuestionsElo = async (questionsData) => {
         if (!q.elo) {
             try {
                 const prompt = `Anda adalah seorang ahli pendidikan dan spesialis desain kurikulum. Berdasarkan pertanyaan kuis berikut, tentukan tingkat kesulitannya dalam bentuk rating score ELO (dari 750 hingga 2000). Hanya jawab dengan SATU ANGKA BULAT saja, tanpa tambahan kata lain.\n\nAturan Rating:\n- 750-1000: Beginner (Pemahaman dasar / mudah)\n- 1000-1200: Basic Understanding (Penerapan awal)\n- 1200-1400: Developing Learner (Analisis menengah)\n- 1400-1600: Intermediate (Evaluasi)\n- 1600-1800: Proficient (Cukup rumit, butuh pemikiran dan konteks lanjut)\n- 1800-2000+: Advanced / Mastery (Sangat rumit, membingungkan, soal tingkat ahli tingkat tinggi dan teoritis)\n\nPertanyaan: ${q.question}\nTipe Soal: ${q.type}\nOpsi: ${q.options ? q.options.join(', ') : 'N/A'}\nJawaban Benar: ${q.answer || q.correctedAnswer}`;
-                const response = await llmClient.complete({
+                const { text: response } = await llmClient.complete({
                     messages: [{ role: 'user', content: prompt }],
                 });
                 q.elo = clampElo(response.replace(/\D/g, '').trim());

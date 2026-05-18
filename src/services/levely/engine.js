@@ -79,7 +79,7 @@ class LevelyEngine {
 		}
 
 		try {
-			const reply = await this.llm.complete({ system, context, messages });
+			const { text: reply } = await this.llm.complete({ system, context, messages });
 			if (!reply || !reply.trim()) {
 				return this.offlineAnswer(userMessage);
 			}
