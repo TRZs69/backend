@@ -77,6 +77,8 @@ class GoogleAIClient {
 			Object.assign(headers, authHeaders);
 		}
 
+		const timeout = Number(process.env.LEVELY_LLM_TIMEOUT_MS) || 60000;
+
 		const response = await this._doRequestWithRetry(
 			(activeModel) => {
 				const url = this._buildUrl({ stream: true, modelOverride: activeModel });
@@ -84,6 +86,7 @@ class GoogleAIClient {
 					headers,
 					responseType: 'stream',
 					signal: abortSignal,
+					timeout,
 					httpAgent: standardHttpAgent,
 					httpsAgent: standardHttpsAgent,
 				});
@@ -152,15 +155,18 @@ class GoogleAIClient {
 		});
 	}
 
-	async _doRequestWithRetry(requestFn, { maxRetries = 1, primaryModel, fallbackModel } = {}) {
+	async _doRequestWithRetry(requestFn, { maxRetries = 2, primaryModel, fallbackModel } = {}) {
 		let lastError;
 		let currentModel = primaryModel;
 		let hasTriedFallback = false;
+		let totalAttempts = 0;
+		const maxTotalAttempts = (maxRetries + 1) * (fallbackModel ? 2 : 1);
 
-		for (let attempt = 0; attempt <= (maxRetries + 1); attempt += 1) {
+		while (totalAttempts < maxTotalAttempts) {
 			try {
 				return await requestFn(currentModel);
 			} catch (error) {
+				totalAttempts += 1;
 				lastError = error;
 				const status = error?.response?.status;
 				let errorData = error?.response?.data;
@@ -186,27 +192,33 @@ class GoogleAIClient {
 					}
 				}
 
-				// If we get a 400 or other non-retryable error, log the details
-				if (status && status >= 400 && status < 500 && status !== 429) {
-					console.error(`[GoogleAIClient] Request failed with status ${status}:`, errorData || error.message);
-				}
-
-				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429;
+				const isRetryable = status === 503 || status === 502 || status === 504 || status === 500 || status === 429 || 
+									error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' || 
+									error.code === 'EAI_AGAIN' || error.code === 'ECONNRESET' ||
+									error.code === 'ENOTFOUND';
 
 				if (isRetryable) {
 					// Logic: If we hit a rate limit (429) or server error (5xx), try the other model if available
-					if (fallbackModel && !hasTriedFallback) {
-						console.warn(`[GoogleAIClient] Model ${currentModel} failed (${status}). Failing over to ${fallbackModel}...`);
-						currentModel = fallbackModel;
-						hasTriedFallback = true;
-						continue;
+					if (status === 500 || status === 429 || status === 503) {
+						if (fallbackModel && !hasTriedFallback) {
+							console.warn(`[GoogleAIClient] Model ${currentModel} failed (${status}). Failing over to ${fallbackModel}...`);
+							currentModel = fallbackModel;
+							hasTriedFallback = true;
+							// Reset attempt count for the fallback model or just continue
+							continue;
+						}
 					}
 
-					if (attempt < maxRetries) {
-						const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-						console.warn(`[GoogleAIClient] Attempt ${attempt + 1} failed with ${status}. Retrying in ${Math.round(delay)}ms...`);
+					if (totalAttempts < maxTotalAttempts) {
+						const delay = Math.pow(2, (totalAttempts % (maxRetries + 1))) * 1000 + Math.random() * 1000;
+						console.warn(`[GoogleAIClient] Attempt ${totalAttempts} failed with ${status || error.code}. Retrying in ${Math.round(delay)}ms...`);
 						await new Promise((resolve) => setTimeout(resolve, delay));
 						continue;
+					}
+				} else {
+					// For non-retryable 4xx errors, log the details
+					if (status && status >= 400 && status < 500) {
+						console.error(`[GoogleAIClient] Request failed with status ${status}:`, errorData || error.message);
 					}
 				}
 				throw error;
@@ -291,11 +303,14 @@ class GoogleAIClient {
 			Object.assign(headers, authHeaders);
 		}
 
+		const timeout = Number(process.env.LEVELY_LLM_TIMEOUT_MS) || 60000;
+
 		const response = await this._doRequestWithRetry(
 			(activeModel) => {
 				const url = this._buildUrl({ modelOverride: activeModel });
 				return axios.post(url, payload, {
 					headers,
+					timeout,
 					httpAgent: standardHttpAgent,
 					httpsAgent: standardHttpsAgent,
 				});
