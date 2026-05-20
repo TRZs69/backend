@@ -169,11 +169,17 @@ const ensureUserCourse = async (userId, courseId) => {
         return existing;
     }
 
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { elo: true },
+    });
+    const initialElo = user?.elo || MIN_ELO;
+
     return prisma.userCourse.create({
         data: {
             userId,
             courseId,
-            elo: MIN_ELO,
+            elo: clampElo(initialElo),
         },
     });
 };
@@ -186,11 +192,17 @@ const ensureUserCourseTx = async (tx, userId, courseId) => {
         return existing;
     }
 
+    const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { elo: true },
+    });
+    const initialElo = user?.elo || MIN_ELO;
+
     return tx.userCourse.create({
         data: {
             userId,
             courseId,
-            elo: MIN_ELO,
+            elo: clampElo(initialElo),
         },
     });
 };
@@ -1658,11 +1670,19 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     });
 
     if (isStudent) {
+        // Fetch current global elo to apply delta relatively. 
+        // This prevents overwriting global progress with local course progress.
+        const currentUser = await tx.user.findUnique({
+            where: { id: userId },
+            select: { elo: true }
+        });
+        const currentGlobalElo = currentUser?.elo || MIN_ELO;
+
         await tx.user.update({
             where: { id: userId },
             data: {
                 ...(globalPointsToAward > 0 ? { points: { increment: globalPointsToAward } } : {}),
-                elo: clampElo((refreshedAttempt.courseEloStart || MIN_ELO) + eloDeltaSigned),
+                elo: clampElo(currentGlobalElo + eloDeltaSigned),
             },
         });
     }
@@ -1796,20 +1816,9 @@ const createOrResumeAttempt = async (
     await ensureUserChapter(normalizedUserId, normalizedChapterId);
     const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
 
-    // If re-attempting, use the Elo from the VERY FIRST attempt of this chapter.
-    let userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
-    const firstAttempt = await prisma.assessmentAttempt.findFirst({
-        where: {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-            status: ATTEMPT_STATUS.SUBMITTED,
-        },
-        orderBy: { createdAt: 'asc' },
-        select: { courseEloStart: true }
-    });
-    if (firstAttempt && typeof firstAttempt.courseEloStart === 'number') {
-        userElo = Math.max(MIN_ELO, firstAttempt.courseEloStart);
-    }
+    // ALWAYS use the student's current skill level in this course as the baseline.
+    // Removed the legacy logic that forced re-attempts back to the Elo of the very first attempt.
+    const userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
 
     let source = ATTEMPT_SOURCE.FALLBACK_BANK;
     let instruction =
@@ -2071,11 +2080,10 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 where: { id: userId },
                 data: {
                     ...(globalPointsToAward > 0 ? { points: { increment: globalPointsToAward } } : {}),
-                    // Global Elo: Recalculate correctly using Start Elo + New Delta
-                    elo: clampElo((attempt.courseEloStart || MIN_ELO) + eloDeltaSigned),
+                    // Global Elo: Apply delta relatively to the current global score
+                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + eloDeltaSigned),
                 },
-            }),
-        );
+            }),        );
     }
 
     const [updatedChapter] = await prisma.$transaction(transactionOperations);
