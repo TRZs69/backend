@@ -1670,19 +1670,13 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
     });
 
     if (isStudent) {
-        // Fetch current global elo to apply delta relatively. 
-        // This prevents overwriting global progress with local course progress.
-        const currentUser = await tx.user.findUnique({
-            where: { id: userId },
-            select: { elo: true }
-        });
-        const currentGlobalElo = currentUser?.elo || MIN_ELO;
-
+        // With Live Elo Sync, the global Elo is already updated per-question.
+        // We just ensure the final state is correctly persisted one last time.
         await tx.user.update({
             where: { id: userId },
             data: {
                 ...(globalPointsToAward > 0 ? { points: { increment: globalPointsToAward } } : {}),
-                elo: clampElo(currentGlobalElo + eloDeltaSigned),
+                elo: clampElo(effectiveCourseEloEnd),
             },
         });
     }
@@ -2085,8 +2079,8 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
                 where: { id: userId },
                 data: {
                     ...(globalPointsToAward > 0 ? { points: { increment: globalPointsToAward } } : {}),
-                    // Global Elo: Apply delta relatively to the current global score
-                    elo: clampElo((userChapter.user?.elo || MIN_ELO) + eloDeltaSigned),
+                    // Global Elo: Sync directly with the final course outcome
+                    elo: clampElo(attempt.courseEloEnd || userChapter.user?.elo || MIN_ELO),
                 },
             }),        );
     }
@@ -2230,17 +2224,24 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         const objectiveTarget = attempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
         const objectiveScore = Math.ceil(100 / Math.max(1, objectiveTarget));
 
+        // Live Elo Sync: Fetch the latest Global Elo to ensure synchronization
+        const currentUser = await tx.user.findUnique({
+            where: { id: normalizedUserId },
+            select: { elo: true }
+        });
+
         let isCorrect = false;
         let userDeltaRaw = 0;
         let questionDeltaRaw = 0;
-        let nextUserEloPreview = Math.max(MIN_ELO, attempt.currentUserElo || MIN_ELO);
+        
+        // Use the freshest Global Elo as the baseline for the duel
+        let nextUserEloPreview = Math.max(MIN_ELO, currentUser?.elo || attempt.currentUserElo || MIN_ELO);
         let nextQuestionElo = clampElo(activeQuestion.elo);
 
         let nextObjectiveAnswered = attempt.objectiveAnswered || 0;
         let nextObjectiveCorrect = attempt.objectiveCorrect || 0;
         let nextRawEloDelta = Number(attempt.rawEloDelta || 0);
-        const courseEloBefore = Math.max(MIN_ELO, attempt.currentUserElo || MIN_ELO);
-        const courseEloStart = Math.max(MIN_ELO, attempt.courseEloStart || courseEloBefore);
+        const courseEloBefore = nextUserEloPreview;
         let targetNextQuestionElo = courseEloBefore;
 
         if (isObjective) {
@@ -2268,6 +2269,8 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             }
         }
 
+        const nextGlobalElo = Number.isNaN(nextUserEloPreview) ? 750 : nextUserEloPreview;
+
         await tx.assessmentAttemptQuestion.update({
             where: { id: activeQuestion.id },
             data: {
@@ -2286,13 +2289,21 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         await tx.assessmentAttempt.update({
             where: { id: attempt.id },
             data: {
-                currentUserElo: Number.isNaN(nextUserEloPreview) ? 750 : nextUserEloPreview,
-                courseEloEnd: Number.isNaN(nextUserEloPreview) ? 750 : nextUserEloPreview,
+                currentUserElo: nextGlobalElo,
+                courseEloEnd: nextGlobalElo,
                 rawEloDelta: Number.isNaN(nextRawEloDelta) ? 0 : nextRawEloDelta,
                 objectiveAnswered: nextObjectiveAnswered,
                 objectiveCorrect: nextObjectiveCorrect,
             },
         });
+
+        // LIVE UPDATE: Update user's global Elo immediately so it reflects in real-time
+        if (isStudent && isObjective) {
+            await tx.user.update({
+                where: { id: normalizedUserId },
+                data: { elo: clampElo(nextGlobalElo) },
+            });
+        }
 
         if (isStudent && isObjective && Number.isInteger(activeQuestion.sourceQuestionId)) {
             await tx.question.update({
