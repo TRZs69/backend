@@ -1816,9 +1816,14 @@ const createOrResumeAttempt = async (
     await ensureUserChapter(normalizedUserId, normalizedChapterId);
     const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
 
-    // ALWAYS use the student's current skill level in this course as the baseline.
-    // Removed the legacy logic that forced re-attempts back to the Elo of the very first attempt.
-    const userElo = Math.max(MIN_ELO, userCourse.elo || MIN_ELO);
+    const user = await prisma.user.findUnique({
+        where: { id: normalizedUserId },
+        select: { elo: true },
+    });
+
+    // ALWAYS synchronize the assessment baseline with the user's current Global Elo.
+    // This ensures that "Elo Berjalan" matches the Profile stats from the start.
+    const userElo = Math.max(MIN_ELO, user?.elo || userCourse.elo || MIN_ELO);
 
     let source = ATTEMPT_SOURCE.FALLBACK_BANK;
     let instruction =
