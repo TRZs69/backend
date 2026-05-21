@@ -124,7 +124,8 @@ const getLatestAttempt = async (req, res) => {
     try {
         const userId = req.query.userId ? Number(req.query.userId) : null;
         const chapterId = req.query.chapterId ? Number(req.query.chapterId) : null;
-        const result = await assessmentService.getLatestAttempt(userId, chapterId);
+        const attemptId = req.query.attemptId ? Number(req.query.attemptId) : null;
+        const result = await assessmentService.getLatestAttempt(userId, chapterId, attemptId);
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ message: error.message });

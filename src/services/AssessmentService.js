@@ -2428,19 +2428,22 @@ exports.getCurrentAttempt = async (userId, chapterId) => {
     return formatAttemptResponse(attempt, true);
 };
 
-exports.getLatestAttempt = async (userId, chapterId) => {
+exports.getLatestAttempt = async (userId, chapterId, attemptId = null) => {
     if (!userId || !chapterId) {
         throw new Error('userId dan chapterId wajib diisi');
     }
 
     const normalizedUserId = Number(userId);
     const normalizedChapterId = Number(chapterId);
+    const normalizedAttemptId = attemptId ? Number(attemptId) : null;
+
     if (!Number.isInteger(normalizedUserId) || !Number.isInteger(normalizedChapterId)) {
         throw new Error('userId dan chapterId harus berupa angka');
     }
 
     const attempt = await prisma.assessmentAttempt.findFirst({
         where: {
+            ...(normalizedAttemptId ? { id: normalizedAttemptId } : {}),
             userId: normalizedUserId,
             chapterId: normalizedChapterId,
             status: ATTEMPT_STATUS.SUBMITTED,
