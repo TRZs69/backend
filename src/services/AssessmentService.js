@@ -2352,9 +2352,11 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             (updatedAttempt.objectiveAnswered || 0) >= (updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET);
 
         if ((objectiveCompleted && essayAnswered) || !activeAfterAnswer) {
+            // One final refresh to ensure we have all updates for finalization
+            const finalFreshAttempt = await getAttemptByIdTx(tx, attempt.id);
             const result = await finalizeAttemptInTransaction(
                 tx,
-                updatedAttempt,
+                finalFreshAttempt,
                 normalizedUserId,
                 normalizedChapterId,
                 isStudent,
