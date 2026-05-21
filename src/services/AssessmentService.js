@@ -798,6 +798,12 @@ const buildSimplePoolFromBank = (questions = [], userElo = MIN_ELO, chapterName 
     const withDistance = (list) =>
         [...list]
             .sort((a, b) => {
+                // Prioritize the absolute newest questions first
+                const timeA = new Date(a.createdAt || 0).getTime();
+                const timeB = new Date(b.createdAt || 0).getTime();
+                if (timeA !== timeB) {
+                    return timeB - timeA;
+                }
                 const diffA = Math.abs(clampElo(a.elo) - userElo);
                 const diffB = Math.abs(clampElo(b.elo) - userElo);
                 if (diffA !== diffB) {
@@ -888,7 +894,7 @@ const ensureAssessmentBankForChapter = async (chapterId, chapterName = 'Assessme
     const existing = await prisma.assessment.findFirst({
         where: { chapterId },
         include: { questions: true },
-        orderBy: { id: 'asc' },
+        orderBy: { id: 'desc' },
     });
 
     if (existing) {
@@ -1814,35 +1820,35 @@ const createOrResumeAttempt = async (
         String(assessment.instruction || '').trim() || buildAttemptInstruction(chapter.name);
     let bankQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
 
-    const minimumBankSize = ATTEMPT_POOL_SIZE;
-    if (bankQuestions.length < minimumBankSize) {
-        try {
-            const generated = await generateAttemptQuestionsWithLLM({
-                chapter,
-                material: chapter.materials?.[0] || null,
-                userElo,
-            });
+    // ALWAYS attempt to generate fresh questions from LLM for every new attempt.
+    // This fulfills the requirement of "not using the question bank every time".
+    try {
+        const generated = await generateAttemptQuestionsWithLLM({
+            chapter,
+            material: chapter.materials?.[0] || null,
+            userElo,
+        });
 
-            const createdBankRows = await saveGeneratedQuestionsToBank(assessment.id, generated.questions);
-            bankQuestions = [...bankQuestions, ...createdBankRows];
-            source = ATTEMPT_SOURCE.GENERATED;
+        const createdBankRows = await saveGeneratedQuestionsToBank(assessment.id, generated.questions);
+        bankQuestions = [...bankQuestions, ...createdBankRows];
+        source = ATTEMPT_SOURCE.GENERATED;
 
-            const generatedInstruction = String(generated.instruction || '').trim();
-            if (generatedInstruction) {
-                instruction = generatedInstruction;
-                if (!String(assessment.instruction || '').trim()) {
-                    await prisma.assessment.update({
-                        where: { id: assessment.id },
-                        data: { instruction: generatedInstruction },
-                    });
-                }
+        const generatedInstruction = String(generated.instruction || '').trim();
+        if (generatedInstruction) {
+            instruction = generatedInstruction;
+            if (!String(assessment.instruction || '').trim()) {
+                await prisma.assessment.update({
+                    where: { id: assessment.id },
+                    data: { instruction: generatedInstruction },
+                });
             }
-        } catch (error) {
-            console.error('LLM generation failed, fallback to bank:', error.message);
-            source = ATTEMPT_SOURCE.FALLBACK_BANK;
-            if (!bankQuestions.length) {
-                throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
-            }
+        }
+    } catch (error) {
+        console.error('LLM generation failed, fallback to existing bank. Error:', error.message);
+        if (error.stack) console.error(error.stack);
+        source = ATTEMPT_SOURCE.FALLBACK_BANK;
+        if (!bankQuestions.length) {
+            throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
         }
     }
 
