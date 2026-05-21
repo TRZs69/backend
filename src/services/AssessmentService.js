@@ -44,7 +44,9 @@ const ASSESSMENT_GENERATION_CONFIG = (() => {
     const temperature = Number(process.env.LEVELY_ASSESSMENT_LLM_TEMPERATURE);
     const topP = Number(process.env.LEVELY_ASSESSMENT_LLM_TOP_P);
 
-    const config = {};
+    const config = {
+        response_mime_type: 'application/json',
+    };
     if (Number.isFinite(temperature)) {
         config.temperature = temperature;
     }
@@ -639,45 +641,33 @@ Anda adalah asisten pengajar profesional di aplikasi Levelearn.
 
 Tugas:
 - Buat EXACT 11 soal objektif berbahasa Indonesia untuk materi chapter ini.
-- Komposisi WAJIB: 9 soal Multiple Choice (MC) dan 2 soal True/False (TF).
-- ATURAN KETAT Multiple Choice (MC):
-  1. WAJIB memiliki tepat 4 opsi jawaban (options) yang unik dan beralasan.
-  2. TIDAK BOLEH ada opsi seperti "Semua jawaban benar" atau "Tidak ada jawaban yang benar".
-  3. "correctedAnswer" WAJIB sama persis (huruf per huruf) dengan salah satu opsi di dalam array "options".
-  4. Properti "type" wajib bernilai "MC".
-- ATURAN KETAT True/False (TF):
-  1. Soal WAJIB berupa pernyataan faktual yang bisa dinilai kebenarannya (BUKAN kalimat tanya, TIDAK memakai kata "siapa/kapan/dimana/berapa", dan BUKAN diakhiri tanda "?").
-  2. Properti "options" WAJIB hanya berisi tepat 2 elemen berupa string literal: ["True", "False"].
-  3. "correctedAnswer" WAJIB bernilai "True" atau "False".
-  4. Properti "type" wajib bernilai "TF".
-- Setiap soal wajib memiliki properti "elo" berupa bilangan bulat antara 750 hingga 3000.
-- Sesuaikan tingkat kompleksitas/kesulitan soal dengan target Elo siswa saat ini.
+- Komposisi: 9 soal Multiple Choice (MC) dan 2 soal True/False (TF).
+- Aturan MC: 4 opsi unik, correctedAnswer harus sama persis dengan salah satu opsi.
+- Aturan TF: Pernyataan faktual, options: ["True", "False"], correctedAnswer: "True" atau "False".
+- Setiap soal wajib memiliki properti "elo" (750-3000) sesuai target Elo siswa.
 
-Konteks chapter:
+Konteks:
 - Nama: ${chapterName}
 - Deskripsi: ${chapterDescription || '-'}
-- Target Elo siswa saat ini: ${userElo}
-- Ringkasan materi:
+- Target Elo siswa: ${userElo}
+- Materi:
 """
 ${materialContent || '-'}
 """
 
-Kembalikan respon HANYA dalam format JSON teks murni (tanpa markdown fence \`\`\`json). Format skema JSON yang diwajibkan:
+JSON Schema:
 {
   "instruction": "Instruksi pengerjaan",
   "questions": [
     {
-      "question": "teks pernyataan atau pertanyaan",
-      "type": "format (MC atau TF)",
+      "question": "teks soal",
+      "type": "MC atau TF",
       "options": ["opsi1", "opsi2", "opsi3", "opsi4"],
-      "correctedAnswer": "opsi jawaban yang benar",
+      "correctedAnswer": "opsi benar",
       "elo": 1200
     }
   ]
 }
-PENTING:
-- Seluruh output WAJIB valid JSON (RFC 8259) dan bisa diparse langsung dengan JSON.parse.
-- Jika ada tanda kutip ganda di dalam nilai string, WAJIB di-escape menjadi \\".
 `.trim();
 };
 
