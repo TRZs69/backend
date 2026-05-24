@@ -112,7 +112,7 @@ async function ensureSession({ sessionId, userId, chapterId }) {
           return data.id;
         }
 
-        // Context changed (different chapter), update the existing session's metadata
+        
         const updatedMetadata = { ...currentMetadata, chapterId: normalizedChapterId };
         const { error: updateError } = await supabase
           .from(TABLE_SESSIONS)
@@ -134,7 +134,7 @@ async function ensureSession({ sessionId, userId, chapterId }) {
     metadata: normalizedChapterId !== null ? { chapterId: normalizedChapterId } : {},
   };
 
-  // If sessionId was provided but not found, we can try to use it
+  
   if (sessionId) {
     payload.id = sessionId;
   }
@@ -318,7 +318,7 @@ async function truncateAfterMessage({ sessionId, messageId }) {
     const idsToDelete = allMessages.slice(targetIndex + 1).map(m => m.id);
 
     if (idsToDelete.length > 0) {
-      // Supabase `in` filter can handle up to ~1000 items easily
+      
       const { error: deleteError } = await supabase
         .from(TABLE_MESSAGES)
         .delete()

@@ -1,4 +1,4 @@
-// prisma/seed.js
+
 const { Role, QuestType, BadgeType } = require('@prisma/client');
 const bcrypt = require('bcrypt');
 const path = require('path');
@@ -32,7 +32,7 @@ async function ensureBadgesBucketAndUpload() {
       }
     }
   } catch (e) {
-    // continue even if bucket check fails
+    
     console.warn('[seed] Bucket check error:', e.message || e);
   }
 
@@ -69,8 +69,8 @@ async function ensureBadgesBucketAndUpload() {
 }
 
 function replaceImgPaths(content) {
-  // Pass the raw content through since assets aren't strictly replacing logic here currently,
-  // returning it prevents ReferenceError.
+  
+  
   return content;
 }
 
@@ -78,10 +78,10 @@ async function main() {
   try {
     const { assetsUrl } = await ensureBadgesBucketAndUpload();
 
-    // Clear existing data to avoid unique constraint failures on re-seeding
+    
     console.log('[seed] Clearing existing data (users, courses, chapters, materials, etc.)...');
 
-    // In Prisma, deleting a parent with cascade will also delete children, but we'll do this to be safe
+    
     await prisma.userCourse.deleteMany();
     await prisma.userChapter.deleteMany();
     await prisma.userBadge.deleteMany();
@@ -96,7 +96,7 @@ async function main() {
     await prisma.course.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create Users
+    
 
     const adminPassword = await bcrypt.hash('admin', 10);
 
@@ -883,7 +883,7 @@ async function main() {
       },
     });
 
-    // Create Chapters for Course IMK
+    
     const chapter1 = await prisma.chapter.create({
       data: {
         name: 'Introduction to Human-computer Interaction',
@@ -1031,7 +1031,7 @@ async function main() {
       },
     });
 
-    // Content for Chapter 1
+    
     const material1 = await prisma.material.create({
       data: {
         chapterId: chapter1.id,
@@ -1639,7 +1639,7 @@ async function main() {
       },
     });
 
-    // ASSESSMENT
+    
 
     const assessment1 = await prisma.assessment.create({
       data: {
@@ -2398,7 +2398,7 @@ async function main() {
       }
     });
 
-    // ASSIGNMENT
+    
 
     const assignment1 = await prisma.assignment.create({
       data: {
@@ -2452,7 +2452,7 @@ async function main() {
       data: {
         chapterId: chapter7.id,
         instruction: 'Silahkan mengikuti instruksi tugas berikut ini:!',
-        fileUrl: 'https://apipuro.del.ac.id/v1/file/e533ca8406a061f72193a626569f505e',
+        fileUrl: 'https:
       },
     });
 
@@ -2586,7 +2586,7 @@ async function main() {
 
     const beginnerBadge = createdBadges.find((item) => item.name === 'Beginner');
 
-    // Create UserBadge relationship
+    
     if (beginnerBadge) {
       await prisma.userBadge.create({
         data: {
@@ -2596,7 +2596,7 @@ async function main() {
       });
     }
 
-    // TRADES
+    
 
     const trade1 = await prisma.trade.create({
       data: {

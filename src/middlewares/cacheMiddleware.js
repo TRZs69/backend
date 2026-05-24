@@ -16,7 +16,7 @@ const cacheMiddleware = (duration) => {
             return next();
         }
 
-        // If no duration is provided, we just pass through (after checking for mutations above)
+        
         if (!duration) {
             return next();
         }

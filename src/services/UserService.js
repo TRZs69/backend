@@ -33,11 +33,6 @@ exports.getAllUsers = async (role) => {
   }
 };
 
-/**
- * Mendapatkan papan peringkat mahasiswa berdasarkan Elo tertinggi.
- * @param {number} limit - Jumlah mahasiswa yang ditampilkan (default 50)
- * @returns {Array} Daftar mahasiswa STUDENT diurutkan Elo descending, dengan tambahan field `rank`
- */
 exports.getLeaderboard = async (limit = 50) => {
   try {
     const students = await prisma.user.findMany({

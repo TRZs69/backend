@@ -102,8 +102,8 @@ exports.streamMessage = async (req, res) => {
 
   res.on('close', handleClose);
 
-  // Cloudflare and some proxies buffer until a certain threshold (usually 4KB).
-  // We send 4KB of empty space as an SSE comment to force the proxy to flush the stream immediately.
+  
+  
   res.write(': ' + ' '.repeat(4096) + '\n\n');
 
   sendEvent({ status: 'started' });

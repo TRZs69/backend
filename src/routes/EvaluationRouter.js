@@ -27,7 +27,7 @@ router.post('/evaluation/session/end', authMiddleware, async (req, res) => {
             data: { logoutAt, durationSec },
         });
 
-        // Log session_end event and trigger summary recompute queue.
+        
         void evaluationService.recordActivityEvent({
             userId: req.user.id,
             eventName: evaluationService.EVENT_NAMES.SESSION_END,

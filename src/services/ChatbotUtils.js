@@ -157,10 +157,10 @@ const postProcessReply = (reply) => {
 		const isHeader = line.startsWith('#');
 		const hasKeyword = metaKeywords.some(k => lowerLine.includes(k.toLowerCase()));
 		
-		// Pattern: "Something? Yes/No/Done"
+		
 		const isVerificationPattern = /^[^*•\-]*\? (yes|no|done|n\/a)/i.test(lowerLine);
 		
-		// General 'Key: Value' pattern detection
+		
 		const isKeyValuePattern = (isBullet || i < 15) && line.includes(':') && line.indexOf(':') < 50;
 
 		const isMeta = (isBullet && hasKeyword) || (hasKeyword && line.includes(':')) || 
@@ -177,13 +177,13 @@ const postProcessReply = (reply) => {
 						   lowerLine.startsWith('his is the') ||
 						   lowerLine.startsWith('let\'s');
 
-		// Special case: numbered list item or bullet or header without a keyword at the start of response
-		// is often a recap if it's in the first 5 lines and short
+		
+		
 		const isEarlyListRecap = i < 5 && (isBullet || isHeader) && lowerLine.length < 150;
 
 		const hasGreeting = ['halo', 'hai', 'hi', 'selamat', 'aku levely'].some(g => lowerLine.includes(g));
 
-		// Conversation start markers - if we hit one, we stop stripping
+		
 		if (hasGreeting && !hasKeyword && !isBullet && !line.includes(':') && !isVerificationPattern) {
 			firstCleanLineIndex = i;
 			break;
@@ -198,8 +198,8 @@ const postProcessReply = (reply) => {
 	if (firstCleanLineIndex !== -1) {
 		normalized = lines.slice(firstCleanLineIndex).join('\n').trim();
 	} else if (lines.length > 0) {
-		// If we couldn't find a clean line, it might be a concatenated mess
-		// Try a last-ditch effort to find where Levely actually starts talking
+		
+		
 		const splitMarkers = ['Halo', 'Hai', 'Hi', 'Selamat', 'Aku Levely'];
 		for (const marker of splitMarkers) {
 			const index = normalized.indexOf(marker);
@@ -210,7 +210,7 @@ const postProcessReply = (reply) => {
 		}
 	}
 
-	// 3. Cleanup concatenated patterns that survived (e.g. •User: hi•Persona: Levely)
+	
 	const keywordPattern = metaKeywords.map(k => k.replace(/[:]/g, '')).join('|');
 	const concatenatedRegex = new RegExp(`[•*\\-]\\s*(${keywordPattern})[\\s\\S]*?(?=[•*\\-]|Halo|Hai|Hi|Selamat|$)`, 'gi');
 	normalized = normalized.replace(concatenatedRegex, '').trim();
@@ -264,7 +264,7 @@ const normalizeHistory = (history = []) => {
 		.filter(Boolean);
 
 	// Google AI API requires the first message to be from the 'user' role.
-	// If slicing results in a leading assistant message, drop it.
+	
 	while (normalized.length > 0 && normalized[0].role === 'assistant') {
 		normalized.shift();
 	}

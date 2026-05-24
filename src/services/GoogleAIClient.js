@@ -136,7 +136,7 @@ class GoogleAIClient {
 									if (onChunk) onChunk(text);
 								}
 							} catch (e) {
-								// Ignore invalid JSON blocks
+								
 							}
 						}
 					}
@@ -171,7 +171,7 @@ class GoogleAIClient {
 				const status = error?.response?.status;
 				let errorData = error?.response?.data;
 
-				// If it's a stream (IncomingMessage), we should try to read it to get the actual error message
+				
 				if (errorData && typeof errorData.on === 'function') {
 					try {
 						errorData = await new Promise((resolve) => {
@@ -198,13 +198,13 @@ class GoogleAIClient {
 									error.code === 'ENOTFOUND';
 
 				if (isRetryable) {
-					// Logic: If we hit a rate limit (429) or server error (5xx), try the other model if available
+					
 					if (status === 500 || status === 429 || status === 503) {
 						if (fallbackModel && !hasTriedFallback) {
 							console.warn(`[GoogleAIClient] Model ${currentModel} failed (${status}). Failing over to ${fallbackModel}...`);
 							currentModel = fallbackModel;
 							hasTriedFallback = true;
-							// Reset attempt count for the fallback model or just continue
+							
 							continue;
 						}
 					}
@@ -216,7 +216,7 @@ class GoogleAIClient {
 						continue;
 					}
 				} else {
-					// For non-retryable 4xx errors, log the details
+					
 					if (status && status >= 400 && status < 500) {
 						console.error(`[GoogleAIClient] Request failed with status ${status}:`, errorData || error.message);
 					}
@@ -268,7 +268,7 @@ class GoogleAIClient {
 			if (this.usesNativeSystemInstruction) {
 				payload.systemInstruction = { parts: [{ text: system }] };
 			} else {
-				// Wrapper mode: prepend User: SYSTEM and Model: Understood at the start of conversation
+				
 				contents.unshift({ role: 'model', parts: [{ text: 'Understood. I will strictly follow these priority instructions.' }] });
 				contents.unshift({ 
 					role: 'user', 

@@ -70,7 +70,7 @@ router.post('/login', async (req, res) => {
             data: { userId: user.id }
         });
 
-        // Real-time behavioral events for summary v2.
+        
         void Promise.allSettled([
             evaluationService.recordActivityEvent({
                 userId: user.id,

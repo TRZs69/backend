@@ -85,7 +85,7 @@ class LevelyEngine {
 			}
 			return reply.trim();
 		} catch (error) {
-			// Log once the rest of the stack is in place.
+			
 			return this.offlineAnswer(userMessage);
 		}
 	}

@@ -23,7 +23,7 @@ const userChapterSelect = {
     assessmentAnswer: true,
     assessmentGrade: true,
     assessmentEloDelta: true,
-    assessmentPointsEarned: true,  // ← Diperlukan untuk tampilan "Poin Didapat"
+    assessmentPointsEarned: true,  
     submission: true,
     timeStarted: true,
     timeFinished: true,

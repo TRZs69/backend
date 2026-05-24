@@ -26,7 +26,7 @@ const cacheMiddleware = require("./middlewares/cacheMiddleware.js");
 
 const app = express();
 app.use(express.json());
-app.use(cacheMiddleware()); // Global cache flusher for mutations
+app.use(cacheMiddleware()); 
 
 const allowedOrigins = [
   "http://31.97.67.152:7700",
@@ -59,7 +59,7 @@ app.use(
 
 app.use("/api", authRoutes);
 
-// app.use('/api', authMiddleware);
+
 
 app.use("/api", userRoutes);
 app.use("/api", courseRoutes);

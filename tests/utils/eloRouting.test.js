@@ -55,13 +55,13 @@ describe('ELO Routing & Classification Logic Tests', () => {
 
     describe('resolveBandIndex() - Mapping ELO to Array Index', () => {
         it('should map Elo to the exact corresponding internal index 0-6', () => {
-            expect(resolveBandIndex(800)).toBe(0); // Beginner
-            expect(resolveBandIndex(1050)).toBe(1); // Basic
-            expect(resolveBandIndex(1250)).toBe(2); // Developing
-            expect(resolveBandIndex(1500)).toBe(3); // Intermediate
-            expect(resolveBandIndex(1700)).toBe(4); // Proficient
-            expect(resolveBandIndex(1950)).toBe(5); // Advanced
-            expect(resolveBandIndex(2100)).toBe(6); // Mastery
+            expect(resolveBandIndex(800)).toBe(0); 
+            expect(resolveBandIndex(1050)).toBe(1); 
+            expect(resolveBandIndex(1250)).toBe(2); 
+            expect(resolveBandIndex(1500)).toBe(3); 
+            expect(resolveBandIndex(1700)).toBe(4); 
+            expect(resolveBandIndex(1950)).toBe(5); 
+            expect(resolveBandIndex(2100)).toBe(6); 
         });
     });
 
@@ -96,7 +96,7 @@ describe('ELO Routing & Classification Logic Tests', () => {
                 { id: 'd', elo: 1000 }
             ];
 
-            // Expected closest to 1000 is d(0 diff), c(50 diff), b(100 diff), a(800 diff)
+            
             const sorted = sortByDistanceToTarget(questions, 1000);
 
             expect(sorted[0].id).toBe('d');
@@ -111,12 +111,12 @@ describe('ELO Routing & Classification Logic Tests', () => {
                 { id: 'b', elo: 900 }
             ];
 
-            // Target 1000 -> Diff is exactly 100 for both.
-            // Tie-breaker rule favors the structurally easier question (lower raw ELO).
+            
+            
             const sorted = sortByDistanceToTarget(questions, 1000);
 
-            expect(sorted[0].id).toBe('b'); // 900 comes first
-            expect(sorted[1].id).toBe('a'); // 1100 comes second
+            expect(sorted[0].id).toBe('b'); 
+            expect(sorted[1].id).toBe('a'); 
         });
     });
 });

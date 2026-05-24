@@ -13,8 +13,8 @@ const {
 const SUMMARY_TABLE = 'student_summaries_2';
 const ACTIVITY_TABLE = 'activity_logs';
 
-// Hardcoded aggregation period based on WIB:
-// start: 2026-03-26 00:00:00 WIB, end: 2026-05-31 23:59:59.999 WIB
+
+
 const DEFAULT_PERIOD_START_ISO = '2026-03-25T17:00:00.000Z';
 const DEFAULT_PERIOD_END_ISO = '2026-05-31T16:59:59.999Z';
 

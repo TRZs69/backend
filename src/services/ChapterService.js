@@ -128,7 +128,7 @@ exports.getAssessmentsByChapter = async (id, userId = null) => {
       select: {
         assessments: {
           include: {
-            questions: true // Fetch all questions to allow filtering
+            questions: true 
           }
         },
       },

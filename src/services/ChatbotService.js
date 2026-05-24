@@ -38,7 +38,7 @@ const buildGoogleAIClient = () => {
 	ensureGoogleCredentials();
 	const apiKey = (process.env.GOOGLE_AI_API_KEY || '').trim();
 	const model = process.env.LEVELY_LLM_MODEL;
-	const baseUrl = process.env.LEVELY_LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta/models';
+	const baseUrl = process.env.LEVELY_LLM_BASE_URL || 'https:
 	const isVertex = baseUrl.includes('aiplatform.googleapis.com');
 	if (!apiKey && !isVertex) return null;
 	return new GoogleAIClient({ apiKey, model, baseUrl });
@@ -190,7 +190,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	const { persistedSessionId, messages, hasMaterialContext, hasAssessmentContext, isContinuationRequest } =
 		await buildChatContext({ history, sessionId, userId, prompt, materialId, chapterId });
 
-	// In edit mode, remove duplicate user prompt from history
+	
 	if (isEdit && messages.length >= 2 && messages[messages.length - 2].role === 'user') {
 		messages.splice(messages.length - 2, 1);
 	}
@@ -260,7 +260,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 						const hasGreeting = (l) => ['halo', 'hai', 'hi', 'selamat', 'aku levely'].some(g => l.includes(g));
 						const isMetaBlock = (l) => metaKeywords.some(k => l.includes(k));
 						
-						// Verification pattern check: "Something? Yes"
+						
 						const isVerification = (l) => /[?]\s*(yes|no|done|n\/a)/i.test(l);
 						
 						const isLineTrulyMeta = (l) => {
@@ -283,7 +283,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 								const closeTagLength = lowerAccumulated.endsWith('</thought>') ? 10 : 8;
 								textToEmit = accumulatedText.slice(lastThoughtClose + closeTagLength);
 							} else {
-								// Exited meta-block phase: find the first line that doesn't look like meta-commentary
+								
 								const firstCleanLineIndex = lines.findIndex((l, idx) => {
 									const trimmed = l.trim().toLowerCase();
 									if (!trimmed) return false;
@@ -438,11 +438,11 @@ const generateSessionTitle = async ({ sessionId, messages, emitChunk }) => {
 exports.editAndRegenerate = async ({ messageId, newMessage, sessionId, userId, materialId, chapterId, onToken, abortSignal }) => {
 	if (!messageId || !newMessage) throw new Error('Message ID and new content are required');
 
-	// 1. Truncate history and update content
+	
 	await chatHistoryStore.truncateAfterMessage({ sessionId, messageId });
 	await chatHistoryStore.updateMessageContent({ messageId, content: newMessage });
 
-	// 2. Pure streaming response
+	
 	return exports.streamMessage({
 		message: newMessage,
 		sessionId,

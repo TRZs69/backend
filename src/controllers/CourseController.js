@@ -1,4 +1,4 @@
-// @ts-ignore
+
 const courseService = require('../services/CourseService');
 const userCourseService = require('../services/UserCourseService');
 const badgeService = require('../services/BadgeService');

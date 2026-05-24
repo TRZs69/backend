@@ -1,7 +1,3 @@
-/**
- * Manifest for available LLM Tools (Function Calling).
- * These are "system calls" that allow the LLM to interact with the application logic.
- */
 
 const AVAILABLE_TOOLS = [
 	{
@@ -38,21 +34,18 @@ const AVAILABLE_TOOLS = [
 	}
 ];
 
-/**
- * Determines which tools (system calls) should be attached to a request based on context.
- */
 const resolveRequiredTools = (prompt, { route, hasMaterialContext }) => {
 	const tools = [];
 	const normalizedPrompt = String(prompt || '').toLowerCase();
 
 	// Logic: If user asks for search or material not in context, provide the search tool
 	if (normalizedPrompt.includes('cari') || normalizedPrompt.includes('search') || (!hasMaterialContext && normalizedPrompt.includes('materi'))) {
-		tools.push(AVAILABLE_TOOLS[0]); // Material search toolset
+		tools.push(AVAILABLE_TOOLS[0]); 
 	}
 
-	// Logic: If coaching mode or user asks about points/progress
+	
 	if (route === 'coaching_mode' || normalizedPrompt.includes('poin') || normalizedPrompt.includes('progres') || normalizedPrompt.includes('lencana')) {
-		// Note: We might want to keep progress checking separate or combine them
+		
 		if (!tools.includes(AVAILABLE_TOOLS[0])) {
 			tools.push(AVAILABLE_TOOLS[0]);
 		}
@@ -61,9 +54,6 @@ const resolveRequiredTools = (prompt, { route, hasMaterialContext }) => {
 	return tools.length > 0 ? tools : null;
 };
 
-/**
- * Determines which model should be used based on the prompt's complexity.
- */
 const resolveTargetModel = (prompt, { route } = {}) => {
 	const normalizedPrompt = String(prompt || '').toLowerCase();
 	
@@ -76,12 +66,12 @@ const resolveTargetModel = (prompt, { route } = {}) => {
 	const isComplexIntent = complexKeywords.some(k => normalizedPrompt.includes(k));
 	const isCoaching = route === 'coaching_mode';
 
-	// Use 31b for complex analysis or coaching, otherwise use 26b
+	
 	if (isComplexIntent || isCoaching) {
-		return process.env.LEVELY_LLM_MODEL_TOOLS; // 31b
+		return process.env.LEVELY_LLM_MODEL_TOOLS; 
 	}
 
-	return process.env.LEVELY_LLM_MODEL; // 26b
+	return process.env.LEVELY_LLM_MODEL; 
 };
 
 module.exports = {

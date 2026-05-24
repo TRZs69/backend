@@ -1,7 +1,3 @@
-/**
- * Simplified Adversarial Evaluation Suite for ChatbotService
- * Tests robustness of safety guards with clear, reliable mock isolation.
- */
 
 describe('ChatbotService adversarial robustness', () => {
 	const createMockServices = (config = {}) => {

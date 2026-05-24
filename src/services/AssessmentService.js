@@ -306,7 +306,7 @@ const shuffleArraySeeded = (arr = [], seed = 12345) => {
     const result = [...arr];
     for (let i = result.length - 1; i > 0; i--) {
         const j = Math.floor(random() * (i + 1));
-        [result[i], result[j]] = [result[j], result[i]]; // Swap
+        [result[i], result[j]] = [result[j], result[i]]; 
     }
     return result;
 };
@@ -416,7 +416,7 @@ const parseJsonPayload = (text) => {
             try {
                 return JSON.parse(candidate);
             } catch (_error) {
-                // continue to next fallback
+                
             }
         }
     }
@@ -625,7 +625,7 @@ const buildGoogleAIClient = () => {
     const model = process.env.LEVELY_LLM_MODEL;
     const baseUrl =
         process.env.LEVELY_LLM_BASE_URL ||
-        'https://generativelanguage.googleapis.com/v1beta/models';
+        'https:
     const isVertex = baseUrl.includes('aiplatform.googleapis.com');
 
     if (!apiKey && !isVertex) {
@@ -716,7 +716,7 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
         throw new Error('Fallback bank kosong');
     }
 
-    // Buat seed deterministik berdasarkan userId, chapterId, dan userElo
+    
     const seedString = `${seedParams.userId || 0}_${seedParams.chapterId || 0}_${userElo}_${chapterName.length}`;
     let seedNumber = 0;
     for (let i = 0; i < seedString.length; i++) {
@@ -736,14 +736,14 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
             const diffA = Math.abs(clampElo(a.elo) - userElo);
             const diffB = Math.abs(clampElo(b.elo) - userElo);
             if (diffA !== diffB) return diffA - diffB;
-            return clampElo(a.elo) - clampElo(b.elo); // tie-breaker
+            return clampElo(a.elo) - clampElo(b.elo); 
         });
 
     const objectiveSorted = sortByDistance(objective);
-    // Potong 3x pool size sebagai kandidat
+    
     const objectivePool = objectiveSorted.slice(0, Math.max(ATTEMPT_POOL_SIZE * 3, objectiveSorted.length));
 
-    // Ganti pengacakan pool lokal dengan seeded shuffle
+    
     const shuffledObjectivePool = shuffleArraySeeded(objectivePool, seedNumber);
 
     const selectedObjective = [];
@@ -778,7 +778,7 @@ const buildFallbackPoolFromBank = (questions = [], userElo = MIN_ELO, chapterNam
         { ...pickedEssay, options: [...(pickedEssay.options || [])] },
     ];
 
-    // Gunakan seeded random agar hasil set pool akhir stabil pada reset ke berapa pun
+    
     return shuffleArraySeeded(finalPool, seedNumber + 999).slice(0, ATTEMPT_POOL_SIZE);
 };
 
@@ -798,7 +798,7 @@ const buildSimplePoolFromBank = (questions = [], userElo = MIN_ELO, chapterName 
     const withDistance = (list) =>
         [...list]
             .sort((a, b) => {
-                // Prioritize the absolute newest questions first
+                
                 const timeA = new Date(a.createdAt || 0).getTime();
                 const timeB = new Date(b.createdAt || 0).getTime();
                 if (timeA !== timeB) {
@@ -854,7 +854,7 @@ const buildSimplePoolFromBank = (questions = [], userElo = MIN_ELO, chapterName 
     let remainingMc = takeFrom(mc, GENERATED_POOL_COMPOSITION.MC);
     let remainingTf = takeFrom(tf, GENERATED_POOL_COMPOSITION.TF);
 
-    // If MC/TF stock is uneven, fill objective quota from any objective type.
+    
     const objectiveQuota = ATTEMPT_POOL_SIZE - GENERATED_POOL_COMPOSITION.EY;
     if (remainingMc > 0 || remainingTf > 0 || selected.length < objectiveQuota) {
         const objectiveCombined = withDistance([...mc, ...tf]);
@@ -862,7 +862,7 @@ const buildSimplePoolFromBank = (questions = [], userElo = MIN_ELO, chapterName 
         takeFrom(objectiveCombined, remainingObjective);
         remainingObjective = objectiveQuota - selected.length;
 
-        // Last safety net: allow duplicates when bank objective stock is very small.
+        
         if (remainingObjective > 0 && objectiveCombined.length > 0) {
             let cursor = 0;
             while (remainingObjective > 0) {
@@ -1612,7 +1612,7 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
 
     const pointsEarned = isStudent ? dynamicPointsEarned : 0;
 
-    // Calculate Gamification Points using "High Score" method
+    
     let globalPointsToAward = 0;
     let localPointsToRecord = 0;
 
@@ -1811,8 +1811,8 @@ const createOrResumeAttempt = async (
         select: { elo: true },
     });
 
-    // ALWAYS synchronize the assessment baseline with the user's current Global Elo.
-    // This ensures that "Elo Berjalan" matches the Profile stats from the start.
+    
+    
     const userElo = Math.max(MIN_ELO, user?.elo || userCourse.elo || MIN_ELO);
 
     let source = ATTEMPT_SOURCE.FALLBACK_BANK;
@@ -1960,24 +1960,24 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
     const isStudent = isStudentRole(userChapter.user?.role);
     const eloDeltaSigned = isStudent ? Math.round(eloDeltaRaw) : 0;
 
-    // Calculate Gamification Points using "High Score" method
+    
     let globalPointsToAward = 0;
     let localPointsToRecord = 0;
 
     if (isStudent) {
         if (userChapter.assessmentDone) {
-            // Re-attempt: Only award points if the new positive delta is higher than the previously earned points
+            
             const previousEarned = userChapter.assessmentPointsEarned || 0;
             const newEarned = Math.max(0, pointsEarned);
 
             if (newEarned > previousEarned) {
                 globalPointsToAward = newEarned - previousEarned;
-                localPointsToRecord = newEarned; // For the local chapter, we just set it to the new high score
+                localPointsToRecord = newEarned; 
             } else {
-                localPointsToRecord = previousEarned; // Keep the existing high score
+                localPointsToRecord = previousEarned; 
             }
         } else {
-            // First time: Award all positive points
+            
             globalPointsToAward = Math.max(0, pointsEarned);
             localPointsToRecord = globalPointsToAward;
         }
@@ -2119,7 +2119,7 @@ const processAttemptSubmission = async (userId, chapterId, attemptId, answers = 
     return {
         attemptId: refreshedAttempt.id,
         grade,
-        pointsEarned: localPointsToRecord, // Show the final high score of points for this chapter
+        pointsEarned: localPointsToRecord, 
         eloDelta: eloDeltaSigned,
         correctAnswers,
         totalQuestions,
@@ -2148,8 +2148,8 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         throw new Error('Jawaban tidak boleh kosong');
     }
 
-    // --- Pre-fetch di luar transaksi agar transaksi sesingkat mungkin ---
-    // Read user role & attempt sekarang supaya koneksi TX tidak dipakai untuk operasi read awal.
+    
+    
     const [userPreFetch, attemptPreFetch] = await Promise.all([
         prisma.user.findUnique({
             where: { id: normalizedUserId },
@@ -2166,7 +2166,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         }),
     ]);
 
-    // Validasi awal sebelum masuk transaksi
+    
     if (!attemptPreFetch) {
         throw new Error('Assessment attempt tidak ditemukan atau sudah selesai');
     }
@@ -2174,7 +2174,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
     const isStudent = isStudentRole(userPreFetch?.role);
 
     return prisma.$transaction(async (tx) => {
-        // Reload attempt di dalam TX untuk memastikan data konsisten (row lock)
+        
         let attempt = await tx.assessmentAttempt.findFirst({
             where: {
                 id: normalizedAttemptId,
@@ -2220,7 +2220,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         const objectiveTarget = attempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET;
         const objectiveScore = Math.ceil(100 / Math.max(1, objectiveTarget));
 
-        // Live Elo Sync: Fetch the latest Global Elo to ensure synchronization
+        
         const currentUser = await tx.user.findUnique({
             where: { id: normalizedUserId },
             select: { elo: true }
@@ -2230,7 +2230,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         let userDeltaRaw = 0;
         let questionDeltaRaw = 0;
         
-        // Use the freshest Global Elo as the baseline for the duel
+        
         let nextUserEloPreview = Math.max(MIN_ELO, currentUser?.elo || attempt.currentUserElo || MIN_ELO);
         let nextQuestionElo = clampElo(activeQuestion.elo);
 
@@ -2348,7 +2348,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             (updatedAttempt.objectiveAnswered || 0) >= (updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET);
 
         if ((objectiveCompleted && essayAnswered) || !activeAfterAnswer) {
-            // One final refresh to ensure we have all updates for finalization
+            
             const finalFreshAttempt = await getAttemptByIdTx(tx, attempt.id);
             const result = await finalizeAttemptInTransaction(
                 tx,
@@ -2366,7 +2366,7 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         let dynamicPointsEarnedThisQuestion = 0;
         if (isObjective && isStudent && isCorrect) {
             const expectedProbUser = 1 / (1 + Math.pow(10, -(courseEloBefore - clampElo(activeQuestion.elo)) / 400));
-            // Rumus: Poin = B × (1 - P), di mana B = 10 (base poin)
+            
             dynamicPointsEarnedThisQuestion = Math.round(10 * (1 - expectedProbUser));
         }
 

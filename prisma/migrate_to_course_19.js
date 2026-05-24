@@ -54,7 +54,7 @@ async function main() {
       continue;
     }
 
-    // 1. Update Target Chapter Details
+    
     await withRetry(async () => {
       await prisma.chapter.update({
         where: { id: targetId },
@@ -66,8 +66,8 @@ async function main() {
     });
     console.log(`  Updated target chapter name and description.`);
 
-    // 2. Migrate Materials
-    // Delete existing materials in target chapter to avoid duplicates
+    
+    
     await withRetry(async () => {
       await prisma.material.deleteMany({ where: { chapterId: targetId } });
     });
@@ -87,8 +87,8 @@ async function main() {
     }
     console.log(`  Migrated ${sourceChapter.materials.length} materials.`);
 
-    // 3. Migrate Assessments & Questions
-    // Delete existing assessments (and cascaded questions) in target chapter
+    
+    
     await withRetry(async () => {
       await prisma.assessment.deleteMany({ where: { chapterId: targetId } });
     });
@@ -105,7 +105,7 @@ async function main() {
         });
       });
 
-      // Create questions for the new assessment
+      
       if (assessment.questions.length > 0) {
         const questionsData = assessment.questions.map(q => ({
           assessmentId: newAssessment.id,
@@ -126,8 +126,8 @@ async function main() {
       console.log(`  Migrated 1 assessment with ${assessment.questions.length} questions.`);
     }
 
-    // 4. Migrate Assignments
-    // Delete existing assignments in target chapter
+    
+    
     await withRetry(async () => {
       await prisma.assignment.deleteMany({ where: { chapterId: targetId } });
     });
