@@ -625,7 +625,7 @@ const buildGoogleAIClient = () => {
     const model = process.env.LEVELY_LLM_MODEL;
     const baseUrl =
         process.env.LEVELY_LLM_BASE_URL ||
-        'https:
+        'https://generativelanguage.googleapis.com/v1beta/models';
     const isVertex = baseUrl.includes('aiplatform.googleapis.com');
 
     if (!apiKey && !isVertex) {

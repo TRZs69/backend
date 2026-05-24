@@ -2452,7 +2452,7 @@ async function main() {
       data: {
         chapterId: chapter7.id,
         instruction: 'Silahkan mengikuti instruksi tugas berikut ini:!',
-        fileUrl: 'https:
+        fileUrl: 'https://apipuro.del.ac.id/v1/file/e533ca8406a061f72193a626569f505e',
       },
     });
 
