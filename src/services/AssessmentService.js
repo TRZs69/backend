@@ -2173,10 +2173,9 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
 
     const isStudent = isStudentRole(userPreFetch?.role);
 
-    return prisma.$transaction(async (tx) => {
-        
-        let attempt = await tx.assessmentAttempt.findFirst({
-            where: {
+    const transactionResult = await prisma.$transaction(async (tx) => {
+
+        let attempt = await tx.assessmentAttempt.findFirst({            where: {
                 id: normalizedAttemptId,
                 userId: normalizedUserId,
                 chapterId: normalizedChapterId,
@@ -2385,6 +2384,19 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
         };
     }, INTERACTIVE_TX_OPTIONS);
+
+    if (transactionResult.completed) {
+        const chapter = await prisma.chapter.findUnique({
+            where: { id: normalizedChapterId },
+            select: { courseId: true }
+        });
+        if (chapter) {
+            const userCourseService = require('./UserCourseService');
+            void userCourseService.recalculateUserCourseProgress(normalizedUserId, chapter.courseId);
+        }
+    }
+
+    return transactionResult;
 };
 
 exports.prefetchAttempt = async (userId, chapterId) => {

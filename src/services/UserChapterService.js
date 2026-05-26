@@ -238,6 +238,15 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
         }
 
         if (didChapterComplete) {
+            const chapter = await prisma.chapter.findUnique({
+                where: { id: parseInt(chapterId) },
+                select: { courseId: true }
+            });
+            if (chapter) {
+                const userCourseService = require('./UserCourseService');
+                void userCourseService.recalculateUserCourseProgress(parseInt(userId), chapter.courseId);
+            }
+
             void evaluationService.recordActivityEvent({
                 userId,
                 eventName: evaluationService.EVENT_NAMES.CHAPTER_COMPLETED,

@@ -194,6 +194,44 @@ exports.getCoursesByUser = async (userId) => {
   }
 };
 
+exports.recalculateUserCourseProgress = async (userId, courseId) => {
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: { chapters: true },
+    });
+
+    if (!course || course.chapters.length === 0) return;
+
+    const chapterIds = course.chapters.map((c) => c.id);
+
+    const completedChapters = await prisma.userChapter.findMany({
+      where: {
+        userId,
+        chapterId: { in: chapterIds },
+        isCompleted: true,
+      },
+      select: { chapterId: true },
+    });
+
+    const uniqueCompletedCount = new Set(completedChapters.map((c) => c.chapterId)).size;
+    const progress = Math.round((uniqueCompletedCount / course.chapters.length) * 100);
+    const isCompleted = progress === 100;
+
+    const dataToUpdate = { progress, isCompleted };
+    if (isCompleted) {
+      dataToUpdate.timeFinished = new Date();
+    }
+
+    await prisma.userCourse.updateMany({
+      where: { userId, courseId },
+      data: dataToUpdate,
+    });
+  } catch (error) {
+    console.error(`Error recalculating progress for User ${userId}, Course ${courseId}:`, error);
+  }
+};
+
 exports.getUserCourseByUserByCourse = async (userId, courseId) => {
   try {
     const userCourse = await prisma.userCourse.findMany({
