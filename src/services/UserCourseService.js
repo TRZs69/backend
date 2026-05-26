@@ -90,6 +90,9 @@ exports.createUserCourse = async (newData) => {
 
 exports.updateUserCourse = async (id, updateData) => {
   try {
+    if (updateData.progress === 0) {
+      console.log(`[WARNING] updateUserCourse called with progress 0 for userCourse ID ${id}! Payload:`, updateData);
+    }
     const userCourse = await prisma.userCourse.update({
       where: { id },
       data: updateData,
@@ -196,12 +199,16 @@ exports.getCoursesByUser = async (userId) => {
 
 exports.recalculateUserCourseProgress = async (userId, courseId) => {
   try {
+    console.log(`[recalculateUserCourseProgress] Initiated for userId: ${userId} (${typeof userId}), courseId: ${courseId} (${typeof courseId})`);
     const course = await prisma.course.findUnique({
       where: { id: courseId },
       include: { chapters: true },
     });
 
-    if (!course || course.chapters.length === 0) return;
+    if (!course || course.chapters.length === 0) {
+      console.log(`[recalculateUserCourseProgress] Course ${courseId} not found or has no chapters.`);
+      return;
+    }
 
     const chapterIds = course.chapters.map((c) => c.id);
 
@@ -217,6 +224,8 @@ exports.recalculateUserCourseProgress = async (userId, courseId) => {
     const uniqueCompletedCount = new Set(completedChapters.map((c) => c.chapterId)).size;
     const progress = Math.round((uniqueCompletedCount / course.chapters.length) * 100);
     const isCompleted = progress === 100;
+    
+    console.log(`[recalculateUserCourseProgress] uniqueCompletedCount: ${uniqueCompletedCount}, totalChapters: ${course.chapters.length}, progress: ${progress}`);
 
     const dataToUpdate = { progress, isCompleted };
     if (isCompleted) {

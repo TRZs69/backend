@@ -165,11 +165,12 @@ begin
   );
 
   with filtered_events as (
-    select *
-    from public.activity_logs
-    where user_id = p_user_id
-      and event_ts >= p_period_start
-      and event_ts <= p_period_end
+    select a.*, coalesce(mc.level, 0) as chapter_level
+    from public.activity_logs a
+    left join public.mirror_chapters mc on a.chapter_id = mc.id
+    where a.user_id = p_user_id
+      and a.event_ts >= p_period_start
+      and a.event_ts <= p_period_end
   ),
   session_pairs as (
     select
@@ -200,17 +201,17 @@ begin
   ),
   assessment_metrics as (
     select
-      coalesce(count(*) filter (where event_name = 'assessment_submit' and chapter_id >= 9), 0) as assessments_submitted,
-      coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null and chapter_id >= 9), 0) as avg_grade,
-      coalesce(sum(points) filter (where event_name = 'assessment_submit' and chapter_id >= 9), 0) as total_points_earned,
-      coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null and chapter_id >= 9), 0) as distinct_assessment_chapters
+      coalesce(count(*) filter (where event_name = 'assessment_submit' and chapter_level >= 9), 0) as assessments_submitted,
+      coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null and chapter_level >= 9), 0) as avg_grade,
+      coalesce(sum(points) filter (where event_name = 'assessment_submit' and chapter_level >= 9), 0) as total_points_earned,
+      coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null and chapter_level >= 9), 0) as distinct_assessment_chapters
     from filtered_events
   ),
   progress_metrics as (
     select
-      coalesce(count(*) filter (where event_name = 'chapter_completed' and chapter_id >= 9), 0) as chapters_completed,
-      coalesce(count(*) filter (where event_name = 'badge_earned' and chapter_id >= 9), 0) as badges_earned,
-      coalesce(count(*) filter (where event_name = 'assignment_submit' and chapter_id >= 9), 0) as assignments_submitted
+      coalesce(count(*) filter (where event_name = 'chapter_completed' and chapter_level >= 9), 0) as chapters_completed,
+      coalesce(count(*) filter (where event_name = 'badge_earned' and chapter_level >= 9), 0) as badges_earned,
+      coalesce(count(*) filter (where event_name = 'assignment_submit' and chapter_level >= 9), 0) as assignments_submitted
     from filtered_events
   ),
   chat_metrics as (
@@ -240,9 +241,9 @@ begin
     select
       bool_or(event_name = 'user_login') as used_login,
       bool_or(event_name in ('session_start', 'session_end')) as used_session,
-      bool_or(event_name = 'assessment_submit' and chapter_id >= 9) as used_assessment,
-      bool_or(event_name = 'material_access' and chapter_id >= 9) as used_material,
-      bool_or(event_name = 'assignment_submit' and chapter_id >= 9) as used_assignment,
+      bool_or(event_name = 'assessment_submit' and chapter_level >= 9) as used_assessment,
+      bool_or(event_name = 'material_access' and chapter_level >= 9) as used_material,
+      bool_or(event_name = 'assignment_submit' and chapter_level >= 9) as used_assignment,
       bool_or(event_name = 'chatbot_interaction') as used_chatbot
     from filtered_events
   ),
@@ -424,6 +425,12 @@ begin
 end;
 $$;
 
+-- Grant permissions for the functions
+grant execute on function public.recompute_student_summary_v2 to postgres;
+grant execute on function public.recompute_student_summary_v2 to service_role;
+grant execute on function public.recompute_student_summary_v2 to anon;
+grant execute on function public.recompute_student_summary_v2 to authenticated;
+
 create or replace function public.recompute_all_student_summaries_v2(
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
   p_period_end timestamptz default '2026-05-31 23:59:59.999+07'
@@ -454,6 +461,15 @@ begin
   return v_processed;
 end;
 $$;
+
+-- Grant permissions for the batch function
+grant execute on function public.recompute_all_student_summaries_v2 to postgres;
+grant execute on function public.recompute_all_student_summaries_v2 to service_role;
+grant execute on function public.recompute_all_student_summaries_v2 to anon;
+grant execute on function public.recompute_all_student_summaries_v2 to authenticated;
+
+-- Notify PostgREST to reload the schema cache
+notify pgrst, 'reload schema';
 
 alter table public.activity_logs enable row level security;
 alter table public.student_summaries_2 enable row level security;
