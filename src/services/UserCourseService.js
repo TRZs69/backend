@@ -90,25 +90,34 @@ exports.createUserCourse = async (newData) => {
 
 exports.updateUserCourse = async (id, updateData) => {
   try {
-    if (updateData.progress === 0) {
-      console.log(`[WARNING] updateUserCourse called with progress 0 for userCourse ID ${id}! Payload:`, updateData);
-    }
+    // Prevent the client from manually setting progress or isCompleted
+    // We should always rely on our recalculateUserCourseProgress logic
+    const { progress, isCompleted, ...safeUpdateData } = updateData;
+
     const userCourse = await prisma.userCourse.update({
       where: { id },
-      data: updateData,
+      data: safeUpdateData,
     });
+
+    // After updating other fields (like currentChapter), trigger a recalculation
+    // to ensure progress is still correct and persistent.
+    void exports.recalculateUserCourseProgress(userCourse.userId, userCourse.courseId);
+
     return userCourse;
   } catch (error) {
     if (error.code === 'P2025') {
       return null;
     }
     if (isMissingColumnError(error, '`elo`')) {
-      const { elo, ...legacyData } = updateData || {};
+      const { elo, progress, isCompleted, ...legacyData } = updateData || {};
       const userCourse = await prisma.userCourse.update({
         where: { id },
         data: legacyData,
         select: userCourseLegacySelect,
       });
+
+      void exports.recalculateUserCourseProgress(userCourse.userId, userCourse.courseId);
+
       return userCourse;
     }
     throw new Error(error.message);
