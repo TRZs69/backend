@@ -198,7 +198,7 @@ exports.getCoursesByUser = async (userId) => {
     }
 
     return userCourses.map((userCourse) => ({
-      ...userCourse.course,
+      course: userCourse.course,
       progress: userCourse.progress,
     }));
   } catch (error) {
@@ -252,7 +252,7 @@ exports.recalculateUserCourseProgress = async (userId, courseId) => {
 
 exports.getUserCourseByUserByCourse = async (userId, courseId) => {
   try {
-    const userCourse = await prisma.userCourse.findFirst({
+    const userCourse = await prisma.userCourse.findMany({
       where: {
         userId,
         courseId,
@@ -261,7 +261,7 @@ exports.getUserCourseByUserByCourse = async (userId, courseId) => {
     return userCourse;
   } catch (error) {
     if (isMissingColumnError(error, '`graphci.user_courses.elo`') || isMissingColumnError(error, '`elo`')) {
-      const userCourse = await prisma.userCourse.findFirst({
+      const userCourse = await prisma.userCourse.findMany({
         where: {
           userId,
           courseId,
