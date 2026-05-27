@@ -15,6 +15,7 @@ const {
 	normalizeChapterId,
 	sanitizePromptText,
 	postProcessReply,
+	convertLatexToUnicode,
 	logChatPerformance,
 } = require('./ChatbotUtils');
 const {
@@ -214,6 +215,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 
 		let isLeaking = false;
 		let accumulatedText = '';
+		let latexBuffer = '';
 		const internalAbortController = new AbortController();
 		if (abortSignal) {
 			abortSignal.addEventListener('abort', () => internalAbortController.abort());
@@ -270,7 +272,7 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 								   (!hasGreeting(l) || l.includes(':') || isVerification(l));
 						};
 
-						const isStartOfMessage = lines.length <= 40;
+						const isStartOfMessage = lines.length <= 3;
 						const isMetaPhase = isStartOfMessage && (isLineTrulyMeta(lastLine) || isLineTrulyMeta(secondToLastLine));
 
 						if ((lastThoughtOpen > lastThoughtClose) || isMetaPhase) {
@@ -305,12 +307,39 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 							internalAbortController.abort();
 							emitChunk('\n\n' + GUARDED_DIRECT_ANSWER_REPLY);
 						} else if (!isThinking && textToEmit) {
-							emitChunk(textToEmit);
+							// LaTeX Stream Cleanup
+							// Buffer text if it contains '$' to handle split LaTeX commands like '$\rightarrow$'
+							latexBuffer += textToEmit;
+							
+							// If the buffer has balanced '$' or is long enough to not be a LaTeX block
+							// we can try to convert and emit.
+							if (latexBuffer.includes('$')) {
+								const firstDollar = latexBuffer.indexOf('$');
+								const lastDollar = latexBuffer.lastIndexOf('$');
+								
+								if (firstDollar !== lastDollar) {
+									// Potential full LaTeX block in buffer
+									const converted = convertLatexToUnicode(latexBuffer);
+									emitChunk(converted);
+									latexBuffer = '';
+								} else if (latexBuffer.length > 500) {
+									// Buffer getting too long, emit what we have
+									emitChunk(latexBuffer);
+									latexBuffer = '';
+								}
+							} else {
+								emitChunk(latexBuffer);
+								latexBuffer = '';
+							}
 						}
 					},
 					abortSignal: internalAbortController.signal,
 					generationConfig: responseSettings.generationConfig,
 				});
+				if (latexBuffer) {
+					emitChunk(convertLatexToUnicode(latexBuffer));
+					latexBuffer = '';
+				}
 				reply = streamResult.text;
 				llmMetadata = streamResult.metadata;
 			} catch (error) {

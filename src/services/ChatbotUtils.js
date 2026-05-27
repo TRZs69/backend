@@ -120,12 +120,111 @@ const stripTrailingTruncatedListItems = (text) => {
 	return lines.slice(0, end + 1).join('\n');
 };
 
+const convertLatexToUnicode = (text) => {
+	if (typeof text !== 'string') {
+		return '';
+	}
+
+	const mapping = {
+		'\\rightarrow': '→',
+		'\\to': '→',
+		'\\leftarrow': '←',
+		'\\gets': '←',
+		'\\Rightarrow': '⇒',
+		'\\Leftarrow': '⇐',
+		'\\leftrightarrow': '↔',
+		'\\dots': '…',
+		'\\ldots': '…',
+		'\\pm': '±',
+		'\\times': '×',
+		'\\div': '÷',
+		'\\leq': '≤',
+		'\\le': '≤',
+		'\\geq': '≥',
+		'\\ge': '≥',
+		'\\neq': '≠',
+		'\\approx': '≈',
+		'\\in': '∈',
+		'\\notin': '∉',
+		'\\subset': '⊂',
+		'\\supset': '⊃',
+		'\\subseteq': '⊆',
+		'\\supseteq': '⊇',
+		'\\cup': '∪',
+		'\\cap': '∩',
+		'\\forall': '∀',
+		'\\exists': '∃',
+		'\\neg': '¬',
+		'\\infty': '∞',
+		'\\alpha': 'α',
+		'\\beta': 'β',
+		'\\gamma': 'γ',
+		'\\delta': 'δ',
+		'\\epsilon': 'ε',
+		'\\zeta': 'ζ',
+		'\\eta': 'η',
+		'\\theta': 'θ',
+		'\\iota': 'ι',
+		'\\kappa': 'κ',
+		'\\lambda': 'λ',
+		'\\mu': 'μ',
+		'\\nu': 'ν',
+		'\\xi': 'ξ',
+		'\\pi': 'π',
+		'\\rho': 'ρ',
+		'\\sigma': 'σ',
+		'\\tau': 'τ',
+		'\\phi': 'φ',
+		'\\chi': 'χ',
+		'\\psi': 'ψ',
+		'\\omega': 'ω',
+		'\\Delta': 'Δ',
+		'\\Gamma': 'Γ',
+		'\\Theta': 'Θ',
+		'\\Lambda': 'Λ',
+		'\\Xi': 'Ξ',
+		'\\Pi': 'Π',
+		'\\Sigma': 'Σ',
+		'\\Phi': 'Φ',
+		'\\Psi': 'Ψ',
+		'\\Omega': 'Ω',
+		'\\cdot': '⋅',
+		'\\degree': '°',
+		'\\surd': '√',
+		'\\partial': '∂',
+		'\\nabla': '∇',
+		'\\sum': '∑',
+		'\\prod': '∏',
+		'\\int': '∫',
+	};
+
+	let result = text;
+	
+	// 1. First pass: Replace known LaTeX commands within $ blocks
+	result = result.replace(/\$([\s\S]+?)\$/g, (match, inner) => {
+		let processedInner = inner;
+		// Replace each known command within this block
+		for (const [command, unicode] of Object.entries(mapping)) {
+			// Use regex to match command with word boundary or non-alpha char at end
+			const escapedCommand = command.replace(/\\/g, '\\\\');
+			const commandRegex = new RegExp(`${escapedCommand}(?![a-zA-Z])`, 'g');
+			processedInner = processedInner.replace(commandRegex, unicode);
+		}
+		return processedInner; // Return the inner content (effectively stripping the $ signs)
+	});
+
+	return result;
+};
+
 const postProcessReply = (reply) => {
 	if (typeof reply !== 'string') {
 		return '';
 	}
 
 	let normalized = reply.replace(/\r/g, '').trim();
+
+	// 0. Convert LaTeX symbols to Unicode
+	normalized = convertLatexToUnicode(normalized);
 
 	// 1. Strip out thinking/thought blocks (e.g., <thought>...</thought>)
 	normalized = normalized.replace(/<(thought|think)[^>]*>[\s\S]*?<\/\1>/gi, '').trim();
@@ -312,6 +411,7 @@ module.exports = {
 	isLikelyTruncatedTrailingListLine,
 	stripTrailingTruncatedListItems,
 	postProcessReply,
+	convertLatexToUnicode,
 	shouldIncludeImageContext,
 	isFinitePositive,
 	normalizeHistory,
