@@ -54,7 +54,7 @@ const buildUserRequestMessage = (prompt) => {
 	].join('\n\n');
 };
 
-const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage = false }) => {
+const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage = false, isClosing = false }) => {
 	const routeInstruction = route === 'coaching_mode'
 		? 'Current route: coaching_mode. Use teaching style: break concepts into short steps, ask one clarifying question when useful, and prioritize conceptual understanding over final answer shortcuts.'
 		: 'Current route: normal_qa. Provide direct, clear answers that stay concise unless the user asks for depth.';
@@ -67,15 +67,31 @@ const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage =
 		? 'This is the start of the conversation. If the conversation has zero previous messages, you may greet the user warmly.'
 		: 'This is a continuation of the conversation. DO NOT greet the user again, do not say "Halo" or "Hi", and do not repeat introductions. Jump straight to the answer or follow-up.';
 
-	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction} ${greetingInstruction}`;
+	const closingInstruction = isClosing
+		? 'IMPORTANT: The user is thanking you or closing the conversation. Respond with a very short, polite, and encouraging closing. DO NOT provide summaries, explanations, or more learning materials. Keep the response under 15 words.'
+		: '';
+
+	return `${SYSTEM_PROMPT} ${routeInstruction} ${sourceBoundedInstruction} ${greetingInstruction} ${closingInstruction}`.trim();
 };
 
 const { resolveRequiredTools, resolveTargetModel } = require('./ChatbotTools');
 
-const pickGenerationSettings = (prompt, { forceDetailed = false, route = 'normal_qa', hasMaterialContext = false } = {}) => {
+const pickGenerationSettings = (prompt, { forceDetailed = false, route = 'normal_qa', hasMaterialContext = false, isClosing = false } = {}) => {
 	const tools = resolveRequiredTools(prompt, { route, hasMaterialContext });
 	const targetModel = resolveTargetModel(prompt, { route });
 	
+	if (isClosing) {
+		return {
+			mode: 'closing',
+			generationConfig: {
+				temperature: 0.3,
+				maxOutputTokens: 60,
+			},
+			tools: [],
+			targetModel
+		};
+	}
+
 	if (!ENABLE_ADAPTIVE_RESPONSE_MODE) {
 		return { mode: 'default', generationConfig: null, tools, targetModel };
 	}

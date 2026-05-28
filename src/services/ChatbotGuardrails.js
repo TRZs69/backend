@@ -317,6 +317,25 @@ const resolveAssistantRoute = ({ prompt }) => {
 	return isCoaching ? 'coaching_mode' : 'normal_qa';
 };
 
+const CLOSING_KEYWORDS = [
+	'terima kasih', 'terimakasih', 'makasih', 'thanks', 'thx',
+	'nuhun', 'matur nuwun', 'sudah cukup', 'sip', 'oke makasih',
+	'thank you', 'syukron'
+];
+
+const isClosingPrompt = (prompt) => {
+	const normalized = normalizeIntentText(prompt);
+	if (!normalized) return false;
+
+	const tokens = normalized.split(' ').filter(Boolean);
+	if (tokens.length > 5) return false;
+
+	return CLOSING_KEYWORDS.some(keyword => {
+		const normalizedKeyword = normalizeIntentText(keyword);
+		return normalized === normalizedKeyword || normalized.includes(normalizedKeyword);
+	});
+};
+
 module.exports = {
 	normalizeIntentText,
 	evaluatePreLlmSafetyGate,
@@ -326,5 +345,6 @@ module.exports = {
 	isDetailedPrompt,
 	shouldForceContinuation,
 	resolveAssistantRoute,
-    parseBooleanEnv,
+	parseBooleanEnv,
+	isClosingPrompt,
 };

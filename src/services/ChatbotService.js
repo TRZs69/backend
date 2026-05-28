@@ -6,6 +6,7 @@ const {
 	shouldSuppressAssessmentLeakReply,
 	GUARDED_DIRECT_ANSWER_REPLY,
 	resolveAssistantRoute,
+	isClosingPrompt,
 } = require('./ChatbotGuardrails');
 const {
 	getFallbackReply,
@@ -114,12 +115,14 @@ exports.sendMessage = async ({ message, history = [], sessionId, userId, materia
 		await buildChatContext({ history, sessionId, userId, prompt, materialId, chapterId });
 
 	const assistantRoute = resolveAssistantRoute({ prompt });
+	const isClosing = isClosingPrompt(prompt);
 	const isFirstMessage = messages.length <= 1;
-	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage });
+	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage, isClosing });
 	const responseSettings = pickGenerationSettings(prompt, { 
 		forceDetailed: isContinuationRequest,
 		route: assistantRoute,
-		hasMaterialContext
+		hasMaterialContext,
+		isClosing
 	});
 
 	try {
@@ -197,12 +200,14 @@ exports.streamMessage = async ({ message, history = [], sessionId, userId, mater
 	}
 
 	const assistantRoute = resolveAssistantRoute({ prompt });
+	const isClosing = isClosingPrompt(prompt);
 	const isFirstMessage = messages.length <= 1;
-	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage });
+	const effectiveSystemPrompt = buildSystemPromptForRoute({ route: assistantRoute, hasMaterialContext, isFirstMessage, isClosing });
 	const responseSettings = pickGenerationSettings(prompt, { 
 		forceDetailed: isContinuationRequest,
 		route: assistantRoute,
-		hasMaterialContext
+		hasMaterialContext,
+		isClosing
 	});
 
 	try {
