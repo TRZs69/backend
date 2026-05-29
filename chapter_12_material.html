@@ -1,27 +1,165 @@
-<h1>GenderMag dalam Desain Antarmuka</h1>
-<p>Metode GenderMag membantu desainer menemukan <strong>"Inclusivity Bugs"</strong> — yaitu hambatan-hambatan dalam desain karena sistem tidak mendukung gaya pemecahan masalah kognitif yang beragam.</p>
+<div style="line-height: 1.6; font-family: 'Inter', sans-serif; color: #334155; width: 100%; box-sizing: border-box; overflow-x: hidden; word-wrap: break-word; overflow-wrap: anywhere; padding: 10px 5px; margin: 0;">
+    <!-- JUDUL UTAMA -->
+    <h1 style="color: #0369a1; border-bottom: 2px solid #e0f2fe; padding-bottom: 10px; font-size: 1.65rem; font-weight: 800; margin-top: 0;">
+        GenderMag dalam Desain Antarmuka
+    </h1>
 
-<h2>5 Facet Gaya Kognitif</h2>
-<ol>
-  <li><strong>Motivation:</strong> <em>Task-oriented</em> (menggunakan teknologi hanya untuk menyelesaikan tugas) vs <em>Technology-oriented</em> (menikmati teknologi itu sendiri).</li>
-  <li><strong>Information Processing:</strong> <em>Comprehensive</em> (membaca semua info sebelum bertindak) vs <em>Selective</em> (mencari informasi spesifik dan langsung mencoba).</li>
-  <li><strong>Self-Efficacy:</strong> Tingkat kepercayaan diri pengguna dalam menggunakan fitur baru yang belum dikenalnya.</li>
-  <li><strong>Risk Aversion:</strong> Sikap terhadap risiko kegagalan (takut berbuat salah vs berani mencoba).</li>
-  <li><strong>Tinkering:</strong> Kecenderungan pengguna untuk bermain-main, mengutak-atik, dan bereksperimen dengan fitur sistem.</li>
-</ol>
+    <p style="margin-top: 15px; font-size: 1.05rem; color: #475569;">
+        Materi ini membahas metode <strong>GenderMag</strong>, sebuah pendekatan analitis untuk mengevaluasi inklusivitas perangkat lunak berdasarkan lima aspek gaya kognitif.
+    </p>
 
-<h2>Tiga Persona Utama GenderMag</h2>
-<ul>
-  <li><strong>Abi:</strong> Rendah self-efficacy, sangat risk-averse, belajar secara komprehensif, dan tidak suka tinkering. (Sangat ideal untuk mendeteksi bug kritis pada sistem).</li>
-  <li><strong>Pat:</strong> Memiliki sifat moderat di semua facet gaya kognitif.</li>
-  <li><strong>Tim:</strong> Tinggi self-efficacy, sangat suka tinkering (bereksperimen), berani mengambil risiko, dan memproses informasi secara selektif.</li>
-</ul>
+    <!-- MENGAPA INKLUSIF PENTING -->
+    <div style="background-color: #f0f9ff; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0; border-radius: 4px; box-sizing: border-box;">
+        <h2 style="color: #0369a1; margin-top: 0; font-size: 1.25rem;">Mengapa Aplikasi Sering Tidak Inklusif?</h2>
+        <ul style="margin-top: 10px; font-size: 0.9rem; padding-left: 20px;">
+            <li style="margin-bottom: 8px;"><strong>Gender Gap:</strong> Bukti empiris menunjukkan perempuan lebih sering mengalami hambatan bukan karena kemampuan teknis, tapi desain yang tidak inklusif secara kognitif.</li>
+            <li style="margin-bottom: 8px;"><strong>Masalah "Default User":</strong> Developer sering merancang untuk "power user" atau orang yang mirip dirinya sendiri (teknis, male-dominant).</li>
+            <li><strong>Konteks Lokal:</strong> Pentingnya akses bagi pengguna yang lebih nyaman dengan aplikasi sederhana, seperti ibu-ibu di daerah.</li>
+        </ul>
+    </div>
 
-<h2>Proses Cognitive Walkthrough</h2>
-<p>Untuk menemukan bug, tim desainer harus melakukan simulasi (walkthrough) dengan mengambil peran sebagai <strong>Abi</strong> dan menanyakan 4 pertanyaan ini pada setiap langkah sub-tugas:</p>
-<ol>
-  <li>Apakah Abi tahu apa yang harus dia lakukan pada langkah ini?</li>
-  <li>Jika tahu, apakah Abi bisa melihat atau menemukan kontrol/tombol yang tepat untuk melakukannya?</li>
-  <li>Jika menemukan tombol tersebut, apakah Abi yakin bahwa tombol itu akan memberikan hasil yang dia inginkan?</li>
-  <li>Setelah menekan tombol, apakah Abi tahu dari feedback sistem bahwa dia telah berhasil mengambil tindakan yang benar?</li>
-</ol>
+    <!-- HUBUNGAN DENGAN HCI -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 30px;">Hubungan GenderMag dengan HCI</h2>
+    <div style="overflow-x: auto; margin: 15px 0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 450px;">
+            <tr style="background-color: #f1f5f9;">
+                <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;">Prinsip HCI</th>
+                <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;">Peran GenderMag</th>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;"><strong>Usability</strong></td>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;">Memperluas usability: Sistem bisa usable untuk satu kelompok, tapi tidak untuk yang lain.</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;"><strong>Heuristic Eval</strong></td>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;">Spesialisasi <em>Cognitive Walkthrough</em> dengan sudut pandang gender.</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;"><strong>UCD</strong></td>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;">Memastikan "siapa usernya" tidak bias sejak tahap awal desain.</td>
+            </tr>
+            <tr>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;"><strong>Affordance</strong></td>
+                <td style="border: 1px solid #cbd5e1; padding: 10px;">Affordance yang mudah bagi satu orang belum tentu mudah bagi orang lain.</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- 5 FACET / COGNITIVE STYLES -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">5 Dimensi Cognitive Styles (Facets)</h2>
+    <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 15px;">Setiap aspek memiliki implikasi langsung pada bagaimana software seharusnya dirancang:</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px; width: 100%; box-sizing: border-box;">
+        <!-- 1. Motivation -->
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #0ea5e9; margin: 0; font-size: 1.1rem;">1. Motivation (Motivasi)</h3>
+            <p style="font-size: 0.85rem; margin-top: 5px;"><strong>Implikasi:</strong> Pengguna <em>task-oriented</em> tidak akan mengeksplorasi fitur tambahan kecuali jelas manfaatnya untuk tugas utama mereka.</p>
+        </div>
+        <!-- 2. Info Processing -->
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #0ea5e9; margin: 0; font-size: 1.1rem;">2. Information Processing Style</h3>
+            <p style="font-size: 0.85rem; margin-top: 5px;"><strong>Implikasi:</strong> Pengguna komprehensif butuh informasi konteks yang lengkap sebelum mengambil tindakan. Desain yang "hanya cukup untuk tinkerer" membuat mereka ragu.</p>
+        </div>
+        <!-- 3. Self-Efficacy -->
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #0ea5e9; margin: 0; font-size: 1.1rem;">3. Computer Self-Efficacy</h3>
+            <p style="font-size: 0.85rem; margin-top: 5px;"><strong>Implikasi:</strong> Pesan error yang tidak jelas semakin menurunkan kepercayaan diri mereka. Mereka lebih mengandalkan fitur yang sudah dikenal (familiar).</p>
+        </div>
+        <!-- 4. Risk Aversion -->
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #0ea5e9; margin: 0; font-size: 1.1rem;">4. Risk Aversion</h3>
+            <p style="font-size: 0.85rem; margin-top: 5px;"><strong>Implikasi:</strong> Tombol tanpa label jelas atau aksi yang tidak bisa di-<em>undo</em> akan membuat mereka meninggalkan fitur tersebut.</p>
+        </div>
+        <!-- 5. Tinkering -->
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #0ea5e9; margin: 0; font-size: 1.1rem;">5. Tinkering</h3>
+            <p style="font-size: 0.85rem; margin-top: 5px;"><strong>Implikasi:</strong> Ini adalah sumber <em>inclusivity bug</em> tersering. Desain tidak boleh mengasumsikan pengguna akan belajar lewat coba-coba sendiri.</p>
+        </div>
+    </div>
+
+    <!-- TIGA PERSONA GENDERMAG -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">Tiga Persona Utama</h2>
+    <div style="overflow-x: auto; margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px;">
+            <tr style="background-color: #f8fafc;">
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 10px; text-align: left;">Facet</th>
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 10px; text-align: left;">Abi (Abigail)</th>
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 10px; text-align: left;">Pat (Patricia)</th>
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 10px; text-align: left;">Tim (Timothy)</th>
+            </tr>
+            <tr>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;"><strong>Motivation</strong></td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Task-oriented</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Task-oriented</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Tech-oriented</td>
+            </tr>
+            <tr>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;"><strong>Info Processing</strong></td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Comprehensive</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Campuran</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Selective</td>
+            </tr>
+            <tr>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;"><strong>Self-Efficacy</strong></td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Rendah</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Moderat</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Tinggi</td>
+            </tr>
+            <tr>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;"><strong>Risk Aversion</strong></td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Risk-averse</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Moderat</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Risk-tolerant</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px;"><strong>Tinkering</strong></td>
+                <td style="padding: 10px;">Tidak (butuh panduan)</td>
+                <td style="padding: 10px;">Ya, tapi reflektif</td>
+                <td style="padding: 10px;">Ya, langsung explore</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- PROSES WALKTHROUGH -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">Proses GenderMag Walkthrough</h2>
+    <p style="font-size: 0.95rem;">Dilakukan oleh evaluator untuk mensimulasikan tindakan pengguna langkah-demi-langkah:</p>
+    <div style="background-color: #fff7ed; border-left: 4px solid #f97316; padding: 15px; margin: 15px 0; border-radius: 4px;">
+        <strong style="color: #c2410c; font-size: 0.9rem;">GenderMag vs Usability Testing:</strong>
+        <p style="font-size: 0.85rem; margin-top: 5px;">Usability testing butuh pengguna nyata, sedangkan GenderMag dilakukan oleh evaluator menggunakan persona. Ini lebih cepat dan cocok untuk fase awal desain.</p>
+    </div>
+    
+    <ol style="font-size: 0.9rem; padding-left: 20px;">
+        <li style="margin-bottom: 8px;"><strong>Persiapan:</strong> Pilih task/fitur dan subgoal.</li>
+        <li style="margin-bottom: 8px;"><strong>Pilih Persona:</strong> Mulai dari Abi (paling rentan).</li>
+        <li style="margin-bottom: 8px;"><strong>Walkthrough:</strong> Ajukan 4 pertanyaan kunci per langkah aksi.</li>
+        <li style="margin-bottom: 8px;"><strong>Dokumentasi:</strong> Catat setiap jawaban "TIDAK" sebagai inclusivity bug.</li>
+        <li><strong>Perbaikan:</strong> Usulkan redesign berdasarkan temuan.</li>
+    </ol>
+
+    <!-- 4 PERTANYAAN KUNCI -->
+    <div style="background-color: #f1f5f9; padding: 15px; border-radius: 8px; margin-top: 20px; box-sizing: border-box;">
+        <h3 style="color: #1e293b; margin-top: 0; font-size: 1.1rem;">4 Pertanyaan Kunci:</h3>
+        <ul style="font-size: 0.85rem; padding-left: 20px; margin-bottom: 0;">
+            <li style="margin-bottom: 5px;">Apakah Abi tahu langkah ini perlu dilakukan?</li>
+            <li style="margin-bottom: 5px;">Apakah Abi akan melihat cara melakukannya?</li>
+            <li style="margin-bottom: 5px;">Apakah Abi yakin ini adalah aksi yang benar?</li>
+            <li>Apakah Abi dapat mengevaluasi hasilnya dari feedback yang ada?</li>
+        </ul>
+    </div>
+
+    <!-- CONTOH KASUS WHATSAPP -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">Contoh Kasus: WhatsApp</h2>
+    <p style="font-size: 0.95rem;">Temuan <em>Inclusivity Bugs</em> pada fitur <strong>Disappearing Messages</strong>:</p>
+    <ul style="font-size: 0.85rem; padding-left: 20px;">
+        <li style="margin-bottom: 8px;"><strong>Bug 1:</strong> Ikon tiga titik (⋮) tidak berlabel membuat Abi bingung mencari pintu masuk ke Settings.</li>
+        <li style="margin-bottom: 8px;"><strong>Bug 2:</strong> Fitur tersembunyi terlalu dalam (3 level). Label "Privacy" tidak intuitif untuk fitur "Hapus Otomatis".</li>
+        <li style="margin-bottom: 8px;"><strong>Bug 3:</strong> Tidak ada dialog konfirmasi setelah memilih durasi, membuat Abi tidak yakin aksinya sudah tersimpan.</li>
+        <li><strong>Bug 4:</strong> Tidak ada indikator status yang jelas di halaman utama chat bahwa fitur tersebut aktif.</li>
+    </ul>
+
+    <!-- TUGAS -->
+    <div style="margin-top: 40px; border: 2px dashed #cbd5e1; padding: 20px; border-radius: 8px; box-sizing: border-box; background-color: #fafafa;">
+        <h3 style="color: #1e293b; margin-top: 0; font-size: 1.2rem;">📝 Latihan</h3>
+        <p style="font-size: 0.9rem;">Gunakan metode GenderMag untuk mengevaluasi fitur <strong>"Ganti Password"</strong> di sebuah aplikasi. Fokus pada persona <strong>Abi</strong> dan identifikasi minimal 2 potensi <em>inclusivity bugs</em>.</p>
+    </div>
+</div>

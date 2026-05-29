@@ -8,21 +8,21 @@ datasource db {
 }
 
 model User {
-  id                 Int                       @id @default(autoincrement())
-  username           String                    @unique
+  id                 Int                 @id @default(autoincrement())
+  username           String              @unique
   password           String
   name               String
   role               Role
   studentId          String?
-  points             Int?                      @default(0)
-  totalCourses       Int?                      @default(0)
-  badges             Int?                      @default(0)
+  points             Int?                @default(0)
+  totalCourses       Int?                @default(0)
+  badges             Int?                @default(0)
   instructorId       String?
   instructorCourses  Int?
-  image              String?                   @default("")
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  elo                Int?                      @default(750)
+  image              String?             @default("")
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  elo                Int?                @default(750)
   assessmentAttempts AssessmentAttempt[]
   chatbot_ratings    chatbot_ratings[]
   userBadges         UserBadge[]

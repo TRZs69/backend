@@ -16,6 +16,7 @@ create table if not exists public.chat_messages (
   session_id uuid not null references public.chat_sessions(id) on delete cascade,
   role text not null check (role in ('user','assistant','system')),
   content text not null,
+  model text null,
   metadata jsonb default '{}'::jsonb not null,
   token_count integer null,
   created_at timestamptz not null default now()

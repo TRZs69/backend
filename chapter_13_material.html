@@ -1,25 +1,132 @@
-<h1>Voice-Based, Gesture, and Touch Interaction</h1>
+<div style="line-height: 1.6; font-family: 'Inter', sans-serif; color: #334155; width: 100%; box-sizing: border-box; overflow-x: hidden; word-wrap: break-word; overflow-wrap: anywhere; padding: 10px 5px; margin: 0;">
+    <!-- JUDUL UTAMA -->
+    <h1 style="color: #047857; border-bottom: 2px solid #d1fae5; padding-bottom: 10px; font-size: 1.6rem; font-weight: 800; margin-top: 0;">
+        Voice-Based Interaction, Gesture, and Touch
+    </h1>
 
-<h2>1. Voice User Interface (VUI)</h2>
-<p>VUI adalah interaksi menggunakan suara alami manusia. Tiga teknologi komponen utamanya adalah:</p>
-<ul>
-  <li><strong>Speech Recognition:</strong> Mengubah ucapan audio menjadi teks.</li>
-  <li><strong>Natural Language Understanding (NLU):</strong> Memahami maksud/konteks dari teks tersebut.</li>
-  <li><strong>Text-to-Speech (TTS):</strong> Sistem merespons kembali dengan suara yang di-generate.</li>
-</ul>
-<p>Desain VUI yang baik harus peka terhadap konteks percakapan, memiliki sistem <em>turn-taking</em> (giliran bicara) yang alami, dan selalu memberikan umpan balik pendengaran bahwa sistem sedang "mendengarkan".</p>
+    <p style="margin-top: 15px; font-size: 1.05rem; color: #475569;">
+        Materi ini mengeksplorasi <strong>Multimodal Interaction</strong>, melampaui antarmuka grafis tradisional untuk menciptakan interaksi yang lebih natural dan inklusif.
+    </p>
 
-<h2>2. Gesture Interaction</h2>
-<p>Menggunakan gerakan tubuh, tangan, atau kepala (misal: Kinect, VR/AR hand tracking). Interaksi ini membebaskan pengguna dari perangkat fisik keras (keyboard/mouse).</p>
-<p><strong>Tantangan Utama: Gorilla Arm Problem</strong><br>
-Kelelahan fisik yang ekstrem yang terjadi akibat pengguna harus menahan tangan dan lengan menggantung bebas di udara dalam waktu lama saat berinteraksi dengan antarmuka gestur vertikal.</p>
+    <!-- BAGIAN 1: MULTIMODAL INTERACTION -->
+    <div style="background-color: #f0fdf4; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; border-radius: 4px; box-sizing: border-box;">
+        <h2 style="color: #065f46; margin-top: 0; font-size: 1.25rem;">Apa itu Multimodal Interaction?</h2>
+        <p style="font-size: 0.95rem;">Bentuk interaksi yang menggunakan <strong>lebih dari satu metode input/output</strong> (suara, gestur, sentuhan, teks, visual) secara bersamaan atau bergantian untuk memberikan pengalaman yang lebih natural dan efisien.</p>
+    </div>
 
-<h2>3. Touch Interaction</h2>
-<p>Berinteraksi melalui sentuhan langsung ke layar perangkat (Smartphone, Tablet). Interaksi ini sangat langsung dan terasa paling intuitif.</p>
-<p><strong>Prinsip Utama:</strong><br>
-Ukuran target sentuh (tombol) minimal harus 44x44px (mengikuti Fitts' Law) untuk meminimalisir kesalahan tekan, dan sistem harus memberikan <em>feedback</em> visual/haptic yang instan.</p>
-<p><strong>Tantangan Utama: Finger Occlusion</strong><br>
-Masalah di mana jari dan tangan pengguna menutupi sebagian konten penting di layar tepat saat mereka melakukan sentuhan, membuat akurasi menjadi sulit.</p>
+    <!-- GUI VS MULTIMODAL TABLE -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 30px;">GUI vs Multimodal Interface</h2>
+    <div style="overflow-x: auto; margin: 15px 0; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 500px;">
+            <tr style="background-color: #f1f5f9;">
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 12px; text-align: left;">Aspek</th>
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 12px; text-align: left;">GUI (Tradisional)</th>
+                <th style="border-bottom: 1px solid #cbd5e1; padding: 12px; text-align: left;">Multimodal</th>
+            </tr>
+            <tr>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;"><strong>Modalitas</strong></td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Visual (Ikon, Menu)</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Beragam (Suara, Gerak, Sentuh)</td>
+            </tr>
+            <tr>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;"><strong>Perangkat</strong></td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Mouse, Keyboard</td>
+                <td style="border-bottom: 1px solid #cbd5e1; padding: 10px;">Mikrofon, Kamera, Sensor</td>
+            </tr>
+            <tr>
+                <td style="padding: 10px;"><strong>Kecocokan</strong></td>
+                <td style="padding: 10px;">Lingkungan kerja statis</td>
+                <td style="padding: 10px;">Sistem cerdas, mobile, VR/AR</td>
+            </tr>
+        </table>
+    </div>
 
-<h2>Kesimpulan Multimodal</h2>
-<p>Kombinasi modalitas suara, gestur, dan sentuhan dalam satu aplikasi menciptakan pengalaman interaksi <em>Multimodal</em> yang jauh lebih natural, imersif, dan sangat mendukung fleksibilitas serta aksesibilitas untuk berbagai situasi pengguna.</p>
+    <!-- PRINSIP DESAIN MULTIMODAL -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">Prinsip Desain Multimodal</h2>
+    <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px;">
+            <p style="margin: 0; font-size: 0.9rem;">📢 <strong>Redundansi:</strong> Menyampaikan informasi yang sama melalui lebih dari satu modalitas (misal: teks di layar dibarengi suara narasi).</p>
+        </div>
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px;">
+            <p style="margin: 0; font-size: 0.9rem;">🧩 <strong>Komplementaritas:</strong> Modalitas yang berbeda saling melengkapi untuk meningkatkan efektivitas tugas.</p>
+        </div>
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 12px; border-radius: 8px;">
+            <p style="margin: 0; font-size: 0.9rem;">⏱️ <strong>Keselarasan (Synchrony):</strong> Interaksi antar modalitas harus berlangsung secara konsisten dan bersamaan.</p>
+        </div>
+    </div>
+
+    <!-- VOICE USER INTERFACE (VUI) -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">1. Voice User Interface (VUI)</h2>
+    <p style="font-size: 0.95rem;">Antarmuka yang memungkinkan interaksi melalui suara manusia. Contoh: <strong>Apple Siri, Google Assistant, Amazon Alexa</strong>.</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+        <!-- Komponen -->
+        <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #059669; margin-top: 0; font-size: 1.1rem;">Komponen Utama VUI</h3>
+            <ul style="font-size: 0.85rem; padding-left: 20px; margin-bottom: 0;">
+                <li style="margin-bottom: 5px;"><strong>Speech Recognition:</strong> Mengubah gelombang suara menjadi teks digital.</li>
+                <li style="margin-bottom: 5px;"><strong>NLU (Natural Language Understanding):</strong> Memahami niat/maksud (intent) dari perintah pengguna.</li>
+                <li><strong>TTS (Text-to-Speech):</strong> Mengubah respon teks sistem menjadi suara yang terdengar alami.</li>
+            </ul>
+        </div>
+        <!-- Prinsip Desain VUI -->
+        <div style="border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px; box-sizing: border-box;">
+            <h3 style="color: #059669; margin-top: 0; font-size: 1.1rem;">Prinsip Desain VUI</h3>
+            <ul style="font-size: 0.85rem; padding-left: 20px; margin-bottom: 0;">
+                <li style="margin-bottom: 5px;"><strong>Conversational Design:</strong> Merancang alur percakapan yang mengalir alami seperti antar manusia.</li>
+                <li style="margin-bottom: 5px;"><strong>Turn-taking:</strong> Sistem harus memberikan indikasi kapan ia mendengarkan dan kapan ia berbicara.</li>
+                <li><strong>Context-aware:</strong> Sistem harus mampu mengingat konteks kalimat sebelumnya (misal: "Berapa suhunya?" lalu "Bagaimana dengan besok?").</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- GESTURE INTERACTION -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">2. Gesture-Based Interaction</h2>
+    <p style="font-size: 0.95rem;">Interaksi yang melibatkan gerakan tubuh (terutama tangan) untuk memberi perintah. Contoh: <strong>Microsoft Kinect, Leap Motion</strong>.</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+        <div style="background-color: #fff; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px;">
+            <strong style="font-size: 0.95rem;">Kategori Gesture:</strong>
+            <p style="font-size: 0.85rem; margin-top: 5px;">1. <strong>Static Gesture:</strong> Pose diam/statis (misal: menunjukkan dua jari membentuk 'V'). <br>2. <strong>Dynamic Gesture:</strong> Gerakan berurutan (misal: melambai ke arah sensor).</p>
+        </div>
+        
+        <div style="background-color: #fff; border: 1px solid #cbd5e1; padding: 15px; border-radius: 8px;">
+            <strong style="font-size: 0.95rem;">Tantangan Utama:</strong>
+            <ul style="font-size: 0.85rem; padding-left: 20px; margin-top: 5px;">
+                <li style="margin-bottom: 5px;"><strong>Gorilla Arm Problem:</strong> Kelelahan fisik akibat terus-menerus mengangkat tangan di udara.</li>
+                <li style="margin-bottom: 5px;"><strong>Makna Budaya:</strong> Gestur yang sama bisa bermakna berbeda di budaya yang berbeda.</li>
+                <li><strong>Memorabilitas:</strong> Pengguna mungkin lupa urutan gerakan yang tepat untuk sebuah perintah.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- TOUCH INTERACTION -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">3. Touch Interaction</h2>
+    <p style="font-size: 0.95rem;">Interaksi langsung pada layar atau permukaan melalui sentuhan fisik.</p>
+    
+    <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 20px;">
+        <div style="background-color: #fff; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+            <h3 style="color: #1e293b; margin: 0; font-size: 1.1rem;">Tipe Interaksi Sentuh</h3>
+            <p style="font-size: 0.85rem; margin-top: 8px;">• Tap, Swipe, Pinch, Drag. <br>• <strong>Multi-touch:</strong> Menggunakan dua atau lebih jari secara bersamaan (misal: Zooming).</p>
+        </div>
+        
+        <div style="border-left: 4px solid #f97316; background-color: #fff7ed; padding: 15px; border-radius: 4px;">
+            <h3 style="color: #c2410c; margin: 0; font-size: 1.1rem;">Tantangan: Finger Occlusion</h3>
+            <p style="font-size: 0.85rem; margin-top: 8px;">Kondisi di mana jari pengguna menutupi bagian penting di layar saat berinteraksi. Desain harus memastikan target aksi dan feedback visual tidak terhalang oleh jari.</p>
+        </div>
+    </div>
+
+    <!-- KESIMPULAN & INKLUSIVITAS -->
+    <h2 style="color: #1e293b; font-size: 1.45rem; margin-top: 40px;">Kesimpulan & Inklusivitas</h2>
+    <p style="font-size: 0.95rem; color: #475569;">Desain interaksi harus bersifat <strong>inklusif</strong>: dapat digunakan oleh sebanyak mungkin orang tanpa memandang latar belakang, kemampuan fisik/kognitif, usia, atau bahasa. Modalitas alternatif (suara/gestur) menjadi kunci untuk mewujudkan hal ini.</p>
+
+    <!-- REFERENSI -->
+    <div style="margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 20px;">
+        <h4 style="color: #94a3b8; font-size: 0.8rem; text-transform: uppercase;">Referensi Utama:</h4>
+        <p style="font-size: 0.75rem; color: #94a3b8; line-height: 1.4;">
+            Wigdor, D., & Wixon, D. (2011). Brave NUI World: Designing Natural User Interfaces. <br>
+            Norman, D. (2013). The Design of Everyday Things. <br>
+            Google Developers. Dialogflow Documentation.
+        </p>
+    </div>
+</div>
