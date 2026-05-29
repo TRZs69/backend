@@ -61,7 +61,7 @@ const buildSystemPromptForRoute = ({ route, hasMaterialContext, isFirstMessage =
 
 	const sourceBoundedInstruction = hasMaterialContext
 		? 'Source-bounded mode is active because material reference exists. Ground the answer in provided material context first. If evidence from material is insufficient, explicitly say that and state what additional context is needed.'
-		: 'Source-bounded mode is inactive because no material reference is available.';
+		: 'Source-bounded mode is restricted. No specific material reference is provided for this turn, but you must still stay within the Human-Computer Interaction (HCI/IMK) course scope. Decline unrelated technical, programming, or general knowledge requests.';
 
 	const greetingInstruction = isFirstMessage
 		? 'This is the start of the conversation. If the conversation has zero previous messages, you may greet the user warmly.'
