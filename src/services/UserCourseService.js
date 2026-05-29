@@ -199,7 +199,7 @@ exports.getCoursesByUser = async (userId) => {
 
     return userCourses.map((userCourse) => ({
       course: userCourse.course,
-      progress: userCourse.progress,
+      progress: userCourse.progress ?? 0,
     }));
   } catch (error) {
     throw new Error(error.message);

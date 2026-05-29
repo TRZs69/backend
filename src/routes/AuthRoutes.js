@@ -19,7 +19,7 @@ router.post('/register', async (req, res) => {
                 name,
                 role: "ADMIN",
                 studentId: "1920",
-                points: null,
+                points: 0,
                 totalCourses: 0,
                 badges: 0,
                 instructorId: null,
