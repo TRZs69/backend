@@ -86,7 +86,15 @@ const getUserCourseByUserByCourse = async (req, res) => {
     }
 
     try {
-        const userCourse = await userCourseService.getUserCourseByUserByCourse(userId, courseId);
+        let userCourse = await userCourseService.getUserCourseByUserByCourse(userId, courseId);
+        
+        // Auto-enroll if not found to prevent mobile app crash
+        if (Array.isArray(userCourse) && userCourse.length === 0) {
+            console.log(`Auto-enrolling user ${userId} in course ${courseId}`);
+            const newEnrollment = await userCourseService.createUserCourse({ userId, courseId });
+            userCourse = [newEnrollment];
+        }
+        
         res.status(200).json(userCourse);
     } catch (error) {
         res.status(500).json({ message: `Failed to get userCourse from user Id: ${userId} and course Id: ${courseId}`, detail: error.message })
