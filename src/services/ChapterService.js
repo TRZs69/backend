@@ -113,7 +113,7 @@ exports.getMaterialsByChapter = async (id) => {
     if (!chapter.materials || chapter.materials.length === 0) {
     }
 
-    return chapter.materials[0];
+    return chapter.materials[0] || null;
   } catch (error) {
     throw new Error(error.message);
   }
@@ -189,7 +189,7 @@ exports.getAssignmentsByChapter = async (id) => {
     if (!chapter.assignments || chapter.assignments.length === 0) {
     }
 
-    return chapter.assignments[0];
+    return chapter.assignments[0] || null;
   } catch (error) {
     throw new Error(error.message);
   }

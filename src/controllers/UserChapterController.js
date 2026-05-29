@@ -94,7 +94,14 @@ const getUserChapterByUserByChapter = async (req, res) => {
 
     try {
         const userChapter = await userChapterService.getUserChapterByUserByChapter(userId, chapterId);
-        res.status(200).json(userChapter);
+        
+        if (Array.isArray(userChapter) && userChapter.length > 0) {
+            res.status(200).json({ data: userChapter[0] });
+        } else if (userChapter && !Array.isArray(userChapter)) {
+            res.status(200).json({ data: userChapter });
+        } else {
+            res.status(404).json({ message: "UserChapter not found" });
+        }
     } catch (error) {
         res.status(500).json({ message: `Failed to get userChapter from user Id: ${userId} and chapter Id: ${chapterId}`, detail: error.message })
         console.log(error.message);

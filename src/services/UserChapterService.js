@@ -55,6 +55,16 @@ exports.getUserChapterById = async (id) => {
 
 exports.createUserChapter = async (newData) => {
     try {
+        const { userId, chapterId } = newData;
+        const existing = await prisma.userChapter.findFirst({
+            where: { userId: parseInt(userId), chapterId: parseInt(chapterId) }
+        });
+        if (existing) {
+            return await prisma.userChapter.update({
+                where: { id: existing.id },
+                data: newData
+            });
+        }
         const newUserChapter = await prisma.userChapter.create({
             data: newData
         });
