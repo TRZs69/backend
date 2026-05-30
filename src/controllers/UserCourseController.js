@@ -91,8 +91,17 @@ const getUserCourseByUserByCourse = async (req, res) => {
         // Auto-enroll if not found to prevent mobile app crash
         if (Array.isArray(userCourse) && userCourse.length === 0) {
             console.log(`Auto-enrolling user ${userId} in course ${courseId}`);
-            const newEnrollment = await userCourseService.createUserCourse({ userId, courseId });
-            userCourse = [newEnrollment];
+            try {
+                const newEnrollment = await userCourseService.createUserCourse({ userId, courseId });
+                userCourse = [newEnrollment];
+            } catch (enrollError) {
+                // If another request enrolled them simultaneously, just fetch again
+                if (enrollError.message.includes('already enrolled')) {
+                    userCourse = await userCourseService.getUserCourseByUserByCourse(userId, courseId);
+                } else {
+                    throw enrollError;
+                }
+            }
         }
         
         res.status(200).json(userCourse);
