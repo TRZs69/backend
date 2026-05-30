@@ -138,10 +138,33 @@ exports.getChapterByCourseForUser = async (courseId, userId) => {
             }
         });
 
-        return chapters.map((chapter) => ({
-            ...chapter,
-            status: chapter.userProgress[0] || null,
-        }));
+        return chapters.map((chapter) => {
+            const status = chapter.userProgress[0] || {
+                id: 0,
+                userId: parseInt(userId),
+                chapterId: chapter.id,
+                isStarted: false,
+                isCompleted: false,
+                materialDone: false,
+                assessmentDone: false,
+                assignmentDone: false,
+                assessmentAnswer: [],
+                assessmentGrade: 0,
+                assessmentEloDelta: 0,
+                assessmentPointsEarned: 0,
+                submission: '',
+                timeStarted: new Date(),
+                timeFinished: new Date(),
+                assignmentScore: 0,
+                assignmentFeedback: '',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            };
+            return {
+                ...chapter,
+                status,
+            };
+        });
     } catch (error) {
         throw new Error(error.message);
     }

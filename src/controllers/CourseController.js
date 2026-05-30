@@ -120,7 +120,8 @@ const getChapterByCourseForUser = async (req, res) => {
         }
 
         // Artificial delay to fix mobile app race condition (uc! and user! null dereference)
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Increased to 1000ms to ensure the UserCourse request always finishes first.
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
         res.status(200).json(chapters);
