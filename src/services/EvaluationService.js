@@ -16,7 +16,7 @@ const ACTIVITY_TABLE = 'activity_logs';
 
 
 const DEFAULT_PERIOD_START_ISO = '2026-03-25T17:00:00.000Z';
-const DEFAULT_PERIOD_END_ISO = '2026-05-31T16:59:59.999Z';
+const DEFAULT_PERIOD_END_ISO = '2026-06-03T16:59:59.999Z';
 
 const EVENT_NAMES = {
     USER_LOGIN: 'user_login',
@@ -259,19 +259,6 @@ async function getSummaryProfile(userId) {
     };
 }
 
-async function resolveChapterLevel(chapterId) {
-    if (!chapterId) return null;
-    try {
-        const chapter = await prisma.chapter.findUnique({
-            where: { id: normalizeInteger(chapterId) },
-            select: { level: true },
-        });
-        return chapter?.level || null;
-    } catch (e) {
-        return null;
-    }
-}
-
 async function recordActivityEvent({
     userId,
     eventName,
@@ -304,8 +291,6 @@ async function recordActivityEvent({
             ? metadata
             : {};
 
-        const chapterLevel = await resolveChapterLevel(chapterId);
-
         const idempotencyKey = eventIdempotencyKey || buildDefaultIdempotencyKey({
             userId: normalizedUserId,
             eventName,
@@ -324,13 +309,12 @@ async function recordActivityEvent({
             event_name: eventName,
             event_ts: effectiveEventTs.toISOString(),
             session_id: sessionId ? String(sessionId) : null,
-            // Use chapterLevel as the ID for Supabase to satisfy the "chapter_id >= 9" filter
-            chapter_id: chapterLevel || normalizeInteger(chapterId),
+            chapter_id: normalizeInteger(chapterId),
             assessment_attempt_id: normalizeInteger(assessmentAttemptId),
             chat_session_id: chatSessionId ? String(chatSessionId) : null,
             score: score === null || score === undefined ? null : numberOrDefault(score, 0),
             points: points === null || points === undefined ? null : numberOrDefault(points, 0),
-            metadata: { ...safeMetadata, source, original_chapter_id: chapterId, chapter_level: chapterLevel },
+            metadata: { ...safeMetadata, source },
             idempotency_key: idempotencyKey,
             created_at: new Date().toISOString(),
         };
