@@ -86,7 +86,8 @@ create table if not exists public.student_summaries_2 (
   features_used integer not null default 0,
   feature_utilization_score numeric(7,2) not null default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  assessment_attempts integer null default 0
 );
 
 alter table public.student_summaries_2
@@ -120,7 +121,8 @@ alter table public.student_summaries_2
   add column if not exists features_used integer default 0,
   add column if not exists feature_utilization_score numeric(7,2) default 0,
   add column if not exists created_at timestamptz default now(),
-  add column if not exists updated_at timestamptz default now();
+  add column if not exists updated_at timestamptz default now(),
+  add column if not exists assessment_attempts integer default 0;
 
 do $$
 begin
@@ -140,7 +142,7 @@ create index if not exists student_summaries_2_updated_at_idx
 create or replace function public.recompute_student_summary_v2(
   p_user_id bigint,
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
-  p_period_end timestamptz default '2026-05-31 23:59:59.999+07',
+  p_period_end timestamptz default '2026-06-03 23:59:59.999+07',
   p_student_id text default null,
   p_student_name text default null,
   p_total_available_chapters integer default null
@@ -165,22 +167,23 @@ begin
   );
 
   with filtered_events as (
-    select a.*, coalesce(mc.level, 0) as chapter_level
-    from public.activity_logs a
-    left join public.mirror_chapters mc on a.chapter_id = mc.id
-    where a.user_id = p_user_id
-      and a.event_ts >= p_period_start
-      and a.event_ts <= p_period_end
+    select *
+    from public.activity_logs
+    where user_id = p_user_id
+      and event_ts >= p_period_start
+      and event_ts <= p_period_end
   ),
   session_pairs as (
     select
       user_id,
       session_id,
-      min(event_ts) filter (where event_name = 'session_start') as start_ts,
-      max(event_ts) filter (where event_name = 'session_end') as end_ts
+      min(event_ts) as start_ts,
+      greatest(
+        max(event_ts),
+        coalesce(max(event_ts) filter (where event_name = 'session_end'), max(event_ts))
+      ) as end_ts
     from filtered_events
     where session_id is not null
-      and event_name in ('session_start', 'session_end')
     group by user_id, session_id
   ),
   session_metrics as (
@@ -201,17 +204,18 @@ begin
   ),
   assessment_metrics as (
     select
-      coalesce(count(*) filter (where event_name = 'assessment_submit' and chapter_level >= 9), 0) as assessments_submitted,
-      coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null and chapter_level >= 9), 0) as avg_grade,
-      coalesce(sum(points) filter (where event_name = 'assessment_submit' and chapter_level >= 9), 0) as total_points_earned,
-      coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null and chapter_level >= 9), 0) as distinct_assessment_chapters
+      coalesce(count(*) filter (where event_name = 'assessment_submit'), 0) as assessments_submitted,
+      coalesce(count(distinct assessment_attempt_id) filter (where event_name in ('assessment_start', 'assessment_submit') and assessment_attempt_id is not null and assessment_attempt_id <> 0), 0) as assessment_attempts,
+      coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null), 0) as avg_grade,
+      coalesce(sum(points) filter (where event_name = 'assessment_submit'), 0) as total_points_earned,
+      coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null), 0) as distinct_assessment_chapters
     from filtered_events
   ),
   progress_metrics as (
     select
-      coalesce(count(*) filter (where event_name = 'chapter_completed' and chapter_level >= 9), 0) as chapters_completed,
-      coalesce(count(*) filter (where event_name = 'badge_earned' and chapter_level >= 9), 0) as badges_earned,
-      coalesce(count(*) filter (where event_name = 'assignment_submit' and chapter_level >= 9), 0) as assignments_submitted
+      coalesce(count(distinct chapter_id) filter (where event_name = 'chapter_completed'), 0) as chapters_completed,
+      coalesce(count(*) filter (where event_name = 'badge_earned'), 0) as badges_earned,
+      coalesce(count(*) filter (where event_name = 'assignment_submit'), 0) as assignments_submitted
     from filtered_events
   ),
   chat_metrics as (
@@ -241,9 +245,9 @@ begin
     select
       bool_or(event_name = 'user_login') as used_login,
       bool_or(event_name in ('session_start', 'session_end')) as used_session,
-      bool_or(event_name = 'assessment_submit' and chapter_level >= 9) as used_assessment,
-      bool_or(event_name = 'material_access' and chapter_level >= 9) as used_material,
-      bool_or(event_name = 'assignment_submit' and chapter_level >= 9) as used_assignment,
+      bool_or(event_name = 'assessment_submit') as used_assessment,
+      bool_or(event_name = 'material_access') as used_material,
+      bool_or(event_name = 'assignment_submit') as used_assignment,
       bool_or(event_name = 'chatbot_interaction') as used_chatbot
     from filtered_events
   ),
@@ -270,6 +274,7 @@ begin
       greatest(0, least(100, round((sm.active_days::numeric / nullif(v_period_days, 0)) * 100, 2))) as return_rate_pct,
       round(sm.avg_session_duration_sec::numeric, 2) as avg_session_duration_sec,
       am.assessments_submitted,
+      am.assessment_attempts,
       pm.assignments_submitted,
       round(am.avg_grade::numeric, 2) as avg_grade,
       round(am.total_points_earned::numeric, 2) as total_points_earned,
@@ -312,6 +317,7 @@ begin
     return_rate_pct,
     avg_session_duration_sec,
     assessments_submitted,
+    assessment_attempts,
     assignments_submitted,
     avg_grade,
     total_points_earned,
@@ -344,6 +350,7 @@ begin
     t.return_rate_pct,
     t.avg_session_duration_sec,
     t.assessments_submitted,
+    t.assessment_attempts,
     t.assignments_submitted,
     t.avg_grade,
     t.total_points_earned,
@@ -403,6 +410,7 @@ begin
     return_rate_pct = excluded.return_rate_pct,
     avg_session_duration_sec = excluded.avg_session_duration_sec,
     assessments_submitted = excluded.assessments_submitted,
+    assessment_attempts = excluded.assessment_attempts,
     assignments_submitted = excluded.assignments_submitted,
     avg_grade = excluded.avg_grade,
     total_points_earned = excluded.total_points_earned,
@@ -425,15 +433,9 @@ begin
 end;
 $$;
 
--- Grant permissions for the functions
-grant execute on function public.recompute_student_summary_v2 to postgres;
-grant execute on function public.recompute_student_summary_v2 to service_role;
-grant execute on function public.recompute_student_summary_v2 to anon;
-grant execute on function public.recompute_student_summary_v2 to authenticated;
-
 create or replace function public.recompute_all_student_summaries_v2(
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
-  p_period_end timestamptz default '2026-05-31 23:59:59.999+07'
+  p_period_end timestamptz default '2026-06-03 23:59:59.999+07'
 ) returns integer
 language plpgsql
 security definer
@@ -461,15 +463,6 @@ begin
   return v_processed;
 end;
 $$;
-
--- Grant permissions for the batch function
-grant execute on function public.recompute_all_student_summaries_v2 to postgres;
-grant execute on function public.recompute_all_student_summaries_v2 to service_role;
-grant execute on function public.recompute_all_student_summaries_v2 to anon;
-grant execute on function public.recompute_all_student_summaries_v2 to authenticated;
-
--- Notify PostgREST to reload the schema cache
-notify pgrst, 'reload schema';
 
 alter table public.activity_logs enable row level security;
 alter table public.student_summaries_2 enable row level security;

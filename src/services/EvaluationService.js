@@ -16,12 +16,13 @@ const ACTIVITY_TABLE = 'activity_logs';
 
 
 const DEFAULT_PERIOD_START_ISO = '2026-03-25T17:00:00.000Z';
-const DEFAULT_PERIOD_END_ISO = '2026-05-31T16:59:59.999Z';
+const DEFAULT_PERIOD_END_ISO = '2026-06-03T16:59:59.999Z';
 
 const EVENT_NAMES = {
     USER_LOGIN: 'user_login',
     SESSION_START: 'session_start',
     SESSION_END: 'session_end',
+    ASSESSMENT_START: 'assessment_start',
     ASSESSMENT_SUBMIT: 'assessment_submit',
     MATERIAL_ACCESS: 'material_access',
     ASSIGNMENT_SUBMIT: 'assignment_submit',
@@ -41,6 +42,7 @@ const rerunRecomputeUsers = new Set();
 let isBatchRecomputeRunning = false;
 
 function normalizeInteger(value) {
+    if (value === undefined || value === null || value === '') return null;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return null;
     return Math.trunc(numeric);
@@ -114,6 +116,7 @@ function legacySummaryFromStoredRow(userId, row, fallbackStart, fallbackEnd) {
         },
         assessments: {
             totalSubmitted: normalizeInteger(row?.assessments_submitted) || 0,
+            attempts: normalizeInteger(row?.assessment_attempts) || 0,
             avgGrade: round2(numberOrDefault(row?.avg_grade, 0)),
             totalPointsEarned: round2(numberOrDefault(row?.total_points_earned, 0)),
         },
@@ -259,19 +262,6 @@ async function getSummaryProfile(userId) {
     };
 }
 
-async function resolveChapterLevel(chapterId) {
-    if (!chapterId) return null;
-    try {
-        const chapter = await prisma.chapter.findUnique({
-            where: { id: normalizeInteger(chapterId) },
-            select: { level: true },
-        });
-        return chapter?.level || null;
-    } catch (e) {
-        return null;
-    }
-}
-
 async function recordActivityEvent({
     userId,
     eventName,
@@ -304,8 +294,6 @@ async function recordActivityEvent({
             ? metadata
             : {};
 
-        const chapterLevel = await resolveChapterLevel(chapterId);
-
         const idempotencyKey = eventIdempotencyKey || buildDefaultIdempotencyKey({
             userId: normalizedUserId,
             eventName,
@@ -324,13 +312,12 @@ async function recordActivityEvent({
             event_name: eventName,
             event_ts: effectiveEventTs.toISOString(),
             session_id: sessionId ? String(sessionId) : null,
-            // Use chapterLevel as the ID for Supabase to satisfy the "chapter_id >= 9" filter
-            chapter_id: chapterLevel || normalizeInteger(chapterId),
+            chapter_id: normalizeInteger(chapterId),
             assessment_attempt_id: normalizeInteger(assessmentAttemptId),
             chat_session_id: chatSessionId ? String(chatSessionId) : null,
             score: score === null || score === undefined ? null : numberOrDefault(score, 0),
             points: points === null || points === undefined ? null : numberOrDefault(points, 0),
-            metadata: { ...safeMetadata, source, original_chapter_id: chapterId, chapter_level: chapterLevel },
+            metadata: { ...safeMetadata, source },
             idempotency_key: idempotencyKey,
             created_at: new Date().toISOString(),
         };
@@ -568,6 +555,8 @@ function toSummaryPayload(userId, summary = {}) {
         normalizeInteger(summary?.assessments?.distinctChapters) || 0,
     );
 
+    const assessmentAttempts = normalizeInteger(summary?.assessments?.attempts) || 0;
+
     const featuresUsed = normalizeInteger(summary?.featuresUsed) || 0;
     const featureUtilizationScore = calculateFeatureUtilizationScore(featuresUsed);
     const totalActivity = normalizeInteger(summary?.totalActivity) || 0;
@@ -584,6 +573,7 @@ function toSummaryPayload(userId, summary = {}) {
         return_rate_pct: returnRatePct,
         avg_session_duration_sec: avgDurationSec,
         assessments_submitted: assessmentsSubmitted,
+        assessment_attempts: assessmentAttempts,
         avg_grade: avgGrade,
         total_points_earned: totalPointsEarned,
         retry_attempts: retryAttempts,

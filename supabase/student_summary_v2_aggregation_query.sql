@@ -43,7 +43,7 @@ assessment_metrics as (
 ),
 progress_metrics as (
   select
-    coalesce(count(*) filter (where event_name = 'chapter_completed'), 0) as chapters_completed,
+    coalesce(count(distinct chapter_id) filter (where event_name = 'chapter_completed'), 0) as chapters_completed,
     coalesce(count(*) filter (where event_name = 'badge_earned'), 0) as badges_earned
   from filtered_events
 ),
