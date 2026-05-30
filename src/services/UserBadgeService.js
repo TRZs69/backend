@@ -95,6 +95,11 @@ exports.createUserBadge = async (newData) => {
             data: newData
         });
 
+        await prisma.user.update({
+            where: { id: newUserBadge.userId },
+            data: { badges: { increment: 1 } }
+        });
+
         void evaluationService.recordActivityEvent({
             userId: newUserBadge.userId,
             eventName: evaluationService.EVENT_NAMES.BADGE_EARNED,
@@ -132,9 +137,15 @@ exports.updateUserBadge = async (id, updateData) => {
 
 exports.deleteUserBadge = async (id) => {
     try {
-        await prisma.UserBadge.delete({
+        const deletedUserBadge = await prisma.UserBadge.delete({
             where: { id },
         });
+
+        await prisma.user.update({
+            where: { id: deletedUserBadge.userId },
+            data: { badges: { decrement: 1 } }
+        });
+
         return `Successfully deleted UserBadge with id: ${id}`;
     } catch (error) {
         if (error.code === 'P2025') {

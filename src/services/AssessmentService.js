@@ -1898,6 +1898,16 @@ const createOrResumeAttempt = async (
         },
     });
 
+    void evaluationService.recordActivityEvent({
+        userId: normalizedUserId,
+        eventName: evaluationService.EVENT_NAMES.ASSESSMENT_START,
+        chapterId: normalizedChapterId,
+        assessmentAttemptId: createdAttempt.id,
+        metadata: { source: 'attempt_start', attemptId: createdAttempt.id },
+        eventIdempotencyKey: `assessment_start:attempt:${normalizedUserId}:${createdAttempt.id}`,
+        triggerRecompute: true,
+    });
+
     const attemptWithServed = await prisma.$transaction(async (tx) => {
         return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
     }, INTERACTIVE_TX_OPTIONS);

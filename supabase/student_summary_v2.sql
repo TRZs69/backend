@@ -86,7 +86,8 @@ create table if not exists public.student_summaries_2 (
   features_used integer not null default 0,
   feature_utilization_score numeric(7,2) not null default 0,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  assessment_attempts integer null default 0
 );
 
 alter table public.student_summaries_2
@@ -120,7 +121,8 @@ alter table public.student_summaries_2
   add column if not exists features_used integer default 0,
   add column if not exists feature_utilization_score numeric(7,2) default 0,
   add column if not exists created_at timestamptz default now(),
-  add column if not exists updated_at timestamptz default now();
+  add column if not exists updated_at timestamptz default now(),
+  add column if not exists assessment_attempts integer default 0;
 
 do $$
 begin
@@ -175,11 +177,13 @@ begin
     select
       user_id,
       session_id,
-      min(event_ts) filter (where event_name = 'session_start') as start_ts,
-      max(event_ts) filter (where event_name = 'session_end') as end_ts
+      min(event_ts) as start_ts,
+      greatest(
+        max(event_ts),
+        coalesce(max(event_ts) filter (where event_name = 'session_end'), max(event_ts))
+      ) as end_ts
     from filtered_events
     where session_id is not null
-      and event_name in ('session_start', 'session_end')
     group by user_id, session_id
   ),
   session_metrics as (
@@ -201,6 +205,7 @@ begin
   assessment_metrics as (
     select
       coalesce(count(*) filter (where event_name = 'assessment_submit'), 0) as assessments_submitted,
+      coalesce(count(distinct assessment_attempt_id) filter (where event_name in ('assessment_start', 'assessment_submit') and assessment_attempt_id is not null and assessment_attempt_id <> 0), 0) as assessment_attempts,
       coalesce(avg(score) filter (where event_name = 'assessment_submit' and score is not null), 0) as avg_grade,
       coalesce(sum(points) filter (where event_name = 'assessment_submit'), 0) as total_points_earned,
       coalesce(count(distinct chapter_id) filter (where event_name = 'assessment_submit' and chapter_id is not null), 0) as distinct_assessment_chapters
@@ -269,6 +274,7 @@ begin
       greatest(0, least(100, round((sm.active_days::numeric / nullif(v_period_days, 0)) * 100, 2))) as return_rate_pct,
       round(sm.avg_session_duration_sec::numeric, 2) as avg_session_duration_sec,
       am.assessments_submitted,
+      am.assessment_attempts,
       pm.assignments_submitted,
       round(am.avg_grade::numeric, 2) as avg_grade,
       round(am.total_points_earned::numeric, 2) as total_points_earned,
@@ -311,6 +317,7 @@ begin
     return_rate_pct,
     avg_session_duration_sec,
     assessments_submitted,
+    assessment_attempts,
     assignments_submitted,
     avg_grade,
     total_points_earned,
@@ -343,6 +350,7 @@ begin
     t.return_rate_pct,
     t.avg_session_duration_sec,
     t.assessments_submitted,
+    t.assessment_attempts,
     t.assignments_submitted,
     t.avg_grade,
     t.total_points_earned,
@@ -402,6 +410,7 @@ begin
     return_rate_pct = excluded.return_rate_pct,
     avg_session_duration_sec = excluded.avg_session_duration_sec,
     assessments_submitted = excluded.assessments_submitted,
+    assessment_attempts = excluded.assessment_attempts,
     assignments_submitted = excluded.assignments_submitted,
     avg_grade = excluded.avg_grade,
     total_points_earned = excluded.total_points_earned,

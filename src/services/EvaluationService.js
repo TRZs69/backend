@@ -22,6 +22,7 @@ const EVENT_NAMES = {
     USER_LOGIN: 'user_login',
     SESSION_START: 'session_start',
     SESSION_END: 'session_end',
+    ASSESSMENT_START: 'assessment_start',
     ASSESSMENT_SUBMIT: 'assessment_submit',
     MATERIAL_ACCESS: 'material_access',
     ASSIGNMENT_SUBMIT: 'assignment_submit',
@@ -114,6 +115,7 @@ function legacySummaryFromStoredRow(userId, row, fallbackStart, fallbackEnd) {
         },
         assessments: {
             totalSubmitted: normalizeInteger(row?.assessments_submitted) || 0,
+            attempts: normalizeInteger(row?.assessment_attempts) || 0,
             avgGrade: round2(numberOrDefault(row?.avg_grade, 0)),
             totalPointsEarned: round2(numberOrDefault(row?.total_points_earned, 0)),
         },
@@ -552,6 +554,8 @@ function toSummaryPayload(userId, summary = {}) {
         normalizeInteger(summary?.assessments?.distinctChapters) || 0,
     );
 
+    const assessmentAttempts = normalizeInteger(summary?.assessments?.attempts) || 0;
+
     const featuresUsed = normalizeInteger(summary?.featuresUsed) || 0;
     const featureUtilizationScore = calculateFeatureUtilizationScore(featuresUsed);
     const totalActivity = normalizeInteger(summary?.totalActivity) || 0;
@@ -568,6 +572,7 @@ function toSummaryPayload(userId, summary = {}) {
         return_rate_pct: returnRatePct,
         avg_session_duration_sec: avgDurationSec,
         assessments_submitted: assessmentsSubmitted,
+        assessment_attempts: assessmentAttempts,
         avg_grade: avgGrade,
         total_points_earned: totalPointsEarned,
         retry_attempts: retryAttempts,
