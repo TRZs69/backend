@@ -119,6 +119,9 @@ const getChapterByCourseForUser = async (req, res) => {
             }
         }
 
+        // Artificial delay to fix mobile app race condition (uc! and user! null dereference)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
         res.status(200).json(chapters);
     } catch (error) {

@@ -95,8 +95,14 @@ const getUserCourseByUserByCourse = async (req, res) => {
                 const newEnrollment = await userCourseService.createUserCourse({ userId, courseId });
                 userCourse = [newEnrollment];
             } catch (enrollError) {
-                // If they are already enrolled (race condition), just fetch again
-                userCourse = await userCourseService.getUserCourseByUserByCourse(userId, courseId);
+                // If the error is 409, it means another request enrolled the user.
+                // This is the expected race condition, so we can safely fetch the record.
+                if (enrollError.statusCode === 409) {
+                    userCourse = await userCourseService.getUserCourseByUserByCourse(userId, courseId);
+                } else {
+                    // For any other error, something is genuinely wrong.
+                    throw enrollError;
+                }
             }
         }
         
