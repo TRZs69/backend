@@ -93,14 +93,23 @@ const getUserChapterByUserByChapter = async (req, res) => {
     }
 
     try {
-        const userChapter = await userChapterService.getUserChapterByUserByChapter(userId, chapterId);
+        let userChapter = await userChapterService.getUserChapterByUserByChapter(userId, chapterId);
         
-        if (Array.isArray(userChapter) && userChapter.length > 0) {
+        // Auto-create UserChapter if not found to prevent mobile app crash
+        if (!userChapter || (Array.isArray(userChapter) && userChapter.length === 0)) {
+            console.log(`Auto-creating UserChapter for user ${userId} and chapter ${chapterId}`);
+            userChapter = await userChapterService.createUserChapter({ 
+                userId, 
+                chapterId,
+                isStarted: true,
+                timeStarted: new Date()
+            });
+        }
+        
+        if (Array.isArray(userChapter)) {
             res.status(200).json({ data: userChapter[0] });
-        } else if (userChapter && !Array.isArray(userChapter)) {
-            res.status(200).json({ data: userChapter });
         } else {
-            res.status(404).json({ message: "UserChapter not found" });
+            res.status(200).json({ data: userChapter });
         }
     } catch (error) {
         res.status(500).json({ message: `Failed to get userChapter from user Id: ${userId} and chapter Id: ${chapterId}`, detail: error.message })

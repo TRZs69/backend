@@ -111,6 +111,17 @@ const getMaterialsByChapter = async (req, res) => {
             });
         }
 
+        if (!materials) {
+            return res.status(200).json({
+                id: 0,
+                chapterId,
+                name: "No Material",
+                content: "<p>No content available for this chapter.</p>",
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+        }
+
         res.status(200).json(materials);
     } catch (error) {
         res.status(500).json({ message: `Failed to get material from chapter ${chapterId}`, detail: error.message });
@@ -128,6 +139,16 @@ const getAssessmentsByChapter = async (req, res) => {
 
     try {
         const assessments = await chapterService.getAssessmentsByChapter(chapterId, userId);
+        if (!assessments) {
+            return res.status(200).json({
+                id: 0,
+                chapterId: chapterId,
+                instruction: "No assessment available",
+                questions: [],
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+        }
         res.status(200).json(assessments);
     } catch (error) {
         res.status(500).json({ message: `Failed to get assessment from chapter ${chapterId}`, detail: error.message });
@@ -144,6 +165,16 @@ const getAssignmentsByChapter = async (req, res) => {
 
     try {
         const assignments = await chapterService.getAssignmentsByChapter(chapterId);
+        if (!assignments) {
+            return res.status(200).json({
+                id: 0,
+                chapterId: chapterId,
+                instruction: "No assignment available",
+                fileUrl: "",
+                createdAt: new Date(),
+                updatedAt: new Date()
+            });
+        }
         res.status(200).json(assignments);
     } catch (error) {
         res.status(500).json({ message: `Failed to get assignment from chapter ${chapterId}`, detail: error.message });
