@@ -94,35 +94,34 @@ const getMaterialsByChapter = async (req, res) => {
     }
 
     try {
-        const materials = await chapterService.getMaterialsByChapter(chapterId);
+        let material = await chapterService.getMaterialsByChapter(chapterId);
 
         const userId = Number(req.query.userId);
-        if (Number.isInteger(userId) && userId > 0 && materials) {
+        if (Number.isInteger(userId) && userId > 0 && material) {
             void evaluationService.recordActivityEvent({
                 userId,
                 eventName: evaluationService.EVENT_NAMES.MATERIAL_ACCESS,
                 chapterId,
                 metadata: {
                     source: 'chapter_materials_endpoint',
-                    materialCount: Array.isArray(materials) ? materials.length : 1,
+                    materialCount: 1,
                 },
                 eventIdempotencyKey: `material_access:chapter:${userId}:${chapterId}:${Date.now()}`,
                 triggerRecompute: true,
             });
         }
 
-        if (!materials) {
-            return res.status(200).json({
-                id: 0,
-                chapterId,
-                name: "No Material",
-                content: "<p>No content available for this chapter.</p>",
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
-        }
+        // Mega-Hardening: Ensure every field is non-null for the mobile parser
+        const safeMaterial = {
+            id: material?.id || 0,
+            chapterId: material?.chapterId || chapterId,
+            name: material?.name || "No Material",
+            content: material?.content || "<p>No content available for this chapter.</p>",
+            createdAt: material?.createdAt || new Date(),
+            updatedAt: material?.updatedAt || new Date(),
+        };
 
-        res.status(200).json(materials);
+        res.status(200).json(safeMaterial);
     } catch (error) {
         res.status(500).json({ message: `Failed to get material from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
@@ -138,18 +137,28 @@ const getAssessmentsByChapter = async (req, res) => {
     }
 
     try {
-        const assessments = await chapterService.getAssessmentsByChapter(chapterId, userId);
-        if (!assessments) {
-            return res.status(200).json({
-                id: 0,
-                chapterId: chapterId,
-                instruction: "No assessment available",
-                questions: [],
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
-        }
-        res.status(200).json(assessments);
+        const assessment = await chapterService.getAssessmentsByChapter(chapterId, userId);
+        
+        // Mega-Hardening: Ensure every field (including nested questions) is non-null
+        const safeAssessment = {
+            id: assessment?.id || 0,
+            chapterId: assessment?.chapterId || chapterId,
+            instruction: assessment?.instruction || "No assessment available",
+            questions: (assessment?.questions || []).map(q => ({
+                id: q.id || 0,
+                question: q.question || "No question text",
+                options: q.options || [],
+                correctedAnswer: q.correctedAnswer || q.answer || "",
+                type: q.type || "PG",
+                elo: q.elo || 1200,
+                servedOrder: q.servedOrder ?? null
+            })),
+            answers: assessment?.answers || null,
+            createdAt: assessment?.createdAt || new Date(),
+            updatedAt: assessment?.updatedAt || new Date(),
+        };
+
+        res.status(200).json(safeAssessment);
     } catch (error) {
         res.status(500).json({ message: `Failed to get assessment from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);
@@ -164,18 +173,19 @@ const getAssignmentsByChapter = async (req, res) => {
     }
 
     try {
-        const assignments = await chapterService.getAssignmentsByChapter(chapterId);
-        if (!assignments) {
-            return res.status(200).json({
-                id: 0,
-                chapterId: chapterId,
-                instruction: "No assignment available",
-                fileUrl: "",
-                createdAt: new Date(),
-                updatedAt: new Date()
-            });
-        }
-        res.status(200).json(assignments);
+        const assignment = await chapterService.getAssignmentsByChapter(chapterId);
+        
+        // Mega-Hardening: Ensure every field is non-null
+        const safeAssignment = {
+            id: assignment?.id || 0,
+            chapterId: assignment?.chapterId || chapterId,
+            instruction: assignment?.instruction || "No assignment available",
+            fileUrl: assignment?.fileUrl || "",
+            createdAt: assignment?.createdAt || new Date(),
+            updatedAt: assignment?.updatedAt || new Date(),
+        };
+
+        res.status(200).json(safeAssignment);
     } catch (error) {
         res.status(500).json({ message: `Failed to get assignment from chapter ${chapterId}`, detail: error.message });
         console.log(error.message);

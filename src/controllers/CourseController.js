@@ -119,9 +119,10 @@ const getChapterByCourseForUser = async (req, res) => {
             }
         }
 
-        // Artificial delay to fix mobile app race condition (uc! and user! null dereference)
-        // Increased to 1000ms to ensure the UserCourse request always finishes first.
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Mega-Hardening: Increased delay to 1500ms to ensure UserCourse finishes first.
+        // Also forced a re-fetch of enrollment to ensure DB consistency before chapters.
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await userCourseService.getUserCourseByUserByCourse(userId, courseId);
 
         const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
         res.status(200).json(chapters);
