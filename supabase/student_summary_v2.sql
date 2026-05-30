@@ -140,7 +140,7 @@ create index if not exists student_summaries_2_updated_at_idx
 create or replace function public.recompute_student_summary_v2(
   p_user_id bigint,
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
-  p_period_end timestamptz default '2026-05-31 23:59:59.999+07',
+  p_period_end timestamptz default '2026-06-03 23:59:59.999+07',
   p_student_id text default null,
   p_student_name text default null,
   p_total_available_chapters integer default null
@@ -426,7 +426,7 @@ $$;
 
 create or replace function public.recompute_all_student_summaries_v2(
   p_period_start timestamptz default '2026-03-26 00:00:00+07',
-  p_period_end timestamptz default '2026-05-31 23:59:59.999+07'
+  p_period_end timestamptz default '2026-06-03 23:59:59.999+07'
 ) returns integer
 language plpgsql
 security definer
