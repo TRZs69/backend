@@ -177,19 +177,8 @@ exports.getCoursesByUser = async (userId) => {
       where: {
         userId: parseInt(userId),
       },
-      select: {
-        progress: true,
-        course: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            image: true,
-            description: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
+      include: {
+        course: true,
       },
     });
 
@@ -198,7 +187,7 @@ exports.getCoursesByUser = async (userId) => {
     }
 
     return userCourses.map((userCourse) => ({
-      course: userCourse.course,
+      ...userCourse,
       progress: userCourse.progress ?? 0,
     }));
   } catch (error) {

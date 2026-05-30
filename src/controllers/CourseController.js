@@ -108,10 +108,21 @@ const getChapterByCourseForUser = async (req, res) => {
     }
 
     try {
+        // Auto-enroll if not already enrolled to prevent mobile app race conditions
+        const enrollment = await userCourseService.getUserCourseByUserByCourse(userId, courseId);
+        if (!enrollment || enrollment.length === 0) {
+            console.log(`Auto-enrolling user ${userId} in course ${courseId} via Chapter request`);
+            try {
+                await userCourseService.createUserCourse({ userId, courseId });
+            } catch (e) {
+                // Ignore unique constraint errors
+            }
+        }
+
         const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
         res.status(200).json(chapters);
     } catch (error) {
-        res.status(500).json({ message: `Failed to get chapters in course id: ${courseId} for user id: ${userId}`, detail: error.message});
+        res.status(500).json({ message: `Failed to get chapters for user ${userId} in course ${courseId}`, detail: error.message });
         console.log(error.message);
     }
 }
