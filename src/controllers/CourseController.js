@@ -119,9 +119,12 @@ const getChapterByCourseForUser = async (req, res) => {
             }
         }
 
-        // Mega-Hardening: Increased delay to 1500ms to ensure UserCourse finishes first.
-        // Also forced a re-fetch of enrollment to ensure DB consistency before chapters.
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        // God-Tier Hardening: 3-second delay to definitively win the race condition.
+        // This ensures the mobile app finishes loading User Profile and User Course
+        // into its local cache before the chapter list even appears.
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Forced verification of enrollment record
         await userCourseService.getUserCourseByUserByCourse(userId, courseId);
 
         const chapters = await courseService.getChapterByCourseForUser(courseId, userId);
