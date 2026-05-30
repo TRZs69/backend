@@ -42,6 +42,7 @@ const rerunRecomputeUsers = new Set();
 let isBatchRecomputeRunning = false;
 
 function normalizeInteger(value) {
+    if (value === undefined || value === null || value === '') return null;
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return null;
     return Math.trunc(numeric);
