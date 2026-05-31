@@ -26,6 +26,8 @@ const ATTEMPT_SOURCE = {
     FALLBACK_BANK: 'FALLBACK_BANK',
 };
 
+const IN_FLIGHT_GENERATIONS = new Map();
+
 const ATTEMPT_POOL_SIZE = 12;
 const ATTEMPT_OBJECTIVE_TARGET = 5;
 const ATTEMPT_TOTAL_TARGET = 6;
@@ -1774,6 +1776,20 @@ const createOrResumeAttempt = async (
             return { attempt: existingAttempt, resumed: true };
         }
 
+        const generationKey = `${normalizedUserId}:${normalizedChapterId}`;
+        const inFlight = IN_FLIGHT_GENERATIONS.get(generationKey);
+        if (inFlight) {
+            console.log(`Waiting for in-flight generation for ${generationKey}...`);
+            try {
+                const attempt = await inFlight;
+                if (attempt) {
+                    return { attempt, resumed: true };
+                }
+            } catch (error) {
+                console.error(`In-flight generation failed for ${generationKey}:`, error.message);
+            }
+        }
+
         if (!allowCreateWhenSubmitted) {
             const latestSubmitted = await prisma.assessmentAttempt.findFirst({
                 where: {
@@ -1789,132 +1805,143 @@ const createOrResumeAttempt = async (
         }
     }
 
-    const chapter = await prisma.chapter.findUnique({
-        where: { id: normalizedChapterId },
-        include: {
-            materials: {
-                take: 1,
-                orderBy: { id: 'asc' },
-            },
-        },
-    });
+    const generationPromise = (async () => {
+        try {
+            const chapter = await prisma.chapter.findUnique({
+                where: { id: normalizedChapterId },
+                include: {
+                    materials: {
+                        take: 1,
+                        orderBy: { id: 'asc' },
+                    },
+                },
+            });
 
-    if (!chapter) {
-        throw new Error('Chapter tidak ditemukan');
-    }
+            if (!chapter) {
+                throw new Error('Chapter tidak ditemukan');
+            }
 
-    const assessment = await ensureAssessmentBankForChapter(normalizedChapterId, chapter.name);
+            const assessment = await ensureAssessmentBankForChapter(normalizedChapterId, chapter.name);
 
-    await ensureUserChapter(normalizedUserId, normalizedChapterId);
-    const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
+            await ensureUserChapter(normalizedUserId, normalizedChapterId);
+            const userCourse = await ensureUserCourse(normalizedUserId, chapter.courseId);
 
-    const user = await prisma.user.findUnique({
-        where: { id: normalizedUserId },
-        select: { elo: true },
-    });
+            const user = await prisma.user.findUnique({
+                where: { id: normalizedUserId },
+                select: { elo: true },
+            });
 
-    
-    
-    const userElo = Math.max(MIN_ELO, user?.elo || userCourse.elo || MIN_ELO);
+            const userElo = Math.max(MIN_ELO, user?.elo || userCourse.elo || MIN_ELO);
 
-    let source = ATTEMPT_SOURCE.FALLBACK_BANK;
-    let instruction =
-        String(assessment.instruction || '').trim() || buildAttemptInstruction(chapter.name);
-    let bankQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
+            let source = ATTEMPT_SOURCE.FALLBACK_BANK;
+            let instruction =
+                String(assessment.instruction || '').trim() || buildAttemptInstruction(chapter.name);
+            let bankQuestions = Array.isArray(assessment.questions) ? assessment.questions : [];
 
-    // ALWAYS attempt to generate fresh questions from LLM for every new attempt.
-    // This fulfills the requirement of "not using the question bank every time".
-    try {
-        const generated = await generateAttemptQuestionsWithLLM({
-            chapter,
-            material: chapter.materials?.[0] || null,
-            userElo,
-        });
-
-        const createdBankRows = await saveGeneratedQuestionsToBank(assessment.id, generated.questions);
-        bankQuestions = [...bankQuestions, ...createdBankRows];
-        source = ATTEMPT_SOURCE.GENERATED;
-
-        const generatedInstruction = String(generated.instruction || '').trim();
-        if (generatedInstruction) {
-            instruction = generatedInstruction;
-            if (!String(assessment.instruction || '').trim()) {
-                await prisma.assessment.update({
-                    where: { id: assessment.id },
-                    data: { instruction: generatedInstruction },
+            // ALWAYS attempt to generate fresh questions from LLM for every new attempt.
+            // This fulfills the requirement of "not using the question bank every time".
+            try {
+                const generated = await generateAttemptQuestionsWithLLM({
+                    chapter,
+                    material: chapter.materials?.[0] || null,
+                    userElo,
                 });
+
+                const createdBankRows = await saveGeneratedQuestionsToBank(assessment.id, generated.questions);
+                bankQuestions = [...bankQuestions, ...createdBankRows];
+                source = ATTEMPT_SOURCE.GENERATED;
+
+                const generatedInstruction = String(generated.instruction || '').trim();
+                if (generatedInstruction) {
+                    instruction = generatedInstruction;
+                    if (!String(assessment.instruction || '').trim()) {
+                        await prisma.assessment.update({
+                            where: { id: assessment.id },
+                            data: { instruction: generatedInstruction },
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('LLM generation failed, fallback to existing bank. Error:', error.message);
+                if (error.stack) console.error(error.stack);
+                source = ATTEMPT_SOURCE.FALLBACK_BANK;
+                if (!bankQuestions.length) {
+                    throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
+                }
+            }
+
+            let questionPool = [];
+            try {
+                questionPool = buildSimplePoolFromBank(bankQuestions, userElo, chapter.name);
+            } catch (error) {
+                if (!bankQuestions.length) {
+                    throw error;
+                }
+                questionPool = buildFallbackPoolFromBank(bankQuestions, userElo, chapter.name);
+            }
+
+            if (!questionPool.length) {
+                throw new Error('Gagal membangun pool assessment attempt.');
+            }
+
+            const createdAttempt = await prisma.assessmentAttempt.create({
+                data: {
+                    userId: normalizedUserId,
+                    chapterId: normalizedChapterId,
+                    assessmentId: assessment?.id || null,
+                    status: ATTEMPT_STATUS.IN_PROGRESS,
+                    source,
+                    instruction,
+                    poolSize: ATTEMPT_POOL_SIZE,
+                    objectiveTarget: ATTEMPT_OBJECTIVE_TARGET,
+                    totalTarget: ATTEMPT_TOTAL_TARGET,
+                    currentUserElo: userElo,
+                    courseEloStart: userElo,
+                    courseEloEnd: userElo,
+                    rawEloDelta: 0,
+                    objectiveAnswered: 0,
+                    objectiveCorrect: 0,
+                    questions: {
+                        create: questionPool.map((q, index) => ({
+                            sourceQuestionId: Number.isInteger(q.sourceQuestionId) ? q.sourceQuestionId : null,
+                            question: q.question,
+                            type: normaliseAttemptQuestionType(q.type) || 'MC',
+                            options: q.options || [],
+                            answer: q.answer || null,
+                            correctedAnswer: q.correctedAnswer || null,
+                            elo: clampElo(q.elo),
+                            order: index + 1,
+                        })),
+                    },
+                },
+            });
+
+            void evaluationService.recordActivityEvent({
+                userId: normalizedUserId,
+                eventName: evaluationService.EVENT_NAMES.ASSESSMENT_START,
+                chapterId: normalizedChapterId,
+                assessmentAttemptId: createdAttempt.id,
+                metadata: { source: 'attempt_start', attemptId: createdAttempt.id },
+                eventIdempotencyKey: `assessment_start:attempt:${normalizedUserId}:${createdAttempt.id}`,
+                triggerRecompute: true,
+            });
+
+            const attemptWithServed = await prisma.$transaction(async (tx) => {
+                return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
+            }, INTERACTIVE_TX_OPTIONS);
+
+            return attemptWithServed;
+        } finally {
+            if (IN_FLIGHT_GENERATIONS.get(generationKey) === generationPromise) {
+                IN_FLIGHT_GENERATIONS.delete(generationKey);
             }
         }
-    } catch (error) {
-        console.error('LLM generation failed, fallback to existing bank. Error:', error.message);
-        if (error.stack) console.error(error.stack);
-        source = ATTEMPT_SOURCE.FALLBACK_BANK;
-        if (!bankQuestions.length) {
-            throw new Error('LLM gagal dan bank soal fallback tidak tersedia.');
-        }
-    }
+    })();
 
-    let questionPool = [];
-    try {
-        questionPool = buildSimplePoolFromBank(bankQuestions, userElo, chapter.name);
-    } catch (error) {
-        if (!bankQuestions.length) {
-            throw error;
-        }
-        questionPool = buildFallbackPoolFromBank(bankQuestions, userElo, chapter.name);
-    }
+    IN_FLIGHT_GENERATIONS.set(generationKey, generationPromise);
 
-    if (!questionPool.length) {
-        throw new Error('Gagal membangun pool assessment attempt.');
-    }
-
-    const createdAttempt = await prisma.assessmentAttempt.create({
-        data: {
-            userId: normalizedUserId,
-            chapterId: normalizedChapterId,
-            assessmentId: assessment?.id || null,
-            status: ATTEMPT_STATUS.IN_PROGRESS,
-            source,
-            instruction,
-            poolSize: ATTEMPT_POOL_SIZE,
-            objectiveTarget: ATTEMPT_OBJECTIVE_TARGET,
-            totalTarget: ATTEMPT_TOTAL_TARGET,
-            currentUserElo: userElo,
-            courseEloStart: userElo,
-            courseEloEnd: userElo,
-            rawEloDelta: 0,
-            objectiveAnswered: 0,
-            objectiveCorrect: 0,
-            questions: {
-                create: questionPool.map((q, index) => ({
-                    sourceQuestionId: Number.isInteger(q.sourceQuestionId) ? q.sourceQuestionId : null,
-                    question: q.question,
-                    type: normaliseAttemptQuestionType(q.type) || 'MC',
-                    options: q.options || [],
-                    answer: q.answer || null,
-                    correctedAnswer: q.correctedAnswer || null,
-                    elo: clampElo(q.elo),
-                    order: index + 1,
-                })),
-            },
-        },
-    });
-
-    void evaluationService.recordActivityEvent({
-        userId: normalizedUserId,
-        eventName: evaluationService.EVENT_NAMES.ASSESSMENT_START,
-        chapterId: normalizedChapterId,
-        assessmentAttemptId: createdAttempt.id,
-        metadata: { source: 'attempt_start', attemptId: createdAttempt.id },
-        eventIdempotencyKey: `assessment_start:attempt:${normalizedUserId}:${createdAttempt.id}`,
-        triggerRecompute: true,
-    });
-
-    const attemptWithServed = await prisma.$transaction(async (tx) => {
-        return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
-    }, INTERACTIVE_TX_OPTIONS);
-
-    return { attempt: attemptWithServed, resumed: false };
+    const attempt = await generationPromise;
+    return { attempt, resumed: false };
 };
 
 const processAttemptSubmission = async (userId, chapterId, attemptId, answers = []) => {

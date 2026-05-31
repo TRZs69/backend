@@ -95,6 +95,14 @@ exports.updateUserChapter = async (id, updateData) => {
         const didAssignmentSubmit = updateData.assignmentDone === true && !existing?.assignmentDone;
         const didChapterComplete = isCompleted && !existing?.isCompleted;
 
+        if (didMaterialAccess) {
+            // Trigger assessment pre-generation in the background to avoid 15s client timeout later
+            const assessmentService = require('./AssessmentService');
+            void assessmentService.prefetchAttempt(existing.userId, existing.chapterId).catch((err) => {
+                console.error(`Background pre-generation failed for user ${existing.userId}, chapter ${existing.chapterId}:`, err.message);
+            });
+        }
+
         const dataToUpdate = { ...updateData, isCompleted };
         if (isCompleted && (!existing || !existing.isCompleted)) {
             dataToUpdate.timeFinished = new Date();
@@ -274,6 +282,14 @@ exports.updateUserChapterByUserByChapter = async (userId, chapterId, updateData)
         const didMaterialAccess = updateData.materialDone === true && !existing?.materialDone;
         const didAssignmentSubmit = updateData.assignmentDone === true && !existing?.assignmentDone;
         const didChapterComplete = isCompleted && !existing?.isCompleted;
+
+        if (didMaterialAccess) {
+            // Trigger assessment pre-generation in the background to avoid 15s client timeout later
+            const assessmentService = require('./AssessmentService');
+            void assessmentService.prefetchAttempt(existing.userId, existing.chapterId).catch((err) => {
+                console.error(`Background pre-generation failed for user ${existing.userId}, chapter ${existing.chapterId}:`, err.message);
+            });
+        }
 
         const dataToUpdate = {
             ...updateData,
