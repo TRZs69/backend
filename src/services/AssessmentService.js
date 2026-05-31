@@ -684,7 +684,7 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
         userElo,
     });
 
-    const maxRetries = 3;
+    const maxRetries = 1;
     let lastError = null;
 
     for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
@@ -692,6 +692,8 @@ const generateAttemptQuestionsWithLLM = async ({ chapter, material, userElo }) =
             const { text: raw } = await llmClient.complete({
                 messages: [{ role: 'user', content: prompt }],
                 generationConfig: ASSESSMENT_GENERATION_CONFIG,
+                timeout: 12000,
+                maxRetries: 0,
             });
 
             const parsed = parseJsonPayload(raw);

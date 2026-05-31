@@ -287,7 +287,7 @@ class GoogleAIClient {
 		return `${this.baseUrl}/${modelToUse}:${action}?key=${this.apiKey}${stream ? '&alt=sse' : ''}`;
 	}
 
-	async complete({ messages = [], system = null, context = null, generationConfig = null, tools = null, model = null }) {
+	async complete({ messages = [], system = null, context = null, generationConfig = null, tools = null, model = null, timeout = null, maxRetries = 2 }) {
 		const effectiveMessages = [...messages];
 		if (context) {
 			effectiveMessages.unshift({ role: 'user', content: `CONTEXT REFERENCE:\n${context}` });
@@ -303,19 +303,19 @@ class GoogleAIClient {
 			Object.assign(headers, authHeaders);
 		}
 
-		const timeout = Number(process.env.LEVELY_LLM_TIMEOUT_MS) || 60000;
+		const effectiveTimeout = timeout || Number(process.env.LEVELY_LLM_TIMEOUT_MS) || 60000;
 
 		const response = await this._doRequestWithRetry(
 			(activeModel) => {
 				const url = this._buildUrl({ modelOverride: activeModel });
 				return axios.post(url, payload, {
 					headers,
-					timeout,
+					timeout: effectiveTimeout,
 					httpAgent: standardHttpAgent,
 					httpsAgent: standardHttpsAgent,
 				});
 			},
-			{ primaryModel, fallbackModel }
+			{ primaryModel, fallbackModel, maxRetries }
 		);
 
 		const actualModel = response.config?.url?.includes(fallbackModel) ? fallbackModel : primaryModel;
