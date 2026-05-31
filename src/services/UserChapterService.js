@@ -84,24 +84,99 @@ exports.createUserChapter = async (newData) => {
 
 exports.updateUserChapter = async (id, updateData) => {
     try {
-        const userChapter = await prisma.userChapter.update({
-            where: { id },
-            data: updateData,
-        });
+        // Read the current state first so we can detect what changed.
+        const existing = await prisma.userChapter.findUnique({ where: { id } });
+
+        const materialDone = updateData.materialDone !== undefined ? updateData.materialDone : (existing?.materialDone || false);
+        const assessmentDone = updateData.assessmentDone !== undefined ? updateData.assessmentDone : (existing?.assessmentDone || false);
+        const isCompleted = materialDone && assessmentDone;
+
+        const didMaterialAccess = updateData.materialDone === true && !existing?.materialDone;
+        const didAssignmentSubmit = updateData.assignmentDone === true && !existing?.assignmentDone;
+        const didChapterComplete = isCompleted && !existing?.isCompleted;
+
+        const dataToUpdate = { ...updateData, isCompleted };
+        if (isCompleted && (!existing || !existing.isCompleted)) {
+            dataToUpdate.timeFinished = new Date();
+        }
+
+        let userChapter;
+        try {
+            userChapter = await prisma.userChapter.update({
+                where: { id },
+                data: dataToUpdate,
+            });
+        } catch (error) {
+            if (error.code === 'P2025') return null;
+            if (isMissingColumnError(error, '`assessmentPointsEarned`')) {
+                const { assessmentPointsEarned, ...legacyData } = dataToUpdate || {};
+                userChapter = await prisma.userChapter.update({
+                    where: { id },
+                    data: legacyData,
+                    select: userChapterLegacySelect,
+                });
+            } else {
+                throw new Error(error.message);
+            }
+        }
+
+        const userId = existing?.userId;
+        const chapterId = existing?.chapterId;
+
+        if (userId && chapterId) {
+            if (didMaterialAccess) {
+                void evaluationService.recordActivityEvent({
+                    userId,
+                    eventName: evaluationService.EVENT_NAMES.MATERIAL_ACCESS,
+                    chapterId,
+                    metadata: { source: 'user_chapter_update_by_id' },
+                    eventIdempotencyKey: `material_access:${userId}:${chapterId}:${Date.now()}`,
+                    triggerRecompute: true,
+                });
+            }
+
+            if (didAssignmentSubmit) {
+                void evaluationService.recordActivityEvent({
+                    userId,
+                    eventName: evaluationService.EVENT_NAMES.ASSIGNMENT_SUBMIT,
+                    chapterId,
+                    score: updateData?.assignmentScore ?? null,
+                    metadata: {
+                        source: 'user_chapter_update_by_id',
+                        hasSubmission: Boolean(updateData?.submission),
+                    },
+                    eventIdempotencyKey: `assignment_submit:${userId}:${chapterId}:${Date.now()}`,
+                    triggerRecompute: true,
+                });
+            }
+
+            if (didChapterComplete) {
+                const chapter = await prisma.chapter.findUnique({
+                    where: { id: parseInt(chapterId) },
+                    select: { courseId: true },
+                });
+                if (chapter) {
+                    const userCourseService = require('./UserCourseService');
+                    void userCourseService.recalculateUserCourseProgress(parseInt(userId), chapter.courseId);
+                }
+
+                void evaluationService.recordActivityEvent({
+                    userId,
+                    eventName: evaluationService.EVENT_NAMES.CHAPTER_COMPLETED,
+                    chapterId,
+                    score: updateData?.assessmentGrade ?? null,
+                    points: updateData?.assessmentPointsEarned ?? null,
+                    metadata: { source: 'user_chapter_update_by_id' },
+                    eventIdempotencyKey: `chapter_completed:${userId}:${chapterId}:${Date.now()}`,
+                    triggerRecompute: true,
+                });
+            }
+
+            await evaluationService.syncSummaryToSupabase(userId);
+        }
+
         return userChapter;
     } catch (error) {
-        if (error.code === 'P2025') {
-            return null;
-        }
-        if (isMissingColumnError(error, '`assessmentPointsEarned`')) {
-            const { assessmentPointsEarned, ...legacyData } = updateData || {};
-            const userChapter = await prisma.userChapter.update({
-                where: { id },
-                data: legacyData,
-                select: userChapterLegacySelect,
-            });
-            return userChapter;
-        }
         throw new Error(error.message);
     }
 }
