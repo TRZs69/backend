@@ -17,8 +17,8 @@ router.post('/register', async (req, res) => {
                 username,
                 password: hashedPassword,
                 name,
-                role: "ADMIN",
-                studentId: "1920",
+                role: "STUDENT",
+                studentId: null,
                 points: 0,
                 totalCourses: 0,
                 badges: 0,
@@ -27,17 +27,34 @@ router.post('/register', async (req, res) => {
             }
         })
 
-        const token = jwt.sign({ id: result.lastInsertRowid }, process.env.JWT_SECRET, { expiresIn: '24h' })
-        res.json({ token })
+        const expiresIn = 60 * 60 * 24 * 30;
+        const token = jwt.sign(
+            { id: user.id, name: user.name, role: user.role },
+            process.env.JWT_SECRET,
+            { expiresIn }
+        )
+
+        res.status(201).json({
+            data: {
+                id: user.id,
+                name: user.name,
+                role: user.role,
+            },
+            token: token
+        })
     } catch (err) {
-        console.log(err.message)
-        res.status(503).json({ message: 'Service temporarily unavailable' })
+        console.error('Register error:', err.message)
+        res.status(500).json({ message: 'Failed to register user. ' + err.message })
     }
 })
 
 router.post('/login', async (req, res) => {
 
     const { username, password } = req.body
+
+    if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" })
+    }
 
     try {
         const user = await prisma.user.findUnique({
@@ -47,7 +64,7 @@ router.post('/login', async (req, res) => {
         })
 
         if (!user) {
-            return res.status(404).send({ message: "User not found" })
+            return res.status(404).json({ message: "User not found" })
         }
 
         const passwordIsValid = await bcrypt.compareSync(password, user.password)
@@ -55,7 +72,6 @@ router.post('/login', async (req, res) => {
         if (!passwordIsValid) {
             return res.status(403).json({ message: "Invalid password" })
         }
-        console.log(user)
 
         const payload = {
             id: user.id,
@@ -100,8 +116,8 @@ router.post('/login', async (req, res) => {
             token: token
         })
     } catch (err) {
-        console.log(err.message)
-        res.status(503).json({ message: 'Service temporarily unavailable' })
+        console.error('Login error:', err.message)
+        res.status(500).json({ message: 'Internal server error during login' })
     }
 
 })
