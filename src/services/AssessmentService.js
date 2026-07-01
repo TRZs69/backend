@@ -1,5 +1,6 @@
 const prisma = require('../prismaClient');
 const evaluationService = require('./EvaluationService');
+const eloLoggingService = require('./EloLoggingService');
 const { GoogleAIClient } = require('./GoogleAIClient');
 const {
     clampElo,
@@ -1736,6 +1737,12 @@ const finalizeAttemptInTransaction = async (tx, attempt, userId, chapterId, isSt
         aiFeedback,
         evaluations,
         userChapter: updatedChapter,
+        // Fields tambahan untuk EloLoggingService (tidak dikirim ke client)
+        _logExtra: {
+            difficultyBefore: userChapter.currentDifficulty,
+            chapterId,
+            source: refreshedAttempt.source,
+        },
     };
 };
 
@@ -1929,6 +1936,26 @@ const createOrResumeAttempt = async (
             const attemptWithServed = await prisma.$transaction(async (tx) => {
                 return ensureCurrentQuestionServedTx(tx, createdAttempt.id);
             }, INTERACTIVE_TX_OPTIONS);
+
+            // ── Question Selection Log: soal pertama yang di-serve ─────────────
+            const firstServedQ = attemptWithServed?.questions?.find((q) => q.servedOrder === 1) || null;
+            if (firstServedQ) {
+                // Soal pertama selalu ditargetkan ke FIRST_QUESTION_ELO (800) = band Beginner
+                const firstBandIdx = resolveBandIndex(FIRST_QUESTION_ELO);
+                const firstBand    = ELO_BANDS[firstBandIdx];
+                void eloLoggingService.logQuestionSelection({
+                    studentId:              normalizedUserId,
+                    assessmentId:           createdAttempt.id,
+                    chapterId:              normalizedChapterId,
+                    studentRating:          userElo,
+                    targetRatingMin:        firstBand ? firstBand.min : MIN_ELO,
+                    targetRatingMax:        firstBand ? firstBand.max : MIN_ELO + 250,
+                    selectedQuestionId:     firstServedQ.sourceQuestionId ?? null,
+                    selectedQuestionRating: clampElo(firstServedQ.elo),
+                    generatedByAi:          source === ATTEMPT_SOURCE.GENERATED,
+                });
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             return attemptWithServed;
         } finally {
@@ -2267,16 +2294,22 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
         let isCorrect = false;
         let userDeltaRaw = 0;
         let questionDeltaRaw = 0;
-        
-        
+
+        // Elo state sebelum duel — digunakan untuk logging
         let nextUserEloPreview = Math.max(MIN_ELO, currentUser?.elo || attempt.currentUserElo || MIN_ELO);
         let nextQuestionElo = clampElo(activeQuestion.elo);
+        const questionEloBeforeDuel = clampElo(activeQuestion.elo); // snapshot sebelum duel
 
         let nextObjectiveAnswered = attempt.objectiveAnswered || 0;
         let nextObjectiveCorrect = attempt.objectiveCorrect || 0;
         let nextRawEloDelta = Number(attempt.rawEloDelta || 0);
         const courseEloBefore = nextUserEloPreview;
         let targetNextQuestionElo = courseEloBefore;
+
+        // Data yang akan dikumpulkan selama duel untuk logging (hanya untuk objective + student)
+        let _logKStudent = 0;
+        let _logKQuestion = 0;
+        let _logExpectedScore = 0;
 
         if (isObjective) {
             const correctAnswer = String(activeQuestion.answer || activeQuestion.correctedAnswer || '').trim().toLowerCase();
@@ -2296,6 +2329,11 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
                     MIN_ELO,
                     nextUserEloPreview + (isCorrect ? 50 : -50),
                 );
+
+                // Kumpulkan data K-Factor dan expected score untuk logging
+                _logKStudent      = determineUserKFactor(courseEloBefore);
+                _logKQuestion     = determineQuestionKFactor(questionEloBeforeDuel);
+                _logExpectedScore = 1 / (1 + Math.pow(10, -(courseEloBefore - questionEloBeforeDuel) / 400));
             }
             nextObjectiveAnswered += 1;
             if (isCorrect) {
@@ -2386,7 +2424,6 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             (updatedAttempt.objectiveAnswered || 0) >= (updatedAttempt.objectiveTarget || ATTEMPT_OBJECTIVE_TARGET);
 
         if ((objectiveCompleted && essayAnswered) || !activeAfterAnswer) {
-            
             const finalFreshAttempt = await getAttemptByIdTx(tx, attempt.id);
             const result = await finalizeAttemptInTransaction(
                 tx,
@@ -2398,14 +2435,42 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             return {
                 completed: true,
                 result,
+                // Data logging untuk soal terakhir yang baru saja dijawab (sebelum finalisasi)
+                _evalLog: (isObjective && isStudent) ? {
+                    assessment: {
+                        assessmentId:          normalizedAttemptId,
+                        studentId:             normalizedUserId,
+                        chapterId:             normalizedChapterId,
+                        questionId:            activeQuestion.sourceQuestionId ?? null,
+                        studentRatingBefore:   courseEloBefore,
+                        studentRatingAfter:    nextUserEloPreview,
+                        questionRatingBefore:  questionEloBeforeDuel,
+                        questionRatingAfter:   nextQuestionElo,
+                        expectedScore:         _logExpectedScore,
+                        actualScore:           isCorrect ? 1 : 0,
+                        kStudent:              _logKStudent,
+                        kQuestion:             _logKQuestion,
+                        difficultyLevel:       determineDifficulty(questionEloBeforeDuel),
+                    },
+                    nextQuestion: null, // attempt selesai, tidak ada soal berikutnya
+                } : null,
             };
         }
 
         let dynamicPointsEarnedThisQuestion = 0;
         if (isObjective && isStudent && isCorrect) {
-            const expectedProbUser = 1 / (1 + Math.pow(10, -(courseEloBefore - clampElo(activeQuestion.elo)) / 400));
-            
-            dynamicPointsEarnedThisQuestion = Math.round(10 * (1 - expectedProbUser));
+            // _logExpectedScore sudah dihitung di atas saat duel; gunakan kembali
+            dynamicPointsEarnedThisQuestion = Math.round(10 * (1 - _logExpectedScore));
+        }
+
+        // Hitung target band range untuk soal berikutnya (untuk Question Selection Log)
+        let _nextBandMin = MIN_ELO;
+        let _nextBandMax = MIN_ELO + 250;
+        if (isStudent) {
+            const _nextBandIdx = resolveBandIndex(targetNextQuestionElo);
+            const _nextBand = ELO_BANDS[_nextBandIdx];
+            _nextBandMin = _nextBand ? _nextBand.min : MIN_ELO;
+            _nextBandMax = _nextBand ? _nextBand.max : MIN_ELO + 250;
         }
 
         return {
@@ -2421,21 +2486,105 @@ exports.answerAttemptQuestion = async (userId, chapterId, attemptId, questionId,
             userEloPreview: updatedAttempt.currentUserElo || MIN_ELO,
             nextQuestion: activeAfterAnswer ? toPublicQuestion(activeAfterAnswer, false) : null,
             progress: buildAttemptProgress(updatedAttempt, updatedQuestions),
+            // Data logging (distrip sebelum dikirim ke client)
+            _evalLog: (isObjective && isStudent) ? {
+                assessment: {
+                    assessmentId:          normalizedAttemptId,
+                    studentId:             normalizedUserId,
+                    chapterId:             normalizedChapterId,
+                    questionId:            activeQuestion.sourceQuestionId ?? null,
+                    studentRatingBefore:   courseEloBefore,
+                    studentRatingAfter:    updatedAttempt.currentUserElo || MIN_ELO,
+                    questionRatingBefore:  questionEloBeforeDuel,
+                    questionRatingAfter:   nextQuestionElo,
+                    expectedScore:         _logExpectedScore,
+                    actualScore:           isCorrect ? 1 : 0,
+                    kStudent:              _logKStudent,
+                    kQuestion:             _logKQuestion,
+                    difficultyLevel:       determineDifficulty(questionEloBeforeDuel),
+                },
+                nextQuestion: (activeAfterAnswer && attempt.source) ? {
+                    assessmentId:            normalizedAttemptId,
+                    studentId:               normalizedUserId,
+                    chapterId:               normalizedChapterId,
+                    studentRating:           updatedAttempt.currentUserElo || MIN_ELO,
+                    targetRatingMin:         _nextBandMin,
+                    targetRatingMax:         _nextBandMax,
+                    selectedQuestionId:      activeAfterAnswer.sourceQuestionId ?? null,
+                    selectedQuestionRating:  clampElo(activeAfterAnswer.elo),
+                    generatedByAi:           attempt.source === ATTEMPT_SOURCE.GENERATED,
+                } : null,
+            } : null,
         };
     }, INTERACTIVE_TX_OPTIONS);
 
-    if (transactionResult.completed) {
+    // ── Evaluation Logging (fire-and-forget, tidak memblokir response) ──────────
+    const _evalLog = transactionResult._evalLog || null;
+
+    if (_evalLog?.assessment) {
+        void eloLoggingService.logAssessmentInteraction(_evalLog.assessment);
+    }
+    if (_evalLog?.nextQuestion) {
+        void eloLoggingService.logQuestionSelection(_evalLog.nextQuestion);
+    }
+
+    if (transactionResult.completed && transactionResult.result) {
+        const r = transactionResult.result;
+        const logExtra = r._logExtra || {};
+        const bandBefore = determineDifficulty(r.courseEloStart);
+        const bandAfter  = determineDifficulty(r.courseEloEnd);
+
+        void eloLoggingService.logAdaptiveDecision({
+            studentId:         normalizedUserId,
+            assessmentId:      r.attemptId,
+            chapterId:         normalizedChapterId,
+            studentBandBefore: bandBefore,
+            studentBandAfter:  bandAfter,
+            difficultyBefore:  logExtra.difficultyBefore || bandBefore,
+            difficultyAfter:   r.newDifficulty || bandAfter,
+            eloStart:          r.courseEloStart,
+            eloEnd:            r.courseEloEnd,
+        });
+
+        // assessment_number = jumlah submitted attempt di chapter ini (termasuk yang baru)
+        void prisma.assessmentAttempt.count({
+            where: {
+                userId:    normalizedUserId,
+                chapterId: normalizedChapterId,
+                status:    'SUBMITTED',
+            },
+        }).then((assessmentNumber) => {
+            void eloLoggingService.logStudentBandHistory({
+                studentId:        normalizedUserId,
+                assessmentId:     r.attemptId,
+                chapterId:        normalizedChapterId,
+                assessmentNumber: assessmentNumber,
+                eloRating:        r.courseEloEnd,
+                band:             bandAfter,
+                kStudent:         determineUserKFactor(r.courseEloEnd),
+            });
+        }).catch((err) => {
+            console.error('[AssessmentService] Failed to count submitted attempts for band history:', err.message);
+        });
+
         const chapter = await prisma.chapter.findUnique({
             where: { id: normalizedChapterId },
-            select: { courseId: true }
+            select: { courseId: true },
         });
         if (chapter) {
             const userCourseService = require('./UserCourseService');
             void userCourseService.recalculateUserCourseProgress(normalizedUserId, chapter.courseId);
         }
     }
+    // ─────────────────────────────────────────────────────────────────────────
 
-    return transactionResult;
+    // Strip internal log data sebelum dikirim ke client
+    const { _evalLog: _stripped, ...publicResult } = transactionResult;
+    if (publicResult.result) {
+        const { _logExtra: _strippedExtra, ...publicInnerResult } = publicResult.result;
+        publicResult.result = publicInnerResult;
+    }
+    return publicResult;
 };
 
 exports.prefetchAttempt = async (userId, chapterId) => {
