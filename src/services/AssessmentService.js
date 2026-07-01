@@ -1762,6 +1762,8 @@ const createOrResumeAttempt = async (
         throw new Error('userId dan chapterId harus berupa angka');
     }
 
+    const generationKey = `${normalizedUserId}:${normalizedChapterId}`;
+
     if (forceNew) {
         await prisma.assessmentAttempt.updateMany({
             where: {
@@ -1783,7 +1785,6 @@ const createOrResumeAttempt = async (
             return { attempt: existingAttempt, resumed: true };
         }
 
-        const generationKey = `${normalizedUserId}:${normalizedChapterId}`;
         const inFlight = IN_FLIGHT_GENERATIONS.get(generationKey);
         if (inFlight) {
             console.log(`Waiting for in-flight generation for ${generationKey}...`);
